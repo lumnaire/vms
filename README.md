@@ -71,7 +71,7 @@ Follow these steps **in order** after cloning the project.
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/asakuraku000/vms.git
+git clone https://github.com/lumnaire/vms.git
 cd vms
 ```
 
