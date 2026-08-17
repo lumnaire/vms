@@ -18,24 +18,24 @@ A web-based commodity supply projection and price monitoring system for the fish
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Backend | PHP 8.2+, Laravel 11 |
-| Database | MySQL 8.0+ |
-| Frontend | Tailwind CSS (CDN), Alpine.js (CDN), Bootstrap Icons (CDN) |
-| Build Tool | Vite (for asset bundling if needed) |
-| Auth | Custom session-based with role middleware |
+| Layer      | Technology                                                 |
+| ---------- | ---------------------------------------------------------- |
+| Backend    | PHP 8.2+, Laravel 11                                       |
+| Database   | MySQL 8.0+                                                 |
+| Frontend   | Tailwind CSS (CDN), Alpine.js (CDN), Bootstrap Icons (CDN) |
+| Build Tool | Vite (for asset bundling if needed)                        |
+| Auth       | Custom session-based with role middleware                  |
 
 ---
 
 ## User Roles
 
-| Role | Access |
-|---|---|
-| **Supervisor** | Full control — vendors, staff, fish types, price guides, forecasts, reports |
-| **Staff** | Confirm/reject vendor price entries, manage vendors, view price guides & reports |
-| **Vendor** | Submit daily inventory and pricing entries |
-| **Public** | View live price board at `/prices` — no login required |
+| Role           | Access                                                                           |
+| -------------- | -------------------------------------------------------------------------------- |
+| **Supervisor** | Full control — vendors, staff, fish types, price guides, forecasts, reports      |
+| **Staff**      | Confirm/reject vendor price entries, manage vendors, view price guides & reports |
+| **Vendor**     | Submit daily inventory and pricing entries                                       |
+| **Public**     | View live price board at `/prices` — no login required                           |
 
 ---
 
@@ -46,12 +46,13 @@ Make sure you have these installed before starting:
 - **PHP** `>= 8.2` — [php.net/downloads](https://www.php.net/downloads)
 - **Composer** `>= 2.x` — [getcomposer.org](https://getcomposer.org)
 - **MySQL** `>= 8.0` — included in [Laragon](https://laragon.org) ✅, XAMPP, or standalone
-- **Node.js** `>= 18.x` + **npm** — [nodejs.org](https://nodejs.org) *(only needed if you run Vite for assets)*
+- **Node.js** `>= 18.x` + **npm** — [nodejs.org](https://nodejs.org) _(only needed if you run Vite for assets)_
 - **Git** — [git-scm.com](https://git-scm.com)
 
-> 💡 **Recommended local stack: [Laragon](https://laragon.org)** — comes with PHP, MySQL, Apache/Nginx, and automatic `.test` virtual hosts all in one installer. Your `APP_URL=http://virac-market-system.test` is already set up for this.
+> 💡 **Recommended local stack: [Laragon](https://laragon.org)** — comes with PHP, MySQL, Apache/Nginx, and automatic `.test` virtual hosts all in one installer. Your `APP_URL=http://vms.test` is already set up for this.
 
 > **Quick check** — run these in your terminal to confirm they're installed:
+>
 > ```bash
 > php -v
 > composer -V
@@ -70,8 +71,8 @@ Follow these steps **in order** after cloning the project.
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/asakuraku000/virac-market-system.git
-cd virac-market-system
+git clone https://github.com/asakuraku000/vms.git
+cd vms
 ```
 
 ---
@@ -96,7 +97,7 @@ Then open `.env` and update these values to match your local setup:
 
 ```env
 APP_NAME="Virac Market System"
-APP_URL=http://virac-market-system.test   # or http://localhost:8000 if using php artisan serve
+APP_URL=http://vms.test   # or http://localhost:8000 if using php artisan serve
 
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
@@ -140,6 +141,7 @@ EXIT;
 ```
 
 > If your root has **no password** (default in Laragon), just press Enter when prompted, or use:
+>
 > ```bash
 > mysql -u root -e "CREATE DATABASE virac_market_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 > ```
@@ -165,6 +167,7 @@ php artisan db:seed
 ```
 
 > This inserts:
+>
 > - 1 Supervisor account, 1 Staff account, 12 Vendor accounts
 > - All common Catanduanes fish types
 > - Sample price guides, 37 days of inventory history, and 14-day ARIMA forecasts
@@ -201,8 +204,8 @@ npm run build    # production build
 If you're using Laragon, your site is already accessible at the virtual host you configured. No extra command needed.
 
 ```
-http://virac-market-system.test/prices     ← public price board
-http://virac-market-system.test/login      ← login
+http://vms.test/prices     ← public price board
+http://vms.test/login      ← login
 ```
 
 **Option B — Built-in PHP server:**
@@ -226,11 +229,11 @@ http://localhost:8000/login     ← login
 
 > ⚠️ Change these passwords immediately if deploying to production.
 
-| Role | Username | Password |
-|---|---|---|
-| Supervisor | `supervisor` | `supervisor123` |
-| Staff | `staff` | `staff123` |
-| Vendor (all 12) | `vendor46` – `vendor57` | `vendor123` |
+| Role            | Username                | Password        |
+| --------------- | ----------------------- | --------------- |
+| Supervisor      | `supervisor`            | `supervisor123` |
+| Staff           | `staff`                 | `staff123`      |
+| Vendor (all 12) | `vendor46` – `vendor57` | `vendor123`     |
 
 ---
 
@@ -319,4 +322,4 @@ php artisan schedule:run          # Trigger due scheduled tasks
 
 ---
 
-*Catanduanes State University · Virac Public Market Capstone Project*
+_Catanduanes State University · Virac Public Market Capstone Project_
