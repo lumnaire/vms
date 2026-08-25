@@ -51,6 +51,11 @@ Route::middleware(['auth', 'role:supervisor'])
 
         Route::get('/forecasts', [\App\Http\Controllers\Supervisor\ForecastController::class, 'index'])->name('forecasts.index');
         Route::get('/reports',   [\App\Http\Controllers\Supervisor\ReportController::class,   'index'])->name('reports.index');
+
+        // ── My Account ─────────────────────────────────────────────
+        Route::get('/account',           [\App\Http\Controllers\Supervisor\AccountController::class, 'edit'])->name('account.edit');
+        Route::put('/account/profile',   [\App\Http\Controllers\Supervisor\AccountController::class, 'updateProfile'])->name('account.profile');
+        Route::put('/account/password',  [\App\Http\Controllers\Supervisor\AccountController::class, 'updatePassword'])->name('account.password');
     });
 
 // ── Staff ─────────────────────────────────────────────────────────
@@ -66,9 +71,8 @@ Route::middleware(['auth', 'role:staff'])
         Route::patch('/confirmations/{inventory}/approve',  [\App\Http\Controllers\Staff\ConfirmationController::class, 'approve'])->name('confirmations.approve');
         Route::patch('/confirmations/{inventory}/reject',   [\App\Http\Controllers\Staff\ConfirmationController::class, 'reject'])->name('confirmations.reject');
 
-        // ── Vendor Account Management ──────────────────────────────
+        // ── Vendor Account Management (creation is supervisor-only) ──
         Route::get('/vendors',                 [\App\Http\Controllers\Staff\VendorController::class, 'index'])->name('vendors.index');
-        Route::post('/vendors',                [\App\Http\Controllers\Staff\VendorController::class, 'store'])->name('vendors.store');
         Route::put('/vendors/{user}',          [\App\Http\Controllers\Staff\VendorController::class, 'update'])->name('vendors.update');
         Route::patch('/vendors/{user}/toggle', [\App\Http\Controllers\Staff\VendorController::class, 'toggleStatus'])->name('vendors.toggle');
         Route::delete('/vendors/{user}',       [\App\Http\Controllers\Staff\VendorController::class, 'destroy'])->name('vendors.destroy');

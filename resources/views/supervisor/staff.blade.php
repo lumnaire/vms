@@ -52,6 +52,19 @@
 </div>
 @endif
 
+{{-- ── Error Message ───────────────────────────────────────────── --}}
+@if(session('error'))
+<div class="mb-5 flex items-center gap-3 px-4 py-3 rounded-xl"
+     style="background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; font-size: 13.5px;">
+    <i class="bi bi-exclamation-octagon-fill flex-shrink-0" style="color: #ef4444; font-size: 15px;"></i>
+    <span class="font-medium">{{ session('error') }}</span>
+    <button onclick="this.parentElement.remove()"
+            class="ml-auto hover:opacity-60 transition-opacity" style="color: #f87171;">
+        <i class="bi bi-x-lg" style="font-size: 13px;"></i>
+    </button>
+</div>
+@endif
+
 {{-- ── Validation Errors ───────────────────────────────────────── --}}
 @if($errors->any())
 <div class="mb-5 px-4 py-3 rounded-xl"

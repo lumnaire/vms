@@ -52,6 +52,19 @@
 </div>
 @endif
 
+{{-- ── Error Message ───────────────────────────────────────────── --}}
+@if(session('error'))
+<div class="mb-5 flex items-center gap-3 px-4 py-3 rounded-xl"
+     style="background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; font-size: 13.5px;">
+    <i class="bi bi-exclamation-octagon-fill flex-shrink-0" style="color: #ef4444; font-size: 15px;"></i>
+    <span class="font-medium">{{ session('error') }}</span>
+    <button onclick="this.parentElement.remove()"
+            class="ml-auto hover:opacity-60 transition-opacity" style="color: #f87171;">
+        <i class="bi bi-x-lg" style="font-size: 13px;"></i>
+    </button>
+</div>
+@endif
+
 {{-- ── Validation Errors ───────────────────────────────────────── --}}
 @if($errors->any())
 <div class="mb-5 px-4 py-3 rounded-xl"
@@ -352,7 +365,8 @@
                             @if($vendor->status === 'inactive')
                                 <button onclick="openDeleteModal(
                                             {{ $vendor->id }},
-                                            '{{ addslashes($vendor->name) }}'
+                                            '{{ addslashes($vendor->name) }}',
+                                            {{ $vendor->vendor_inventories_count }}
                                         )"
                                         class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-colors"
                                         style="font-size: 12px; border: 1px solid #fecaca; color: #991b1b; background: #fef2f2;"
@@ -691,6 +705,12 @@
                         All account data will be removed.
                     </p>
                 </div>
+                <p id="deleteRecordWarning" class="hidden" style="font-size: 12.5px; color: #991b1b; line-height: 1.5; margin-top: 8px; padding-top: 8px; border-top: 1px solid #fecaca;">
+                    <i class="bi bi-archive-fill mr-1" style="font-size: 12px;"></i>
+                    <strong id="deleteRecordCount" style="font-weight: 700;"></strong>
+                    inventory record(s) submitted by this vendor will be deleted along with the
+                    account. Deactivate instead if you need to keep this market history.
+                </p>
             </div>
 
             {{-- CONFIRM input --}}
@@ -907,10 +927,16 @@
     }
 
     // ── Open Delete modal ──────────────────────────────────────────
-    function openDeleteModal(id, name) {
+    function openDeleteModal(id, name, recordCount = 0) {
         document.getElementById('deleteForm').action = `/supervisor/vendors/${id}`;
         document.getElementById('deleteVendorName').textContent = name;
         document.getElementById('deleteConfirmInput').value = '';
+
+        // Warn about the market records that go with the account
+        const warning = document.getElementById('deleteRecordWarning');
+        document.getElementById('deleteRecordCount').textContent = recordCount;
+        warning.classList.toggle('hidden', recordCount === 0);
+
         const btn = document.getElementById('deleteSubmitBtn');
         btn.disabled    = true;
         btn.style.opacity = '0.4';

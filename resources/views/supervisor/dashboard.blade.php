@@ -5,6 +5,25 @@
 
 @section('content')
 
+{{-- ── Greeting + Account Shortcut ───────────────────────────── --}}
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+    <div>
+        <p class="text-slate-800 font-bold" style="font-size: 16px;">
+            Good {{ now()->hour < 12 ? 'morning' : (now()->hour < 17 ? 'afternoon' : 'evening') }}, {{ auth()->user()->name }}
+        </p>
+        <p class="text-slate-400" style="font-size: 11.5px; margin-top: 1px;">
+            Signed in as <span class="font-mono" style="background:#f1f5f9; color:#475569; padding:1px 6px; border-radius:4px;">{{ '@' . auth()->user()->username }}</span>
+        </p>
+    </div>
+    <a href="{{ route('supervisor.account.edit') }}"
+       class="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-colors flex-shrink-0"
+       style="border: 1px solid #e2e8f0; color: #475569; background: white; font-size: 13px;"
+       onmouseover="this.style.background='#f8fafc'; this.style.borderColor='#cbd5e1'"
+       onmouseout="this.style.background='white'; this.style.borderColor='#e2e8f0'">
+        <i class="bi bi-person-gear"></i> My Account
+    </a>
+</div>
+
 {{-- ── Stat Cards ────────────────────────────────────────────── --}}
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
 

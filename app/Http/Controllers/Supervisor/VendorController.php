@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Supervisor;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -19,7 +20,7 @@ class VendorController extends Controller
         $inactiveVendors = User::where('role', 'vendor')->where('status', 'inactive')->count();
 
         // Build query with search and filter
-        $query = User::where('role', 'vendor')->with('vendorProfile');
+        $query = User::where('role', 'vendor')->with('vendorProfile')->withCount('vendorInventories');
 
         // Search by name, username, or stall number
         if ($search = $request->input('search')) {
@@ -141,8 +142,14 @@ class VendorController extends Controller
         abort_if($user->status !== 'inactive', 403, 'You can only delete inactive vendor accounts.');
 
         $name = $user->name;
-        $user->delete();
+
+        try {
+            $user->deleteWithRecords();
+        } catch (QueryException $e) {
+            return redirect()->route('supervisor.vendors.index')
+                ->with('error', "\"$name\" could not be deleted because other records still reference this account. Deactivate the account instead.");
+        }
 
         return redirect()->route('supervisor.vendors.index')
-            ->with('success', "Vendor account for \"$name\" has been permanently deleted.");
+            ->with('success', "Vendor account for \"$name\" and all of its market records have been permanently deleted.");
     }}

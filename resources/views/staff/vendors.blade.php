@@ -52,6 +52,19 @@
 </div>
 @endif
 
+{{-- ── Error Message ───────────────────────────────────────────── --}}
+@if(session('error'))
+<div class="mb-5 flex items-center gap-3 px-4 py-3 rounded-xl"
+     style="background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; font-size: 13.5px;">
+    <i class="bi bi-exclamation-octagon-fill flex-shrink-0" style="color: #ef4444; font-size: 15px;"></i>
+    <span class="font-medium">{{ session('error') }}</span>
+    <button onclick="this.parentElement.remove()"
+            class="ml-auto hover:opacity-60 transition-opacity" style="color: #f87171;">
+        <i class="bi bi-x-lg" style="font-size: 13px;"></i>
+    </button>
+</div>
+@endif
+
 {{-- ── Validation Errors ───────────────────────────────────────── --}}
 @if($errors->any())
 <div class="mb-5 px-4 py-3 rounded-xl"
@@ -142,13 +155,6 @@
                 Manage fish vendor login credentials, stall assignments, and access status
             </p>
         </div>
-        <button onclick="openModal('addModal')"
-                class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white font-semibold transition-colors flex-shrink-0"
-                style="background: #059669; font-size: 13px;"
-                onmouseover="this.style.background='#047857'"
-                onmouseout="this.style.background='#059669'">
-            <i class="bi bi-plus-lg"></i> Add Vendor
-        </button>
     </div>
 
     {{-- Search & Filter Bar --}}
@@ -205,7 +211,7 @@
         </div>
         <p class="text-slate-500 font-semibold" style="font-size: 13.5px;">No vendor accounts yet</p>
         <p class="text-slate-400 mt-1" style="font-size: 12px; max-width: 280px;">
-            Click "Add Vendor" to register the first fish vendor account.
+            Vendor accounts are registered by the supervisor.
         </p>
     </div>
 
@@ -352,7 +358,8 @@
                             @if($vendor->status === 'inactive')
                                 <button onclick="openDeleteModal(
                                             {{ $vendor->id }},
-                                            '{{ addslashes($vendor->name) }}'
+                                            '{{ addslashes($vendor->name) }}',
+                                            {{ $vendor->vendor_inventories_count }}
                                         )"
                                         class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-colors"
                                         style="font-size: 12px; border: 1px solid #fecaca; color: #991b1b; background: #fef2f2;"
@@ -439,111 +446,6 @@
 
 
 {{-- ══════════════════════════════════════════════ MODALS ════════ --}}
-
-{{-- ── Add Vendor Modal ────────────────────────────────────────── --}}
-<div id="addModal"
-     class="modal-overlay fixed inset-0 z-50 hidden flex items-center justify-center p-4"
-     style="background: rgba(0,0,0,0.45);"
-     onclick="if(event.target===this) closeModal('addModal')">
-
-    <div class="modal-box bg-white rounded-2xl w-full max-w-md overflow-hidden"
-         style="box-shadow: 0 24px 60px rgba(0,0,0,0.18);">
-
-        {{-- Modal header --}}
-        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-            <div>
-                <h3 class="text-slate-800 font-bold" style="font-size: 15px;">Add Vendor Account</h3>
-                <p class="text-slate-400" style="font-size: 11.5px; margin-top: 1px;">
-                    Register a new fish vendor with stall assignment
-                </p>
-            </div>
-            <button onclick="closeModal('addModal')"
-                    class="text-slate-300 hover:text-slate-500 transition-colors"
-                    style="line-height: 1;">
-                <i class="bi bi-x-lg" style="font-size: 16px;"></i>
-            </button>
-        </div>
-
-        {{-- Modal form --}}
-        <form method="POST" action="{{ route('staff.vendors.store') }}" class="px-6 py-5">
-            @csrf
-
-            <div class="space-y-4">
-
-                {{-- Full Name --}}
-                <div>
-                    <label class="form-label">Full Name</label>
-                    <input type="text" name="name" value="{{ old('name') }}" required
-                           placeholder="e.g. Maria Santos"
-                           class="form-input">
-                </div>
-
-                {{-- Username --}}
-                <div>
-                    <label class="form-label">Username</label>
-                    <div style="position: relative;">
-                        <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:13px;">@</span>
-                        <input type="text" name="username" value="{{ old('username') }}" required
-                               placeholder="vendor_username"
-                               class="form-input" style="padding-left: 28px;">
-                    </div>
-                    <p class="text-slate-400 mt-1" style="font-size: 11px;">
-                        Letters, numbers, underscores, and dashes only.
-                    </p>
-                </div>
-
-                {{-- Stall Number --}}
-                <div>
-                    <label class="form-label">Stall Number</label>
-                    <div style="position: relative;">
-                        <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:13px;"><i class="bi bi-shop"></i></span>
-                        <input type="text" name="stall_number" value="{{ old('stall_number') }}" required
-                               placeholder="e.g. FS-01"
-                               class="form-input" style="padding-left: 32px; text-transform: uppercase;">
-                    </div>
-                    <p class="text-slate-400 mt-1" style="font-size: 11px;">
-                        Must be unique. Auto-uppercased on save.
-                    </p>
-                </div>
-
-                {{-- Password --}}
-                <div>
-                    <label class="form-label">Password</label>
-                    <input type="password" name="password" required
-                           placeholder="Minimum 8 characters"
-                           class="form-input">
-                </div>
-
-                {{-- Confirm Password --}}
-                <div>
-                    <label class="form-label">Confirm Password</label>
-                    <input type="password" name="password_confirmation" required
-                           placeholder="Repeat password"
-                           class="form-input">
-                </div>
-
-            </div>
-
-            <div class="flex justify-end gap-3 mt-6">
-                <button type="button" onclick="closeModal('addModal')"
-                        class="px-4 py-2 rounded-lg font-semibold transition-colors"
-                        style="font-size: 13px; border: 1px solid #e2e8f0; color: #64748b; background: white;"
-                        onmouseover="this.style.background='#f8fafc'"
-                        onmouseout="this.style.background='white'">
-                    Cancel
-                </button>
-                <button type="submit"
-                        class="px-5 py-2 rounded-lg text-white font-semibold transition-colors"
-                        style="font-size: 13px; background: #059669;"
-                        onmouseover="this.style.background='#047857'"
-                        onmouseout="this.style.background='#059669'">
-                    <i class="bi bi-plus-lg mr-1"></i> Create Account
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
 
 {{-- ── Edit Vendor Modal ────────────────────────────────────────── --}}
 <div id="editModal"
@@ -691,6 +593,12 @@
                         All account data will be removed.
                     </p>
                 </div>
+                <p id="deleteRecordWarning" class="hidden" style="font-size: 12.5px; color: #991b1b; line-height: 1.5; margin-top: 8px; padding-top: 8px; border-top: 1px solid #fecaca;">
+                    <i class="bi bi-archive-fill mr-1" style="font-size: 12px;"></i>
+                    <strong id="deleteRecordCount" style="font-weight: 700;"></strong>
+                    inventory record(s) submitted by this vendor will be deleted along with the
+                    account. Deactivate instead if you need to keep this market history.
+                </p>
             </div>
 
             {{-- CONFIRM input --}}
@@ -886,7 +794,6 @@
     // ── ESC key closes any open modal ─────────────────────────────
     document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') {
-            closeModal('addModal');
             closeModal('editModal');
             closeModal('deactivateModal');
             closeModal('activateModal');
@@ -909,10 +816,16 @@
     }
 
     // ── Open Delete modal ──────────────────────────────────────────
-    function openDeleteModal(id, name) {
+    function openDeleteModal(id, name, recordCount = 0) {
         document.getElementById('deleteForm').action = `/staff/vendors/${id}`;
         document.getElementById('deleteVendorName').textContent = name;
         document.getElementById('deleteConfirmInput').value = '';
+
+        // Warn about the market records that go with the account
+        const warning = document.getElementById('deleteRecordWarning');
+        document.getElementById('deleteRecordCount').textContent = recordCount;
+        warning.classList.toggle('hidden', recordCount === 0);
+
         const btn = document.getElementById('deleteSubmitBtn');
         btn.disabled    = true;
         btn.style.opacity = '0.4';
@@ -929,12 +842,6 @@
         btn.style.opacity = ready ? '1'            : '0.4';
         btn.style.cursor  = ready ? 'pointer'      : 'not-allowed';
     }
-
-    // ── Re-open Add modal if there were validation errors ─────────
-    // (only fires when the form was submitted, not on page load)
-    @if($errors->any() && !old('_method'))
-        openModal('addModal');
-    @endif
 
     // ── Re-open Edit modal if update had validation errors ────────
     @if($errors->any() && old('_method') === 'PUT' && old('_edit_user_id'))

@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Staff;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 
@@ -18,7 +18,7 @@ class VendorController extends Controller
         $activeVendors   = User::where('role', 'vendor')->where('status', 'active')->count();
         $inactiveVendors = User::where('role', 'vendor')->where('status', 'inactive')->count();
 
-        $query = User::where('role', 'vendor')->with('vendorProfile');
+        $query = User::where('role', 'vendor')->with('vendorProfile')->withCount('vendorInventories');
 
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
@@ -42,38 +42,6 @@ class VendorController extends Controller
             'activeVendors',
             'inactiveVendors',
         ));
-    }
-
-    // ─── Create a new vendor account ──────────────────────────────
-    public function store(Request $request)
-    {
-        $request->validate([
-            'name'         => ['required', 'string', 'max:100'],
-            'username'     => ['required', 'string', 'max:50', 'alpha_dash', 'unique:users,username'],
-            'stall_number' => ['required', 'string', 'max:20', 'unique:vendor_profiles,stall_number'],
-            'password'     => ['required', 'string', 'min:8', 'confirmed'],
-        ], [
-            'username.alpha_dash' => 'Username may only contain letters, numbers, dashes, and underscores.',
-            'username.unique'     => 'That username is already taken.',
-            'stall_number.unique' => 'That stall number is already assigned to another vendor.',
-            'password.confirmed'  => 'Password confirmation does not match.',
-        ]);
-
-        $vendor = User::create([
-            'name'       => $request->name,
-            'username'   => $request->username,
-            'password'   => Hash::make($request->password),
-            'role'       => 'vendor',
-            'status'     => 'active',
-            'created_by' => Auth::id(),
-        ]);
-
-        $vendor->vendorProfile()->create([
-            'stall_number' => strtoupper(trim($request->stall_number)),
-        ]);
-
-        return redirect()->route('staff.vendors.index')
-            ->with('success', "Vendor account for \"{$request->name}\" created successfully.");
     }
 
     // ─── Update an existing vendor account ────────────────────────
@@ -136,9 +104,15 @@ class VendorController extends Controller
         abort_if($user->status !== 'inactive', 403, 'You can only delete inactive vendor accounts.');
 
         $name = $user->name;
-        $user->delete();
+
+        try {
+            $user->deleteWithRecords();
+        } catch (QueryException $e) {
+            return redirect()->route('staff.vendors.index')
+                ->with('error', "\"$name\" could not be deleted because other records still reference this account. Deactivate the account instead.");
+        }
 
         return redirect()->route('staff.vendors.index')
-            ->with('success', "Vendor account for \"$name\" has been permanently deleted.");
+            ->with('success', "Vendor account for \"$name\" and all of its market records have been permanently deleted.");
     }
 }

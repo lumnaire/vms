@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Supervisor;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -120,8 +121,14 @@ class StaffController extends Controller
         abort_if($user->status !== 'inactive', 403, 'You can only delete inactive staff accounts.');
 
         $name = $user->name;
-        $user->delete();
+
+        try {
+            $user->deleteWithRecords();
+        } catch (QueryException $e) {
+            return redirect()->route('supervisor.staff.index')
+                ->with('error', "\"$name\" could not be deleted because other records still reference this account. Deactivate the account instead.");
+        }
 
         return redirect()->route('supervisor.staff.index')
-            ->with('success', "Staff account for \"$name\" has been permanently deleted.");
+            ->with('success', "Staff account for \"$name\" and all of its market records have been permanently deleted.");
     }}

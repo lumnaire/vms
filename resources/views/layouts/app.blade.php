@@ -201,6 +201,15 @@
                     <i class="bi bi-file-earmark-bar-graph nav-icon"></i> Reports
                 </a>
 
+                <p style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.3); padding: 0 12px; margin: 14px 0 8px;">
+                    Account
+                </p>
+
+                <a href="{{ route('supervisor.account.edit') }}"
+                   class="nav-link {{ request()->routeIs('supervisor.account.*') ? 'active' : '' }}">
+                    <i class="bi bi-person-gear nav-icon"></i> My Account
+                </a>
+
             {{-- ── Staff Nav ── --}}
             @elseif($role === 'staff')
                 <a href="{{ route('staff.dashboard') }}"
@@ -252,10 +261,17 @@
                     <i class="bi bi-person-fill text-blue-300" style="font-size: 13px;"></i>
                 </div>
 
-                <div class="flex-1 min-w-0">
-                    <p class="text-white font-semibold truncate" style="font-size: 11.5px;">{{ auth()->user()->name }}</p>
-                    <p class="text-white/35 truncate" style="font-size: 10px;">{{ auth()->user()->username }}</p>
-                </div>
+                @if($role === 'supervisor')
+                    <a href="{{ route('supervisor.account.edit') }}" class="flex-1 min-w-0 hover:opacity-80 transition-opacity" title="Manage my account">
+                        <p class="text-white font-semibold truncate" style="font-size: 11.5px;">{{ auth()->user()->name }}</p>
+                        <p class="text-white/35 truncate" style="font-size: 10px;">{{ auth()->user()->username }}</p>
+                    </a>
+                @else
+                    <div class="flex-1 min-w-0">
+                        <p class="text-white font-semibold truncate" style="font-size: 11.5px;">{{ auth()->user()->name }}</p>
+                        <p class="text-white/35 truncate" style="font-size: 10px;">{{ auth()->user()->username }}</p>
+                    </div>
+                @endif
 
                 {{-- Logout --}}
                 <form method="POST" action="{{ route('logout') }}">
