@@ -1,0 +1,44 @@
+# ══════════════════════════════════════════════════════════════════
+# Virac Market System — front door for Hostinger shared hosting
+#
+# Hostinger serves the domain out of public_html/, but Laravel's real
+# entry point is public/index.php. This file forwards every request
+# into public/ internally, so the visible URL never shows "/public".
+#
+# Cleaner alternative: in hPanel, point the domain's document root at
+# public_html/public (Websites → Dashboard → Website → General). If you
+# do that, delete this file — it is only a workaround for hosts that
+# won't let you move the document root.
+# ══════════════════════════════════════════════════════════════════
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Forward everything into public/.
+    #
+    # The (?!public/) guard matters: in .htaccess context [L] does NOT end
+    # rewriting — the rewritten URL is fed back through this same file. Without
+    # the guard, /prices becomes public/prices, then public/public/prices, and
+    # so on until Apache trips its 10-internal-redirect limit and returns a 500.
+    RewriteRule ^(?!public/)(.*)$ public/$1 [L]
+</IfModule>
+
+# ── Defence in depth ──────────────────────────────────────────────
+# The rule above already hides app/, vendor/, storage/ and .env, because
+# every request is redirected into public/ where those paths don't exist.
+# These directives keep them hidden even if mod_rewrite is unavailable.
+
+# No directory listings
+Options -Indexes
+
+# Dotfiles: .env, .env.example, .git, .editorconfig ...
+# (matches filenames only, so /.well-known/ SSL validation still works)
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+# Project files that should never be served over HTTP
+<FilesMatch "^(artisan|composer\.(json|lock)|package(-lock)?\.json|phpunit\.xml|vite\.config\.js|generate\.bat|.*\.md)$">
+    Require all denied
+</FilesMatch>
