@@ -12,7 +12,7 @@ use Carbon\Carbon;
  * ForecastSeeder
  *
  * Pre-populates the forecasts table with 14-day ARIMA(1,1,1) projections
- * starting from June 7, 2026 (the day after the last seeded inventory date).
+ * starting from the day after the last seeded inventory date.
  *
  * Run AFTER VendorInventorySeeder so historical data exists.
  * Usage: php artisan db:seed --class=ForecastSeeder
@@ -21,9 +21,7 @@ use Carbon\Carbon;
  */
 class ForecastSeeder extends Seeder
 {
-    private const QUALITY_CLASSES = [
-        'First Class', 'Second Class', 'Third Class', 'Fourth Class', 'Special Class',
-    ];
+    private const QUALITY_CLASSES = FishType::QUALITY_CLASSES;
     private const METRICS   = ['price', 'volume'];
     private const MIN_HISTORY = 7;
     private const HORIZON   = 14;
@@ -56,8 +54,8 @@ class ForecastSeeder extends Seeder
         $raw = VendorInventory::where('fish_type_id', $fishTypeId)
             ->where('quality_class', $quality)
             ->where('status', 'confirmed')
-            ->whereDate('entry_date', '<', Carbon::create(2026, 6, 7))
-            ->whereDate('entry_date', '>=', Carbon::create(2026, 5, 1))
+            ->whereDate('entry_date', '<', Carbon::today())
+            ->whereDate('entry_date', '>=', Carbon::today()->subDays(90))
             ->orderBy('entry_date')
             ->get();
 
@@ -128,8 +126,8 @@ class ForecastSeeder extends Seeder
             'mean_diff' => round($meanD, 4),
         ];
 
-        // Forecasts start June 7, 2026 (day after last seeded inventory)
-        $forecastStart = Carbon::create(2026, 6, 7);
+        // Forecasts start the day after the last seeded inventory date
+        $forecastStart = Carbon::today()->addDay();
 
         foreach ($forecasts as $i => $f) {
             Forecast::create([

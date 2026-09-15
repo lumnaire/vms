@@ -60,7 +60,16 @@ class InventoryController extends Controller
     {
         $request->validate([
             'fish_type_id'  => ['required', 'exists:fish_types,id'],
-            'quality_class' => ['required', 'in:First Class,Second Class,Third Class,Fourth Class,Special Class'],
+            'quality_class' => [
+                'required',
+                'in:' . implode(',', FishType::QUALITY_CLASSES),
+                function ($attribute, $value, $fail) use ($request) {
+                    $fish = FishType::find($request->fish_type_id);
+                    if ($fish && $fish->quality_class !== $value) {
+                        $fail('The selected quality class does not match this fish type.');
+                    }
+                },
+            ],
             'price_per_kg'  => ['required', 'numeric', 'min:0.01', 'max:99999.99'],
             'stock_kg'      => ['required', 'numeric', 'min:0.1',  'max:99999.99'],
             'released_kg'   => ['required', 'numeric', 'min:0.1',  'lte:stock_kg'],

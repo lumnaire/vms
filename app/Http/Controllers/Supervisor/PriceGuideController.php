@@ -9,10 +9,6 @@ use Illuminate\Http\Request;
 
 class PriceGuideController extends Controller
 {
-    private array $qualityClasses = [
-        'First Class', 'Second Class', 'Third Class', 'Fourth Class', 'Special Class',
-    ];
-
     // ─── List all fish types with their price brackets ───────────
     public function index()
     {
@@ -24,7 +20,7 @@ class PriceGuideController extends Controller
         $totalGuides     = PriceGuide::where('is_active', true)->count();
         $totalConfigured = $fishTypes->filter(fn($f) => $f->priceGuides->isNotEmpty())->count();
         $totalMissing    = $fishTypes->filter(fn($f) => $f->priceGuides->isEmpty())->count();
-        $qualityClasses  = $this->qualityClasses;
+        $qualityClasses  = FishType::QUALITY_CLASSES;
 
         return view('supervisor.price-guides', compact(
             'fishTypes', 'totalGuides', 'totalConfigured', 'totalMissing', 'qualityClasses'
@@ -36,7 +32,16 @@ class PriceGuideController extends Controller
     {
         $request->validate([
             'fish_type_id'   => ['required', 'exists:fish_types,id'],
-            'quality_class'  => ['required', 'in:' . implode(',', $this->qualityClasses)],
+            'quality_class'  => [
+                'required',
+                'in:' . implode(',', FishType::QUALITY_CLASSES),
+                function ($attribute, $value, $fail) use ($request) {
+                    $fish = FishType::find($request->fish_type_id);
+                    if ($fish && $fish->quality_class !== $value) {
+                        $fail('The selected quality class does not match this fish type.');
+                    }
+                },
+            ],
             'cheap_max'      => ['required', 'numeric', 'min:0.01'],
             'moderate_max'   => ['required', 'numeric', 'gt:cheap_max'],
             'effective_date' => ['required', 'date'],

@@ -31,10 +31,12 @@ class FishTypeController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name'  => ['required', 'string', 'max:100', 'unique:fish_types,name'],
-            'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'name'          => ['required', 'string', 'max:100', 'unique:fish_types,name'],
+            'quality_class' => ['required', 'in:' . implode(',', FishType::QUALITY_CLASSES)],
+            'image'         => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
         ], [
-            'name.unique' => 'A fish type with that name already exists.',
+            'name.unique'          => 'A fish type with that name already exists.',
+            'quality_class.required' => 'Please select a quality class.',
         ]);
 
         $imagePath = null;
@@ -43,9 +45,10 @@ class FishTypeController extends Controller
         }
 
         FishType::create([
-            'name'       => ucwords(strtolower(trim($request->name))),
-            'is_active'  => true,
-            'image_path' => $imagePath,
+            'name'          => ucwords(strtolower(trim($request->name))),
+            'quality_class' => $request->quality_class,
+            'is_active'     => true,
+            'image_path'    => $imagePath,
         ]);
 
         return redirect()->route('supervisor.fish-types.index')
@@ -56,11 +59,13 @@ class FishTypeController extends Controller
     public function update(Request $request, FishType $fishType)
     {
         $request->validate([
-            'name'         => ['required', 'string', 'max:100', 'unique:fish_types,name,' . $fishType->id],
-            'image'        => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
-            'remove_image' => ['nullable', 'boolean'],
+            'name'          => ['required', 'string', 'max:100', 'unique:fish_types,name,' . $fishType->id],
+            'quality_class' => ['required', 'in:' . implode(',', FishType::QUALITY_CLASSES)],
+            'image'         => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'remove_image'  => ['nullable', 'boolean'],
         ], [
-            'name.unique' => 'A fish type with that name already exists.',
+            'name.unique'          => 'A fish type with that name already exists.',
+            'quality_class.required' => 'Please select a quality class.',
         ]);
 
         $imagePath = $fishType->image_path;
@@ -80,8 +85,9 @@ class FishTypeController extends Controller
         }
 
         $fishType->update([
-            'name'       => ucwords(strtolower(trim($request->name))),
-            'image_path' => $imagePath,
+            'name'          => ucwords(strtolower(trim($request->name))),
+            'quality_class' => $request->quality_class,
+            'image_path'    => $imagePath,
         ]);
 
         return redirect()->route('supervisor.fish-types.index')

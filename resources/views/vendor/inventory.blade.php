@@ -144,30 +144,14 @@
 
                 <div class="space-y-4">
 
-                    {{-- Fish Type --}}
-                    <div>
-                        <label class="form-label">
-                            Fish Type <span style="color:#ef4444;">*</span>
-                        </label>
-                        <select name="fish_type_id" required class="form-input">
-                            <option value="">— Select fish type —</option>
-                            @foreach($fishTypes as $fish)
-                                <option value="{{ $fish->id }}"
-                                    {{ old('fish_type_id') == $fish->id ? 'selected' : '' }}>
-                                    {{ $fish->name }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-
                     {{-- Quality Class --}}
                     <div>
                         <label class="form-label">
                             Quality Class <span style="color:#ef4444;">*</span>
                         </label>
-                        <select name="quality_class" required class="form-input">
+                        <select name="quality_class" id="qualityClassSelect" required class="form-input">
                             <option value="">— Select class —</option>
-                            @foreach(['First Class', 'Second Class', 'Third Class', 'Fourth Class', 'Special Class'] as $class)
+                            @foreach(\App\Models\FishType::QUALITY_CLASSES as $class)
                                 <option value="{{ $class }}"
                                     {{ old('quality_class') == $class ? 'selected' : '' }}>
                                     {{ $class }}
@@ -177,6 +161,23 @@
                         <p class="mt-1 text-slate-400" style="font-size: 11px;">
                             One entry per fish type + quality class per day.
                         </p>
+                    </div>
+
+                    {{-- Fish Type (filtered by the selected quality class) --}}
+                    <div>
+                        <label class="form-label">
+                            Fish Type <span style="color:#ef4444;">*</span>
+                        </label>
+                        <select name="fish_type_id" id="fishTypeSelect" required class="form-input">
+                            <option value="">— Select fish type —</option>
+                            @foreach($fishTypes as $fish)
+                                <option value="{{ $fish->id }}"
+                                    data-quality-class="{{ $fish->quality_class }}"
+                                    {{ old('fish_type_id') == $fish->id ? 'selected' : '' }}>
+                                    {{ $fish->name }}
+                                </option>
+                            @endforeach
+                        </select>
                     </div>
 
                     {{-- Price per kg --}}
@@ -500,5 +501,29 @@
             released.value = stock;
         }
     }
+
+    // Filter the fish type dropdown based on the chosen quality class
+    const qcSelect    = document.getElementById('qualityClassSelect');
+    const fishSelect  = document.getElementById('fishTypeSelect');
+    const allFishOpts = Array.from(fishSelect.options).filter(o => o.value !== '');
+
+    function filterFishTypes() {
+        const selectedClass = qcSelect.value;
+        const previousValue = fishSelect.value;
+
+        fishSelect.innerHTML = '<option value="">— Select fish type —</option>';
+
+        allFishOpts.forEach(opt => {
+            if (!selectedClass || opt.dataset.qualityClass === selectedClass) {
+                fishSelect.add(opt.cloneNode(true));
+            }
+        });
+
+        const hasPrevious = Array.from(fishSelect.options).some(o => o.value === previousValue);
+        fishSelect.value = hasPrevious ? previousValue : '';
+    }
+
+    qcSelect.addEventListener('change', filterFishTypes);
+    filterFishTypes(); // run once so old() input is preserved after validation errors
 </script>
 @endpush

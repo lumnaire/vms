@@ -10,10 +10,10 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             UserSeeder::class,       // supervisor, staff, sample vendors
-            FishTypeSeeder::class,   // common fish types in Catanduanes
-            PriceGuideSeeder::class,        // sample price brackets per fish + quality
-            VendorInventorySeeder::class,   // May 1 – June 6 2026 historical data (37 days)
-            ForecastSeeder::class,          // ARIMA 14-day forecast from June 7 onward
+            FishTypeSeeder::class,        // 125 active fish types with quality classes
+            PriceGuideSeeder::class,      // class-based price brackets per fish
+            VendorInventorySeeder::class, // May 1 2026 – today historical vendor data
+            ForecastSeeder::class,        // ARIMA 14-day forecast from tomorrow onward
         ]);
     }
 }

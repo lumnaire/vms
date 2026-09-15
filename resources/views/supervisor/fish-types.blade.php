@@ -180,6 +180,7 @@
             <tr style="background:#f8fafc; border-bottom:1px solid #f1f5f9;">
                 <th class="text-left text-slate-400 font-semibold px-5 py-3" style="font-size:11px;text-transform:uppercase;letter-spacing:0.07em;width:50px;">#</th>
                 <th class="text-left text-slate-400 font-semibold px-4 py-3" style="font-size:11px;text-transform:uppercase;letter-spacing:0.07em;">Fish Type Name</th>
+                <th class="text-left text-slate-400 font-semibold px-4 py-3" style="font-size:11px;text-transform:uppercase;letter-spacing:0.07em;">Quality Class</th>
                 <th class="text-left text-slate-400 font-semibold px-4 py-3" style="font-size:11px;text-transform:uppercase;letter-spacing:0.07em;width:120px;">Status</th>
                 <th class="text-right text-slate-400 font-semibold px-5 py-3" style="font-size:11px;text-transform:uppercase;letter-spacing:0.07em;width:220px;">Actions</th>
             </tr>
@@ -205,6 +206,16 @@
                             {{ $ft->name }}
                         </span>
                     </div>
+                </td>
+                <td class="px-4 py-3">
+                    @if($ft->quality_class)
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full font-semibold"
+                              style="font-size:11px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">
+                            {{ $ft->quality_class }}
+                        </span>
+                    @else
+                        <span class="text-slate-300" style="font-size:11px;">—</span>
+                    @endif
                 </td>
                 <td class="px-4 py-3">
                     @if($ft->is_active)
@@ -287,6 +298,15 @@
                             <input type="text" name="name" class="ft-form-input"
                                    value="{{ $ft->name }}" required maxlength="100">
 
+                            <label class="ft-form-label mt-3" style="margin-top:14px;">Quality Class <span style="color:#ef4444;">*</span></label>
+                            <select name="quality_class" class="ft-form-input" required>
+                                @foreach(\App\Models\FishType::QUALITY_CLASSES as $class)
+                                    <option value="{{ $class }}" {{ $ft->quality_class == $class ? 'selected' : '' }}>
+                                        {{ $class }}
+                                    </option>
+                                @endforeach
+                            </select>
+
                             <label class="ft-form-label mt-3" style="margin-top:14px;">Photo <span class="font-normal text-slate-400">(optional)</span></label>
                             <div class="ft-img-dropzone" id="editDrop{{ $ft->id }}">
                                 <input type="file" name="image" accept="image/jpg,image/jpeg,image/png,image/webp"
@@ -323,7 +343,7 @@
 
             @empty
             <tr>
-                <td colspan="4" class="text-center py-16">
+                <td colspan="5" class="text-center py-16">
                     <div class="flex flex-col items-center justify-center gap-2">
                         <div class="w-12 h-12 rounded-full flex items-center justify-center mb-1"
                              style="background:#eff6ff;">
@@ -382,6 +402,19 @@
                 <p class="text-slate-400 mt-2" style="font-size:11.5px;">
                     <i class="bi bi-info-circle"></i> Name will be auto-formatted to Title Case.
                 </p>
+
+                <label class="ft-form-label" style="margin-top:14px;">Quality Class <span style="color:#ef4444;">*</span></label>
+                <select name="quality_class" class="ft-form-input @error('quality_class') border-rose-300 @enderror" required>
+                    <option value="">— Select class —</option>
+                    @foreach(\App\Models\FishType::QUALITY_CLASSES as $class)
+                        <option value="{{ $class }}" {{ old('quality_class') == $class ? 'selected' : '' }}>
+                            {{ $class }}
+                        </option>
+                    @endforeach
+                </select>
+                @error('quality_class')
+                    <p style="font-size:11px; color:#dc2626; margin-top:4px;">{{ $message }}</p>
+                @enderror
 
                 <label class="ft-form-label" style="margin-top:14px;">Photo <span class="font-normal text-slate-400">(optional)</span></label>
                 <div class="ft-img-dropzone">

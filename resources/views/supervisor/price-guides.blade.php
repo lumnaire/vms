@@ -190,7 +190,14 @@
                 <i class="bi bi-water text-white" style="font-size:15px;"></i>
             </div>
             <div class="flex-1 min-w-0">
-                <p class="text-slate-800 font-bold truncate" style="font-size:13.5px;">{{ $fishType->name }}</p>
+                <div class="flex items-center gap-2 min-w-0">
+                    <p class="text-slate-800 font-bold truncate" style="font-size:13.5px;">{{ $fishType->name }}</p>
+                    @if($fishType->quality_class)
+                        <span class="class-badge class-{{ $classMap[$fishType->quality_class] ?? 'first' }} flex-shrink-0">
+                            {{ $fishType->quality_class }}
+                        </span>
+                    @endif
+                </div>
                 <p class="text-slate-400" style="font-size:11px; margin-top:1px;">
                     {{ $fishType->priceGuides->count() }} {{ Str::plural('class', $fishType->priceGuides->count()) }} configured
                 </p>
@@ -338,7 +345,19 @@
                     </div>
                 @endif
 
-                {{-- Fish Type --}}
+                {{-- Quality Class --}}
+                <div>
+                    <label class="form-label-pg">Quality Class <span class="text-rose-400">*</span></label>
+                    <select name="quality_class" id="add-quality-class-select"
+                            class="form-input-pg {{ $errors->has('quality_class') ? 'is-invalid' : '' }}" required>
+                        <option value="">— Select class —</option>
+                        @foreach($qualityClasses as $qc)
+                            <option value="{{ $qc }}" {{ old('quality_class') === $qc ? 'selected' : '' }}>{{ $qc }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                {{-- Fish Type (filtered by the selected quality class) --}}
                 <div>
                     <label class="form-label-pg">Fish Type <span class="text-rose-400">*</span></label>
                     <select name="fish_type_id" id="add-fish-type-select"
@@ -346,20 +365,11 @@
                             required>
                         <option value="">— Select fish type —</option>
                         @foreach($fishTypes as $ft)
-                            <option value="{{ $ft->id }}" {{ old('fish_type_id', session('open_add_modal')) == $ft->id ? 'selected' : '' }}>
+                            <option value="{{ $ft->id }}"
+                                data-quality-class="{{ $ft->quality_class }}"
+                                {{ old('fish_type_id', session('open_add_modal')) == $ft->id ? 'selected' : '' }}>
                                 {{ $ft->name }}
                             </option>
-                        @endforeach
-                    </select>
-                </div>
-
-                {{-- Quality Class --}}
-                <div>
-                    <label class="form-label-pg">Quality Class <span class="text-rose-400">*</span></label>
-                    <select name="quality_class" class="form-input-pg {{ $errors->has('quality_class') ? 'is-invalid' : '' }}" required>
-                        <option value="">— Select class —</option>
-                        @foreach($qualityClasses as $qc)
-                            <option value="{{ $qc }}" {{ old('quality_class') === $qc ? 'selected' : '' }}>{{ $qc }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -539,13 +549,46 @@
         if (e.target === document.getElementById(id)) closeModal(id);
     }
 
+    // ── Fetch modal helpers ───────────────────────────────────────
+    const addQCSelect    = document.getElementById('add-quality-class-select');
+    const addFishSelect  = document.getElementById('add-fish-type-select');
+    const addAllFishOpts = Array.from(addFishSelect.options).filter(o => o.value !== '');
+
+    function filterAddFishTypes() {
+        const selectedClass = addQCSelect.value;
+        const previousValue = addFishSelect.value;
+
+        addFishSelect.innerHTML = '<option value="">— Select fish type —</option>';
+
+        addAllFishOpts.forEach(opt => {
+            if (!selectedClass || opt.dataset.qualityClass === selectedClass) {
+                addFishSelect.add(opt.cloneNode(true));
+            }
+        });
+
+        const hasPrevious = Array.from(addFishSelect.options).some(o => o.value === previousValue);
+        addFishSelect.value = hasPrevious ? previousValue : '';
+    }
+
+    // Auto-set the quality class to the fish's own class when a fish is chosen
+    addFishSelect.addEventListener('change', function () {
+        const opt = addAllFishOpts.find(o => o.value === addFishSelect.value);
+        if (opt) addQCSelect.value = opt.dataset.qualityClass;
+    });
+
     // ── Open Add Modal (optionally pre-select a fish type) ───────
     function openAddModal(fishTypeId) {
         if (fishTypeId) {
-            document.getElementById('add-fish-type-select').value = fishTypeId;
+            const opt = addAllFishOpts.find(o => o.value == fishTypeId);
+            if (opt) addQCSelect.value = opt.dataset.qualityClass;
         }
+        filterAddFishTypes();
+        if (fishTypeId) addFishSelect.value = fishTypeId;
         openModal('addModal');
     }
+
+    addQCSelect.addEventListener('change', filterAddFishTypes);
+    filterAddFishTypes(); // run once so old() input is preserved after validation errors
 
     // ── Open Edit Modal and populate fields ──────────────────────
     function openEditModal(id, cheapMax, moderateMax, effectiveDate, actionUrl, qualityClass, fishName) {

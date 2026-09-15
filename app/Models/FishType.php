@@ -6,8 +6,17 @@ use Illuminate\Database\Eloquent\Model;
 
 class FishType extends Model
 {
+    public const QUALITY_CLASSES = [
+        'First Class',
+        'Second Class',
+        'Third Class',
+        'Fourth Class',
+        'Special Class',
+    ];
+
     protected $fillable = [
         'name',
+        'quality_class',
         'is_active',
         'image_path',
     ];

@@ -13,11 +13,12 @@ class ForecastController extends Controller
     public function index(Request $request)
     {
         $fishTypes      = FishType::where('is_active', true)->orderBy('name')->get();
-        $qualityClasses = ['First Class', 'Second Class', 'Third Class', 'Fourth Class', 'Special Class'];
+        $qualityClasses = FishType::QUALITY_CLASSES;
         $metrics        = ['price' => 'Price (₱/kg)', 'volume' => 'Supply (kg)'];
 
         $selectedFishTypeId = (int) $request->input('fish_type_id', $fishTypes->first()?->id);
-        $selectedQuality    = $request->input('quality_class', 'First Class');
+        $selectedFishType   = $fishTypes->firstWhere('id', $selectedFishTypeId);
+        $selectedQuality    = $request->input('quality_class', $selectedFishType?->quality_class ?? 'First Class');
         $selectedMetric     = $request->input('metric', 'price');
 
         // 14-day rolling forecast from the forecasts table

@@ -80,11 +80,12 @@
                style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;">
             <i class="bi bi-water" style="margin-right:4px;"></i>Fish Type
         </label>
-        <select name="fish_type_id"
-                onchange="document.getElementById('filterForm').submit()"
+        <select name="fish_type_id" id="forecast-fish-type"
+                onchange="forecastOnFishChange()"
                 class="filter-sel">
             @foreach($fishTypes as $ft)
                 <option value="{{ $ft->id }}"
+                        data-quality-class="{{ $ft->quality_class }}"
                         {{ $selectedFishTypeId == $ft->id ? 'selected' : '' }}>
                     {{ $ft->name }}
                 </option>
@@ -98,8 +99,8 @@
                style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;">
             Quality Class
         </label>
-        <select name="quality_class"
-                onchange="document.getElementById('filterForm').submit()"
+        <select name="quality_class" id="forecast-quality-class"
+                onchange="forecastOnClassChange()"
                 class="filter-sel">
             @foreach($qualityClasses as $qc)
                 <option value="{{ $qc }}"
@@ -580,6 +581,46 @@
      CHART.JS INITIALIZATION
 ═══════════════════════════════════════════════════════════════════ --}}
 @push('scripts')
+<script>
+    // ── Filter bar: keep the fish type list in sync with quality class ──
+    (function () {
+        const fcQcSel    = document.getElementById('forecast-quality-class');
+        const fcFishSel  = document.getElementById('forecast-fish-type');
+        if (!fcQcSel || !fcFishSel) return;
+
+        const allFishOpts = Array.from(fcFishSel.options);
+
+        function syncFishOptions() {
+            const selectedClass = fcQcSel.value;
+            const previousValue = fcFishSel.value;
+
+            fcFishSel.innerHTML = '';
+
+            const matching = allFishOpts.filter(opt => opt.dataset.qualityClass === selectedClass);
+            matching.forEach(opt => fcFishSel.add(opt.cloneNode(true)));
+
+            if (matching.some(opt => opt.value === previousValue)) {
+                fcFishSel.value = previousValue;
+            } else if (matching.length) {
+                fcFishSel.value = matching[0].value;
+            }
+        }
+
+        window.forecastOnClassChange = function () {
+            syncFishOptions();
+            document.getElementById('filterForm').submit();
+        };
+
+        window.forecastOnFishChange = function () {
+            const opt = allFishOpts.find(o => o.value === fcFishSel.value);
+            if (opt) fcQcSel.value = opt.dataset.qualityClass;
+            document.getElementById('filterForm').submit();
+        };
+
+        syncFishOptions();
+    })();
+</script>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
