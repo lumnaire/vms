@@ -133,9 +133,9 @@
         <h1 class="text-slate-800 font-bold" style="font-size: 20px;">Fish Type Management</h1>
         <p class="text-slate-400 mt-0.5" style="font-size: 12.5px;">Add, rename, or deactivate fish types available in the market.</p>
     </div>
-    <button class="btn-ft-primary" onclick="ftOpenModal('addModal')">
+    {{-- <button class="btn-ft-primary" onclick="ftOpenModal('addModal')">
         <i class="bi bi-plus-lg"></i> Add Fish Type
-    </button>
+    </button> --}}
 </div>
 
 {{-- ── Flash Messages ───────────────────────────────────────── --}}
