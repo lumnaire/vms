@@ -87,6 +87,16 @@
         transition:background 0.15s;
     }
     .btn-pg-cancel:hover { background:#e2e8f0; }
+
+    .filter-sel {
+        background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px;
+        padding:7px 12px; font-size:13px; font-weight:500; color:#334155;
+        transition:border-color .15s, box-shadow .15s; appearance:none;
+        background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 16 16'%3E%3Cpath fill='%2394a3b8' d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+        background-repeat:no-repeat; background-position:right 10px center; padding-right:30px;
+        cursor:pointer;
+    }
+    .filter-sel:focus { outline:none; border-color:#93c5fd; box-shadow:0 0 0 3px rgba(59,130,246,0.1); }
 </style>
 @endpush
 
@@ -167,6 +177,61 @@
     </button>
 </div>
 
+{{-- ── Filter Bar ─────────────────────────────────────────────── --}}
+<form method="GET" action="{{ route('supervisor.price-guides.index') }}" id="pgFilterForm">
+    <div class="bg-white rounded-xl border border-slate-100 px-4 py-3.5 mb-5 flex flex-wrap items-end gap-3"
+         style="box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+
+        {{-- Category (quality class) --}}
+        <div class="flex flex-col gap-1.5 flex-shrink-0" style="min-width:170px;">
+            <label class="text-slate-400 font-semibold select-none"
+                   style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;">
+                <i class="bi bi-grid-3x3-gap-fill" style="margin-right:4px;"></i>Category
+            </label>
+            <select name="quality_class" id="pg-category" onchange="onPgCategoryChange()" class="filter-sel">
+                <option value="">All</option>
+                @foreach($qualityClasses as $qc)
+                    <option value="{{ $qc }}" {{ $selectedCategory === $qc ? 'selected' : '' }}>{{ $qc }}</option>
+                @endforeach
+            </select>
+        </div>
+
+        {{-- Fish Type (narrowed by the selected category) --}}
+        <div class="flex flex-col gap-1.5 flex-shrink-0" style="min-width:170px;">
+            <label class="text-slate-400 font-semibold select-none"
+                   style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;">
+                <i class="bi bi-water" style="margin-right:4px;"></i>Fish Type
+            </label>
+            <select name="fish_type_id" id="pg-fish-type" onchange="onPgFishTypeChange()" class="filter-sel">
+                <option value="">All</option>
+                @foreach($categoryFishTypes as $ft)
+                    <option value="{{ $ft->id }}" {{ (int) $selectedFishType === (int) $ft->id ? 'selected' : '' }}>{{ $ft->name }}</option>
+                @endforeach
+            </select>
+        </div>
+
+        {{-- Filter submit + clear --}}
+        <div class="flex items-end gap-2 flex-shrink-0">
+            <button type="submit"
+                    class="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-colors"
+                    style="background:#1d4ed8; color:#fff; font-size:13px; cursor:pointer; border:none;"
+                    onmouseover="this.style.background='#1e40af'"
+                    onmouseout="this.style.background='#1d4ed8'">
+                <i class="bi bi-funnel"></i> Filter
+            </button>
+            @if($selectedCategory || $selectedFishType)
+                <a href="{{ route('supervisor.price-guides.index') }}"
+                   class="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-colors"
+                   style="border:1px solid #e2e8f0; color:#475569; background:#fff; font-size:13px; text-decoration:none;"
+                   onmouseover="this.style.background='#f8fafc'"
+                   onmouseout="this.style.background='#fff'">
+                    <i class="bi bi-arrow-clockwise"></i> Clear
+                </a>
+            @endif
+        </div>
+    </div>
+</form>
+
 {{-- ── Fish Type Cards ─────────────────────────────────────────── --}}
 @php
     $classMap = [
@@ -178,6 +243,24 @@
     ];
     $classOrder = array_keys($classMap);
 @endphp
+
+@if($fishTypes->isEmpty())
+
+    {{-- No fish types match the current filters --}}
+    <div class="bg-white rounded-xl border border-slate-100" style="box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+        <div style="padding:40px 20px; text-align:center;">
+            <i class="bi bi-funnel text-slate-300" style="font-size:24px; display:block; margin-bottom:10px;"></i>
+            <p class="text-slate-600 font-semibold" style="font-size:13px;">No fish types match your filters</p>
+            <p class="text-slate-400" style="font-size:11.5px; margin-top:3px;">Try a different category or fish type.</p>
+            <a href="{{ route('supervisor.price-guides.index') }}"
+               class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors mt-3"
+               style="font-size:12px; font-weight:600; border:1px dashed #93c5fd; text-decoration:none;">
+                <i class="bi bi-arrow-clockwise" style="font-size:11px;"></i> Clear filters
+            </a>
+        </div>
+    </div>
+
+@else
 
 <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
 
@@ -318,6 +401,8 @@
 
 </div>
 
+@endif
+
 
 {{-- ════════════════════════════════ ADD MODAL ════════════════════════════════ --}}
 <div id="addModal" class="modal-overlay hidden" onclick="handleOverlayClick(event,'addModal')">
@@ -364,7 +449,7 @@
                             class="form-input-pg {{ $errors->has('fish_type_id') ? 'is-invalid' : '' }}"
                             required>
                         <option value="">— Select fish type —</option>
-                        @foreach($fishTypes as $ft)
+                        @foreach($allFishTypes as $ft)
                             <option value="{{ $ft->id }}"
                                 data-quality-class="{{ $ft->quality_class }}"
                                 {{ old('fish_type_id', session('open_add_modal')) == $ft->id ? 'selected' : '' }}>
@@ -536,6 +621,19 @@
 
 @push('scripts')
 <script>
+    // ── Filter bar: category → fish type ─────────────────────────
+    const pgFilterForm    = document.getElementById('pgFilterForm');
+    const pgFishTypeSelect = document.getElementById('pg-fish-type');
+
+    function onPgCategoryChange() {
+        // Drop any stale fish type before submitting on category change
+        pgFishTypeSelect.value = '';
+        pgFilterForm.submit();
+    }
+    function onPgFishTypeChange() {
+        pgFilterForm.submit();
+    }
+
     // ── Modal helpers ────────────────────────────────────────────
     function openModal(id) {
         document.getElementById(id).classList.remove('hidden');
