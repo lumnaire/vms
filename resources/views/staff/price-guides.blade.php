@@ -108,11 +108,26 @@
     }
     .search-input::placeholder { color: #94a3b8; }
 
-    .legend-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        align-items: center;
+    .filter-sel {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 7px 12px;
+        font-size: 13px;
+        font-weight: 500;
+        color: #334155;
+        transition: border-color 0.15s, box-shadow 0.15s;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 16 16'%3E%3Cpath fill='%2394a3b8' d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 10px center;
+        padding-right: 30px;
+        cursor: pointer;
+    }
+    .filter-sel:focus {
+        outline: none;
+        border-color: #93c5fd;
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
     }
 
     @media (max-width: 640px) {
@@ -176,49 +191,92 @@
 
 </div>
 
-{{-- ── How to Read + Search ─────────────────────────────────── --}}
-<div class="bg-white rounded-xl border border-slate-100 p-5 mb-5" style="box-shadow: 0 1px 4px rgba(0,0,0,0.05);">
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+{{-- ── Filter + Search ─────────────────────────────────── --}}
+<div class="bg-white rounded-xl border border-slate-100 px-4 py-3.5 mb-5 flex flex-wrap items-end gap-3"
+     style="box-shadow: 0 1px 4px rgba(0,0,0,0.05);">
 
-        {{-- Legend --}}
-        <div>
-            <p class="text-slate-700 font-semibold mb-2" style="font-size: 12.5px;">How to read the price brackets:</p>
-            <div class="legend-row">
-                <span class="tier-pill tier-cheap">
-                    <i class="bi bi-circle-fill" style="font-size: 7px;"></i> Cheap
-                </span>
-                <span class="text-slate-400" style="font-size: 11.5px;">≤ cheap_max (₱/kg)</span>
-                <span class="mx-1 text-slate-200">|</span>
-                <span class="tier-pill tier-moderate">
-                    <i class="bi bi-circle-fill" style="font-size: 7px;"></i> Moderate
-                </span>
-                <span class="text-slate-400" style="font-size: 11.5px;">≤ moderate_max (₱/kg)</span>
-                <span class="mx-1 text-slate-200">|</span>
-                <span class="tier-pill tier-expensive">
-                    <i class="bi bi-circle-fill" style="font-size: 7px;"></i> Expensive
-                </span>
-                <span class="text-slate-400" style="font-size: 11.5px;">above moderate_max</span>
-            </div>
+    <form method="GET" action="{{ route('staff.price-guides.index') }}" id="pgFilterForm"
+          class="flex flex-wrap items-end gap-3">
+
+        {{-- Category (quality class) --}}
+        <div class="flex flex-col gap-1.5 flex-shrink-0" style="min-width:170px;">
+            <label class="text-slate-400 font-semibold select-none"
+                   style="font-size:10px; text-transform:uppercase; letter-spacing:.08em;">
+                <i class="bi bi-grid-3x3-gap-fill" style="margin-right:4px;"></i>Category
+            </label>
+            <select name="quality_class" id="pg-category" onchange="onPgCategoryChange()" class="filter-sel">
+                <option value="">All</option>
+                @foreach($qualityClasses as $qc)
+                    <option value="{{ $qc }}" {{ $selectedCategory === $qc ? 'selected' : '' }}>{{ $qc }}</option>
+                @endforeach
+            </select>
         </div>
 
-        {{-- Search --}}
-        <div class="relative flex-shrink-0">
-            <i class="bi bi-search" style="position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 13px;"></i>
-            <input
-                id="search-input"
-                type="text"
-                class="search-input"
-                placeholder="Search fish type…"
-                oninput="filterCards(this.value)"
-            >
+        {{-- Fish Type (narrowed by the selected category) --}}
+        <div class="flex flex-col gap-1.5 flex-shrink-0" style="min-width:170px;">
+            <label class="text-slate-400 font-semibold select-none"
+                   style="font-size:10px; text-transform:uppercase; letter-spacing:.08em;">
+                <i class="bi bi-water" style="margin-right:4px;"></i>Fish Type
+            </label>
+            <select name="fish_type_id" id="pg-fish-type" onchange="onPgFishTypeChange()" class="filter-sel">
+                <option value="">All</option>
+                @foreach($categoryFishTypes as $ft)
+                    <option value="{{ $ft->id }}" {{ (int) $selectedFishType === (int) $ft->id ? 'selected' : '' }}>{{ $ft->name }}</option>
+                @endforeach
+            </select>
         </div>
 
+        {{-- Filter submit + clear --}}
+        <div class="flex items-end gap-2 flex-shrink-0">
+            <button type="submit"
+                    class="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold"
+                    style="background:#1d4ed8; color:#fff; font-size:13px; cursor:pointer; border:none;">
+                <i class="bi bi-funnel"></i> Filter
+            </button>
+            @if($selectedCategory || $selectedFishType)
+                <a href="{{ route('staff.price-guides.index') }}"
+                   class="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold"
+                   style="border:1px solid #e2e8f0; color:#475569; background:#fff; font-size:13px; text-decoration:none;">
+                    <i class="bi bi-arrow-clockwise"></i> Clear
+                </a>
+            @endif
+        </div>
+
+    </form>
+
+    {{-- Search --}}
+    <div class="relative flex-shrink-0 ms-auto">
+        <i class="bi bi-search" style="position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 13px;"></i>
+        <input
+            id="search-input"
+            type="text"
+            class="search-input"
+            placeholder="Search fish type…"
+            oninput="filterCards(this.value)"
+        >
     </div>
+
 </div>
 
 {{-- ── Fish Type Cards Grid ─────────────────────────────────── --}}
 @if($fishTypes->isEmpty())
 
+    @if($selectedCategory || $selectedFishType)
+    <div class="empty-state">
+        <div class="w-14 h-14 rounded-full bg-slate-50 flex items-center justify-center mb-4" style="border: 1px solid #e2e8f0;">
+            <i class="bi bi-funnel text-slate-300" style="font-size: 24px;"></i>
+        </div>
+        <p class="text-slate-500 font-semibold" style="font-size: 14px;">No fish types match your filters</p>
+        <p class="text-slate-400 text-center mt-1" style="font-size: 12px; max-width: 300px;">
+            Try a different category or fish type.
+        </p>
+        <a href="{{ route('staff.price-guides.index') }}"
+           class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors mt-4"
+           style="font-size:12px; font-weight:600; border:1px dashed #93c5fd; text-decoration:none;">
+            <i class="bi bi-arrow-clockwise" style="font-size:11px;"></i> Clear filters
+        </a>
+    </div>
+    @else
     <div class="empty-state">
         <div class="w-14 h-14 rounded-full bg-slate-50 flex items-center justify-center mb-4" style="border: 1px solid #e2e8f0;">
             <i class="bi bi-tags text-slate-300" style="font-size: 24px;"></i>
@@ -228,6 +286,7 @@
             Price guide entries will appear here once fish types and their quality brackets are configured.
         </p>
     </div>
+    @endif
 
 @else
 
@@ -366,6 +425,19 @@
 
 @push('scripts')
 <script>
+    // ── Filter bar: category → fish type ─────────────────────────
+    const pgFilterForm     = document.getElementById('pgFilterForm');
+    const pgFishTypeSelect = document.getElementById('pg-fish-type');
+
+    function onPgCategoryChange() {
+        // Drop any stale fish type before submitting on category change
+        pgFishTypeSelect.value = '';
+        pgFilterForm.submit();
+    }
+    function onPgFishTypeChange() {
+        pgFilterForm.submit();
+    }
+
     function filterCards(query) {
         const term     = query.trim().toLowerCase();
         const cards    = document.querySelectorAll('#cards-grid .fish-card');
