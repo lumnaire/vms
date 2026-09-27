@@ -13,7 +13,7 @@ class DatabaseSeeder extends Seeder
             FishTypeSeeder::class,        // 125 active fish types with quality classes
             PriceGuideSeeder::class,      // class-based price brackets per fish
             VendorInventorySeeder::class, // May 1 2026 – today historical vendor data
-            ForecastSeeder::class,        // ARIMA 14-day forecast from tomorrow onward
+            ForecastSeeder::class,        // ARIMA 3-day price, supply & demand forecast from tomorrow onward
         ]);
     }
 }

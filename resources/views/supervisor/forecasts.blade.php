@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'ARIMA Forecasts')
-@section('subtitle', '14-Day Supply & Price Projection · Virac Public Market')
+@section('subtitle', "{$horizon}-Day Supply, Demand & Price Projection · Virac Public Market")
 
 @push('styles')
 <style>
@@ -32,10 +32,14 @@
 
 @php
     /* ── Resolved names & flags ──────────────────────────────── */
+    $metricMeta   = config("forecast.metric_meta.{$selectedMetric}");
     $selectedFishType = $fishTypes->firstWhere('id', $selectedFishTypeId);
     $fishTypeName     = $selectedFishType?->name ?? 'Unknown';
     $isMetricPrice    = $selectedMetric === 'price';
-    $metricUnit       = $isMetricPrice ? '₱/kg' : 'kg';
+    $metricShort      = $metricMeta['short'] ?? ucfirst($selectedMetric);
+    $metricChartTitle = $metricMeta['chart'] ?? 'Forecast';
+    $metricUnit       = $metricMeta['unit']  ?? '';
+    $metricPrefix     = $metricMeta['prefix'] ?? '';
     $hasForecasts     = $forecasts->isNotEmpty();
     $hasHistorical    = $historical->isNotEmpty();
 
@@ -125,7 +129,7 @@
                                {{ $selectedMetric === $key
                                    ? 'background:#2563eb; color:#fff; box-shadow:inset 0 1px 3px rgba(0,0,0,0.15);'
                                    : 'background:transparent; color:#64748b;' }}">
-                    {{ $label }}
+                    {{ config("forecast.metric_meta.{$key}.short") ?? $label }}
                 </button>
             @endforeach
         </div>
@@ -162,7 +166,7 @@
             <div>
                 <p class="text-slate-400 font-semibold"
                    style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;">
-                    14-Day Trend
+                    {{ $horizon }}-Day Trend
                 </p>
 
                 @if($trendLabel === 'upward')
@@ -171,7 +175,7 @@
                         <i class="bi bi-arrow-up-circle-fill"></i> Upward
                     </p>
                     <p class="text-slate-400 mt-1.5" style="font-size:11px;">
-                        {{ $isMetricPrice ? 'Prices trending up' : 'Supply increasing' }}
+                        {{ $metricShort }} increasing
                     </p>
                 @elseif($trendLabel === 'downward')
                     <p class="font-bold mt-2 flex items-center gap-1.5"
@@ -179,7 +183,7 @@
                         <i class="bi bi-arrow-down-circle-fill"></i> Downward
                     </p>
                     <p class="text-slate-400 mt-1.5" style="font-size:11px;">
-                        {{ $isMetricPrice ? 'Prices trending down' : 'Supply declining' }}
+                        {{ $metricShort }} declining
                     </p>
                 @elseif($trendLabel === 'stable')
                     <p class="font-bold mt-2 flex items-center gap-1.5"
@@ -202,7 +206,7 @@
         </div>
     </div>
 
-    {{-- 14-Day Average --}}
+    {{-- Horizon Average --}}
     <div class="stat-card bg-white rounded-xl p-5 border border-slate-100"
          style="box-shadow:0 1px 4px rgba(0,0,0,0.05);">
         <div class="flex items-start justify-between">
@@ -213,13 +217,13 @@
                 </p>
                 <p class="text-slate-800 font-bold mt-2" style="font-size:24px;line-height:1;">
                     @if($avgForecast !== null)
-                        {{ $isMetricPrice ? '₱' : '' }}{{ number_format($avgForecast, 2) }}
+                        {{ $metricPrefix }}{{ number_format($avgForecast, 2) }}
                         <span style="font-size:12px;color:#94a3b8;font-weight:600;">{{ $metricUnit }}</span>
                     @else
                         <span class="text-slate-300">—</span>
                     @endif
                 </p>
-                <p class="text-slate-400 mt-1.5" style="font-size:11px;">Over 14 days</p>
+                <p class="text-slate-400 mt-1.5" style="font-size:11px;">Over {{ $horizon }} days</p>
             </div>
             <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
                  style="background:#fefce8;">
@@ -239,7 +243,7 @@
                 </p>
                 <p class="text-slate-800 font-bold mt-2" style="font-size:24px;line-height:1;">
                     @if($minForecast !== null)
-                        {{ $isMetricPrice ? '₱' : '' }}{{ number_format($minForecast, 2) }}
+                        {{ $metricPrefix }}{{ number_format($minForecast, 2) }}
                         <span style="font-size:12px;color:#94a3b8;font-weight:600;">{{ $metricUnit }}</span>
                     @else
                         <span class="text-slate-300">—</span>
@@ -265,7 +269,7 @@
                 </p>
                 <p class="text-slate-800 font-bold mt-2" style="font-size:24px;line-height:1;">
                     @if($maxForecast !== null)
-                        {{ $isMetricPrice ? '₱' : '' }}{{ number_format($maxForecast, 2) }}
+                        {{ $metricPrefix }}{{ number_format($maxForecast, 2) }}
                         <span style="font-size:12px;color:#94a3b8;font-weight:600;">{{ $metricUnit }}</span>
                     @else
                         <span class="text-slate-300">—</span>
@@ -297,11 +301,12 @@
             <h2 class="text-slate-700 font-bold" style="font-size:14px;">
                 {{ $fishTypeName }}
                 <span class="text-slate-400 font-medium">
-                    — {{ $isMetricPrice ? 'Price Forecast' : 'Supply Forecast' }}
+                    — {{ $metricChartTitle }}
                 </span>
             </h2>
             <p class="text-slate-400 mt-0.5" style="font-size:11px;">
-                30-day historical · 14-day ARIMA projection ·
+                {{ config('forecast.history_chart_days') }}-day historical ·
+                {{ $horizon }}-day ARIMA projection ·
                 {{ $qualityLabel($selectedQuality) }}
             </p>
         </div>
@@ -387,7 +392,7 @@
 
 
 {{-- ═══════════════════════════════════════════════════════════════
-     14-DAY FORECAST BREAKDOWN TABLE
+     FORECAST BREAKDOWN TABLE
 ═══════════════════════════════════════════════════════════════════ --}}
 @if($hasForecasts)
 <div class="bg-white rounded-xl border border-slate-100 overflow-hidden"
@@ -397,7 +402,7 @@
     <div class="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center gap-3">
         <div class="flex-1 min-w-0">
             <h2 class="text-slate-700 font-bold" style="font-size:14px;">
-                14-Day Forecast Breakdown
+                {{ $horizon }}-Day {{ $metricShort }} Forecast Breakdown
             </h2>
             <p class="text-slate-400 mt-0.5" style="font-size:11px;">
                 Predicted values with confidence intervals ·
@@ -496,7 +501,7 @@
                         {{-- Predicted value --}}
                         <td class="text-right">
                             <p class="text-slate-800 font-bold" style="font-size:13.5px;">
-                                {{ $isMetricPrice ? '₱' : '' }}{{ number_format($val, 2) }}
+                                {{ $metricPrefix }}{{ number_format($val, 2) }}
                                 <span style="font-size:11px;color:#94a3b8;font-weight:500;">
                                     {{ $metricUnit }}
                                 </span>
@@ -507,7 +512,7 @@
                         <td class="text-right hidden md:table-cell text-slate-500"
                             style="font-size:12.5px;">
                             @if($fc->predicted_min !== null)
-                                {{ $isMetricPrice ? '₱' : '' }}{{ number_format($fc->predicted_min, 2) }}
+                                {{ $metricPrefix }}{{ number_format($fc->predicted_min, 2) }}
                             @else
                                 <span class="text-slate-300">—</span>
                             @endif
@@ -517,7 +522,7 @@
                         <td class="text-right hidden md:table-cell text-slate-500"
                             style="font-size:12.5px;">
                             @if($fc->predicted_max !== null)
-                                {{ $isMetricPrice ? '₱' : '' }}{{ number_format($fc->predicted_max, 2) }}
+                                {{ $metricPrefix }}{{ number_format($fc->predicted_max, 2) }}
                             @else
                                 <span class="text-slate-300">—</span>
                             @endif
@@ -529,11 +534,11 @@
                                 <span class="text-slate-300" style="font-size:11.5px;">—</span>
                             @elseif($diff > 0.001)
                                 <span class="font-semibold" style="color:#16a34a; font-size:12.5px;">
-                                    +{{ $isMetricPrice ? '₱' : '' }}{{ number_format(abs($diff), 2) }}
+                                    +{{ $metricPrefix }}{{ number_format(abs($diff), 2) }}
                                 </span>
                             @elseif($diff < -0.001)
                                 <span class="font-semibold" style="color:#e11d48; font-size:12.5px;">
-                                    −{{ $isMetricPrice ? '₱' : '' }}{{ number_format(abs($diff), 2) }}
+                                    −{{ $metricPrefix }}{{ number_format(abs($diff), 2) }}
                                 </span>
                             @else
                                 <span class="text-slate-400" style="font-size:12.5px;">±0.00</span>
@@ -639,6 +644,7 @@
     const fcMaxs     = @json($fcMaxs);
     const todayStr   = '{{ today()->format('Y-m-d') }}';
     const isPrice    = {{ $isMetricPrice ? 'true' : 'false' }};
+    const prefix     = {!! json_encode($metricPrefix) !!};
     const unit       = {!! json_encode($metricUnit) !!};
 
     if (!allLabels.length) return;
@@ -803,8 +809,7 @@
                             return item.datasetIndex >= 2 && item.parsed.y !== null;
                         },
                         label(item) {
-                            const prefix = isPrice ? '₱' : '';
-                            const val    = item.parsed.y.toFixed(2);
+                            const val = item.parsed.y.toFixed(2);
                             return ` ${item.dataset.label}: ${prefix}${val} ${unit}`;
                         },
                         // Append CI range for forecast points
@@ -813,9 +818,8 @@
                             const label  = items[0].label;
                             const fcIdx  = fcLabels.indexOf(label);
                             if (fcIdx < 0 || fcMins[fcIdx] === null) return;
-                            const prefix = isPrice ? '₱' : '';
-                            const lo     = Number(fcMins[fcIdx]).toFixed(2);
-                            const hi     = Number(fcMaxs[fcIdx]).toFixed(2);
+                            const lo = Number(fcMins[fcIdx]).toFixed(2);
+                            const hi = Number(fcMaxs[fcIdx]).toFixed(2);
                             return [` 95% CI: ${prefix}${lo} – ${prefix}${hi} ${unit}`];
                         }
                     }
@@ -849,7 +853,6 @@
                     border: { display: false },
                     ticks: {
                         callback(value) {
-                            const prefix = isPrice ? '₱' : '';
                             if (value >= 1000) return prefix + (value / 1000).toFixed(1) + 'k';
                             return prefix + value.toFixed(isPrice ? 0 : 1);
                         },

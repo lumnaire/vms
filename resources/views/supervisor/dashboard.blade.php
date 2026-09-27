@@ -106,7 +106,7 @@
             <div>
                 <h2 class="text-slate-700 font-bold" style="font-size: 13.5px;">Price Forecast</h2>
                 <p class="text-slate-400" style="font-size: 11px; margin-top: 1px;">
-                    ARIMA 14-day rolling projection &mdash; First Class &middot; All species
+                    ARIMA {{ config('forecast.horizon') }}-day rolling projection &mdash; First Class &middot; All species
                 </p>
             </div>
             @if($hasForecastData)

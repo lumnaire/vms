@@ -170,7 +170,8 @@ php artisan db:seed
 >
 > - 1 Supervisor account, 1 Staff account, 12 Vendor accounts
 > - All common Catanduanes fish types
-> - Sample price guides, 37 days of inventory history, and 14-day ARIMA forecasts
+> - Sample price guides, 37 days of inventory history, and 3-day ARIMA forecasts
+>   for **price**, **supply** (stock in) and **demand** (sold kg)
 
 ---
 

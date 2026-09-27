@@ -5,49 +5,36 @@ namespace App\Http\Controllers\Supervisor;
 use App\Http\Controllers\Controller;
 use App\Models\FishType;
 use App\Models\Forecast;
-use App\Models\VendorInventory;
+use App\Services\ArimaService;
 use Illuminate\Http\Request;
 
 class ForecastController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, ArimaService $arima)
     {
         $fishTypes      = FishType::where('is_active', true)->orderBy('name')->get();
         $qualityClasses = FishType::QUALITY_CLASSES;
-        $metrics        = ['price' => 'Price (₱/kg)', 'volume' => 'Supply (kg)'];
+        $metrics        = $this->metricOptions();
+        $horizon        = config('forecast.horizon');
 
         $selectedFishTypeId = (int) $request->input('fish_type_id', $fishTypes->first()?->id);
         $selectedFishType   = $fishTypes->firstWhere('id', $selectedFishTypeId);
         $selectedQuality    = $request->input('quality_class', $selectedFishType?->quality_class ?? 'First Class');
-        $selectedMetric     = $request->input('metric', 'price');
+        $selectedMetric     = $this->resolveMetric($request->input('metric'), array_keys($metrics));
 
-        // 14-day rolling forecast from the forecasts table
+        // Rolling ARIMA forecast for the selected series
         $forecasts = Forecast::where('fish_type_id', $selectedFishTypeId)
             ->where('quality_class', $selectedQuality)
             ->where('metric', $selectedMetric)
             ->where('forecast_date', '>=', today())
             ->orderBy('forecast_date')
-            ->take(14)
+            ->take($horizon)
             ->get();
 
-        // Historical data: last 30 confirmed days, averaged per day
-        $historicalRaw = VendorInventory::where('fish_type_id', $selectedFishTypeId)
-            ->where('quality_class', $selectedQuality)
-            ->where('status', 'confirmed')
-            ->whereDate('entry_date', '>=', today()->subDays(30))
-            ->whereDate('entry_date', '<', today())
-            ->orderBy('entry_date')
-            ->get();
+        // Confirmed daily history overlaid behind the forecast
+        $historical = $arima->historicalSeries($selectedFishTypeId, $selectedQuality, $selectedMetric);
 
-        $historical = $historicalRaw
-            ->groupBy(fn($e) => $e->entry_date->toDateString())
-            ->map(function ($dayEntries) use ($selectedMetric) {
-                return $selectedMetric === 'price'
-                    ? round($dayEntries->avg('price_per_kg'), 2)
-                    : round($dayEntries->sum('stock_kg'), 2);
-            });
-
-        // Latest trend indicator from the forecast
+        // Trend indicator carried on every row of the generated series
         $latestForecast = $forecasts->first();
         $trendLabel     = $latestForecast?->trend ?? null;
 
@@ -55,6 +42,7 @@ class ForecastController extends Controller
             'fishTypes',
             'qualityClasses',
             'metrics',
+            'horizon',
             'selectedFishTypeId',
             'selectedQuality',
             'selectedMetric',
@@ -63,5 +51,21 @@ class ForecastController extends Controller
             'latestForecast',
             'trendLabel',
         ));
+    }
+
+    /** Metric keys mapped to their display labels, e.g. 'price' => 'Price (₱/kg)' */
+    private function metricOptions(): array
+    {
+        $meta = config('forecast.metric_meta');
+
+        return collect(config('forecast.metrics'))
+            ->mapWithKeys(fn($key) => [$key => $meta[$key]['label'] ?? ucfirst($key)])
+            ->all();
+    }
+
+    /** Guard the metric query parameter against unknown values */
+    private function resolveMetric(?string $requested, array $allowed): string
+    {
+        return in_array($requested, $allowed, true) ? $requested : $allowed[0];
     }
 }
