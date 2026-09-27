@@ -17,10 +17,12 @@ use App\Models\VendorInventory;
  *   supply  — total stock_kg brought into the market per day
  *   demand  — total sold_kg per day (realized consumer demand)
  *
- * Estimation is by method of moments: first-difference the series, take the
- * AR(1) coefficient from the lag-1 autocorrelation of the differenced
- * series, then take the MA(1) coefficient from the autocorrelation of the
- * resulting residuals. Forecasts are rolled forward recursively.
+ * Estimation is by method of moments (Hannan-Rissanen style): first-difference
+ * the series, take the AR(1) coefficient from the lag-1 autocorrelation of the
+ * differenced series, then take the MA(1) coefficient from the lag-1
+ * autocorrelation of the resulting lagged AR(1) residuals. Forecasts are rolled
+ * forward recursively, with the MA term contributing to the one-step-ahead
+ * expectation only, since future innovations have a mean of zero.
  */
 class ArimaService
 {
@@ -163,9 +165,16 @@ class ArimaService
         $phi = $this->ar1Coefficient($diff);
 
         // ── Step C — MA(1) coefficient from the AR(1) residuals ──
+        // The residual for day t compares the *lagged* change against the current
+        // one: e[t] = (d[t] - mu) - phi * (d[t-1] - mu). Pairing d[t] with itself
+        // instead would make the residual a constant multiple of (d[t] - mu), and
+        // since ar1Coefficient() is a scale-invariant ratio the estimator would
+        // return phi for theta as well, collapsing the model to a single term.
         $residuals = [];
+        $prevD     = $meanD;
         foreach ($diff as $d) {
-            $residuals[] = $d - ($meanD + $phi * ($d - $meanD));
+            $residuals[] = ($d - $meanD) - $phi * ($prevD - $meanD);
+            $prevD       = $d;
         }
         $theta = $this->ar1Coefficient($residuals);
 
