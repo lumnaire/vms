@@ -10,8 +10,6 @@
         border-radius: 0.75rem;
         box-shadow: 0 1px 3px 0 rgb(0 0 0/.06);
     }
-    .stat-value   { font-size: 1.75rem; font-weight: 700; color: #111827; line-height: 1.2; }
-    .stat-label   { font-size: 0.7rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #6b7280; }
     .section-heading {
         font-size: 0.8125rem; font-weight: 600; color: #374151;
         padding: 0.875rem 1.25rem; border-bottom: 1px solid #f3f4f6;
@@ -93,16 +91,16 @@
 @endphp
 
 @section('content')
-<div style="min-height:100vh; background:#f8fafc; padding:1.5rem;">
+<div class="bg-surface-subtle" style="min-height:100vh; padding:1.5rem">
 <div style="max-width:1200px; margin:0 auto;">
 
     {{-- ── Page Header ───────────────────────────────────────── --}}
     <div style="display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:1rem; margin-bottom:1.5rem;">
         <div>
-            <div style="font-size:0.7rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#2563eb; margin-bottom:.25rem;">
+            <div class="font-bold uppercase tracking-[0.08em] mb-1" style="font-size:0.7rem; color:#2563eb">
                 Supervisor Portal
             </div>
-            <h1 style="font-size:1.5rem; font-weight:700; color:#111827; margin:0 0 .25rem;">
+            <h1 class="font-bold" style="font-size:1.5rem; color:#111827; margin:0 0 .25rem">
                 Daily Market Report
             </h1>
             <p style="font-size:0.8125rem; color:#6b7280; margin:0;">
@@ -133,31 +131,25 @@
     </div>
 
     {{-- ── Summary Cards ──────────────────────────────────────── --}}
-    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:1rem; margin-bottom:1.5rem;">
-        <div class="report-card" style="padding:1.125rem 1.25rem;">
-            <p class="stat-label" style="margin-bottom:.25rem;">Total Market Volume</p>
-            <p class="stat-value">{{ number_format($marketTotalKg, 2) }}
-                <span style="font-size:.875rem; font-weight:400; color:#6b7280;">kg</span>
-            </p>
-        </div>
-        <div class="report-card" style="padding:1.125rem 1.25rem;">
-            <p class="stat-label" style="margin-bottom:.25rem;">Active Vendors Today</p>
-            <p class="stat-value">{{ $activeVendors }}</p>
-        </div>
-        <div class="report-card" style="padding:1.125rem 1.25rem;">
-            <p class="stat-label" style="margin-bottom:.25rem;">Fish Types Recorded</p>
-            <p class="stat-value">{{ $priceBreakdown->pluck('fish_name')->unique()->count() }}</p>
-        </div>
-        <div class="report-card" style="padding:1.125rem 1.25rem; border-left:3px solid #2563eb;">
-            <p class="stat-label" style="margin-bottom:.25rem;">Report Date</p>
-            <p style="font-size:1rem; font-weight:700; color:#1e40af;">
-                {{ \Carbon\Carbon::parse($reportDate)->format('M d, Y') }}
-            </p>
-        </div>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <x-stat-card tinted tone="brand"
+                     label="Total Market Volume"
+                     :value="$marketTotalKg" unit="kg" />
+        <x-stat-card tinted tone="success"
+                     label="Active Vendors Today"
+                     :value="$activeVendors" decimals="0" />
+        <x-stat-card tinted tone="warning"
+                     label="Fish Types Recorded"
+                     :value="$priceBreakdown->pluck('fish_name')->unique()->count()"
+                     decimals="0" />
+        <x-stat-card tinted tone="neutral"
+                     label="Report Date"
+                     :raw="true"
+                     :value="\Carbon\Carbon::parse($reportDate)->format('M d, Y')" />
     </div>
 
     {{-- ── Vendor Sales Summary ────────────────────────────────── --}}
-    <div class="report-card" style="margin-bottom:1.5rem; overflow:hidden;">
+    <div class="report-card overflow-hidden" style="margin-bottom:1.5rem">
         <div class="section-heading">
             <svg style="display:inline; width:14px; height:14px; margin-right:6px; vertical-align:-2px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0"/>
@@ -168,7 +160,7 @@
             <table class="rpt-table">
                 <thead>
                     <tr>
-                        <th style="text-align:center; width:50px;">#</th>
+                        <th class="text-center" style="width:50px">#</th>
                         <th>Stall No.</th>
                         <th>Vendor Name</th>
                         <th>Fish Types</th>
@@ -180,19 +172,19 @@
                 <tbody>
                     @forelse($vendorSummaries as $i => $vs)
                     <tr>
-                        <td style="text-align:center; color:#9ca3af; font-size:0.75rem;">{{ $i + 1 }}</td>
+                        <td class="text-center" style="color:#9ca3af; font-size:0.75rem">{{ $i + 1 }}</td>
                         <td style="font-family:monospace; font-size:.8rem; color:#4b5563;">
                             {{ $vs['vendor']->vendorProfile?->stall_number ?? '—' }}
                         </td>
-                        <td style="font-weight:600; color:#111827;">{{ $vs['vendor']->name }}</td>
+                        <td class="font-semibold" style="color:#111827">{{ $vs['vendor']->name }}</td>
                         <td style="color:#6b7280; font-size:.775rem;">{{ $vs['fish_list'] ?: '—' }}</td>
-                        <td style="text-align:right; font-weight:600;">{{ number_format($vs['total_stock_kg'], 2) }}</td>
-                        <td style="text-align:right; color:#374151;">₱{{ number_format($vs['avg_price'] ?? 0, 2) }}</td>
-                        <td style="text-align:right; color:#6b7280;">{{ $vs['total_entries'] }}</td>
+                        <td class="text-right font-semibold">{{ number_format($vs['total_stock_kg'], 2) }}</td>
+                        <td class="text-right" style="color:#374151">₱{{ number_format($vs['avg_price'] ?? 0, 2) }}</td>
+                        <td class="text-right" style="color:#6b7280">{{ $vs['total_entries'] }}</td>
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="7" style="text-align:center; padding:2.5rem; color:#9ca3af; font-size:.875rem;">
+                        <td class="text-center" colspan="7" style="padding:2.5rem; color:#9ca3af; font-size:.875rem">
                             No vendor activity recorded for this date.
                         </td>
                     </tr>
@@ -201,10 +193,10 @@
                 @if($vendorSummaries->count())
                 <tfoot>
                     <tr>
-                        <td colspan="4" style="text-align:right; font-size:.75rem; letter-spacing:.05em; text-transform:uppercase;">
+                        <td class="text-right uppercase" colspan="4" style="font-size:.75rem; letter-spacing:.05em">
                             Market Total
                         </td>
-                        <td style="text-align:right;">{{ number_format($marketTotalKg, 2) }} kg</td>
+                        <td class="text-right">{{ number_format($marketTotalKg, 2) }} kg</td>
                         <td colspan="2"></td>
                     </tr>
                 </tfoot>
@@ -214,7 +206,7 @@
     </div>
 
     {{-- ── Price Breakdown ─────────────────────────────────────── --}}
-    <div class="report-card" style="overflow:hidden;">
+    <div class="report-card overflow-hidden">
         <div class="section-heading">
             <svg style="display:inline; width:14px; height:14px; margin-right:6px; vertical-align:-2px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"/>
@@ -237,21 +229,21 @@
                 <tbody>
                     @forelse($priceBreakdown as $i => $pb)
                     <tr>
-                        <td style="font-weight:600; color:#111827;">{{ $pb['fish_name'] ?? '—' }}</td>
+                        <td class="font-semibold" style="color:#111827">{{ $pb['fish_name'] ?? '—' }}</td>
                         <td>
                             <span class="badge {{ $pb['quality_class'] === 'A' ? 'badge-a' : ($pb['quality_class'] === 'B' ? 'badge-b' : 'badge-c') }}">
                                 Class {{ $pb['quality_class'] }}
                             </span>
                         </td>
-                        <td style="text-align:right; font-weight:600; color:#111827;">₱{{ number_format($pb['avg_price'], 2) }}</td>
-                        <td style="text-align:right; color:#6b7280;">₱{{ number_format($pb['min_price'], 2) }}</td>
-                        <td style="text-align:right; color:#6b7280;">₱{{ number_format($pb['max_price'], 2) }}</td>
-                        <td style="text-align:right; font-weight:600;">{{ number_format($pb['total_kg'], 2) }}</td>
-                        <td style="text-align:right; color:#6b7280;">{{ $pb['vendor_count'] }}</td>
+                        <td class="text-right font-semibold" style="color:#111827">₱{{ number_format($pb['avg_price'], 2) }}</td>
+                        <td class="text-right" style="color:#6b7280">₱{{ number_format($pb['min_price'], 2) }}</td>
+                        <td class="text-right" style="color:#6b7280">₱{{ number_format($pb['max_price'], 2) }}</td>
+                        <td class="text-right font-semibold">{{ number_format($pb['total_kg'], 2) }}</td>
+                        <td class="text-right" style="color:#6b7280">{{ $pb['vendor_count'] }}</td>
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="7" style="text-align:center; padding:2.5rem; color:#9ca3af; font-size:.875rem;">
+                        <td class="text-center" colspan="7" style="padding:2.5rem; color:#9ca3af; font-size:.875rem">
                             No price data available for this date.
                         </td>
                     </tr>

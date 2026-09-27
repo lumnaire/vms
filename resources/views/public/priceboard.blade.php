@@ -1,4 +1,12 @@
 {{-- resources/views/public/priceboard.blade.php --}}
+{{--
+    Public price board. This page used to carry its own ocean/teal palette
+    (--ocean, --teal, --amber) and ~600 lines of page-local CSS, which made it
+    look like a different product from the admin system. It now uses the same
+    marine-blue tokens and .vpm-* components as every other page; only the
+    genuinely page-specific structure (public header, card grid, vendor
+    grouping) lives in the local style block below.
+--}}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,689 +14,369 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fish Price Board — Virac Public Market</title>
     <link rel="icon" href="{{ asset('logo.png') }}" type="image/png">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+    @vite(['resources/css/app.css'])
+
     <style>
-        :root {
-            --ocean: #0e6e9e;
-            --ocean-light: #e8f4fb;
-            --ocean-mid: #1a8ec4;
-            --teal: #0d7c6b;
-            --teal-light: #e3f7f3;
-            --amber: #b45309;
-            --amber-light: #fef3c7;
-            --red: #b91c1c;
-            --red-light: #fee2e2;
-            --green: #15803d;
-            --green-light: #dcfce7;
+        /* ── Public shell ────────────────────────────────────────────────
+           Structural rules unique to this page. Colours all come from the
+           shared tokens so the board cannot drift from the admin system. */
+        .pb-header {
+            background-image: linear-gradient(135deg, var(--color-navy-900) 0%, var(--color-navy-800) 55%, var(--color-navy-700) 100%);
+            box-shadow: var(--shadow-header);
         }
-
-        body {
-            background: #f0f4f8;
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-        }
-
-        /* Header */
-        .site-header {
-            background: linear-gradient(135deg, #0c4a6e 0%, #0e6e9e 60%, #0891b2 100%);
-            padding: 0;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-        }
-
-        .header-inner {
+        .pb-header-inner,
+        .pb-stats-inner,
+        .pb-main {
             max-width: 1280px;
             margin: 0 auto;
-            padding: 1.25rem 2rem;
+        }
+        .pb-header-inner {
             display: flex;
             align-items: center;
             justify-content: space-between;
             flex-wrap: wrap;
             gap: 1rem;
+            padding: 1.125rem 2rem;
         }
-
-        .header-brand {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-
-        .header-icon {
-            width: 52px;
-            height: 52px;
-            background: rgba(255,255,255,0.15);
-            border: 2px solid rgba(255,255,255,0.3);
-            border-radius: 12px;
+        .pb-brand { display: flex; align-items: center; gap: 0.875rem; }
+        .pb-logo {
+            width: 48px;
+            height: 48px;
+            border-radius: var(--radius-card);
+            border: 1px solid rgb(255 255 255 / 0.25);
+            background: rgb(255 255 255 / 0.12);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
-            color: white;
+            overflow: hidden;
         }
-
-        .header-title {
-            color: white;
-            font-size: 1.1rem;
+        .pb-logo img { width: 100%; height: 100%; object-fit: contain; }
+        .pb-title {
+            color: #fff;
+            font-size: 1.0625rem;
             font-weight: 700;
-            letter-spacing: 0.01em;
             line-height: 1.2;
         }
+        .pb-sub { color: rgb(255 255 255 / 0.72); font-size: 0.78rem; margin-top: 2px; }
 
-        .header-sub {
-            color: rgba(255,255,255,0.75);
-            font-size: 0.78rem;
-            margin-top: 2px;
-        }
-
-        .header-date {
-            background: rgba(255,255,255,0.15);
-            border: 1px solid rgba(255,255,255,0.25);
-            border-radius: 10px;
+        .pb-datechip {
+            background: rgb(255 255 255 / 0.12);
+            border: 1px solid rgb(255 255 255 / 0.22);
+            border-radius: var(--radius-card);
             padding: 0.5rem 1rem;
             text-align: right;
         }
-
-        .header-date .date-label {
-            color: rgba(255,255,255,0.65);
+        .pb-datechip-label {
+            color: rgb(255 255 255 / 0.65);
             font-size: 0.7rem;
+            font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.08em;
         }
+        .pb-datechip-value { color: #fff; font-size: 0.875rem; font-weight: 600; }
 
-        .header-date .date-val {
-            color: white;
-            font-size: 0.9rem;
-            font-weight: 600;
-        }
-
-        .live-dot {
+        .pb-livedot {
             display: inline-block;
-            width: 8px;
-            height: 8px;
-            background: #4ade80;
+            width: 7px;
+            height: 7px;
             border-radius: 50%;
-            animation: pulse 2s infinite;
-            margin-right: 5px;
+            background: var(--color-success-400);
+            margin-right: 6px;
+            vertical-align: middle;
+            animation: pb-pulse 2s ease-in-out infinite;
         }
-
-        @keyframes pulse {
+        @keyframes pb-pulse {
             0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.6; transform: scale(0.85); }
+            50%      { opacity: 0.55; transform: scale(0.82); }
         }
 
-        /* Stats bar */
-        .stats-bar {
-            background: white;
-            border-bottom: 1px solid #e2e8f0;
-        }
-
-        .stats-inner {
-            max-width: 1280px;
-            margin: 0 auto;
-            padding: 0.85rem 2rem;
+        .pb-stats { background: var(--color-surface); border-bottom: 1px solid var(--color-slate-200); }
+        .pb-stats-inner {
             display: flex;
             align-items: center;
-            gap: 2rem;
+            gap: 1.75rem;
             flex-wrap: wrap;
+            padding: 0.875rem 2rem;
         }
-
-        .stat-item {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .stat-icon {
+        .pb-stat { display: flex; align-items: center; gap: 0.625rem; }
+        .pb-stat-icon {
             width: 34px;
             height: 34px;
-            border-radius: 8px;
+            border-radius: var(--radius-control);
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 15px;
         }
+        .pb-stat-val { font-size: 1rem; font-weight: 700; color: var(--color-slate-800); line-height: 1; }
+        .pb-stat-lbl { font-size: 0.7rem; color: var(--color-slate-500); margin-top: 1px; }
+        .pb-divider { width: 1px; height: 30px; background: var(--color-slate-200); }
 
-        .stat-icon.blue { background: var(--ocean-light); color: var(--ocean); }
-        .stat-icon.teal { background: var(--teal-light); color: var(--teal); }
-        .stat-icon.amber { background: var(--amber-light); color: var(--amber); }
+        .pb-main { padding: 1.5rem 2rem 3rem; }
 
-        .stat-text .val {
-            font-size: 1rem;
-            font-weight: 700;
-            color: #1e293b;
-            line-height: 1;
-        }
-
-        .stat-text .lbl {
-            font-size: 0.7rem;
-            color: #64748b;
-            margin-top: 1px;
-        }
-
-        .divider-v {
-            width: 1px;
-            height: 30px;
-            background: #e2e8f0;
-        }
-
-        /* Main layout */
-        .main-wrap {
-            max-width: 1280px;
-            margin: 0 auto;
-            padding: 1.5rem 2rem 3rem;
-        }
-
-        /* Controls bar */
-        .controls {
+        .pb-controls {
             display: flex;
             align-items: center;
             gap: 0.75rem;
-            margin-bottom: 1.5rem;
             flex-wrap: wrap;
+            margin-bottom: 1.25rem;
         }
-
-        .search-wrap {
-            position: relative;
-            flex: 1;
-            min-width: 200px;
-            max-width: 380px;
-        }
-
-        .search-wrap i {
+        .pb-search { position: relative; flex: 1; min-width: 200px; max-width: 380px; }
+        .pb-search > i {
             position: absolute;
             left: 12px;
             top: 50%;
             transform: translateY(-50%);
-            color: #94a3b8;
+            color: var(--color-slate-400);
             font-size: 14px;
+            pointer-events: none;
         }
+        .pb-result { margin-left: auto; font-size: 0.8125rem; color: var(--color-slate-500); white-space: nowrap; }
 
-        .search-input {
-            width: 100%;
-            padding: 0.55rem 0.9rem 0.55rem 2.2rem;
-            border: 1px solid #cbd5e1;
-            border-radius: 8px;
-            font-size: 0.875rem;
-            background: white;
-            outline: none;
-            transition: border-color 0.15s;
-            color: #1e293b;
-        }
-
-        .search-input:focus {
-            border-color: var(--ocean);
-            box-shadow: 0 0 0 3px rgba(14,110,158,0.12);
-        }
-
-        .filter-select {
-            padding: 0.55rem 1rem;
-            border: 1px solid #cbd5e1;
-            border-radius: 8px;
-            font-size: 0.875rem;
-            background: white;
-            color: #1e293b;
-            cursor: pointer;
-            outline: none;
-        }
-
-        .filter-select:focus {
-            border-color: var(--ocean);
-        }
-
-        .view-toggle {
-            display: flex;
-            border: 1px solid #cbd5e1;
-            border-radius: 8px;
-            overflow: hidden;
-            background: white;
-        }
-
-        .view-btn {
-            padding: 0.55rem 0.75rem;
-            background: none;
-            border: none;
-            cursor: pointer;
-            color: #64748b;
-            font-size: 14px;
-            transition: background 0.15s, color 0.15s;
-        }
-
-        .view-btn.active {
-            background: var(--ocean);
-            color: white;
-        }
-
-        .result-count {
-            margin-left: auto;
-            font-size: 0.82rem;
-            color: #64748b;
-            white-space: nowrap;
-        }
-
-        /* Class filter tabs */
-        .class-tabs {
-            display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-            margin-bottom: 1.5rem;
-        }
-
-        .class-tab {
-            padding: 0.4rem 1rem;
-            border-radius: 999px;
+        /* Quality-class filter tabs. */
+        .pb-tabs { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+        .pb-tab {
+            padding: 0.4rem 0.9rem;
+            border-radius: var(--radius-pill);
             font-size: 0.8rem;
-            font-weight: 500;
-            border: 1.5px solid transparent;
+            font-weight: 600;
+            border: 1px solid var(--color-slate-200);
+            background: var(--color-surface);
+            color: var(--color-slate-500);
             cursor: pointer;
-            transition: all 0.15s;
-            background: white;
-            color: #64748b;
-            border-color: #e2e8f0;
+            transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+        }
+        .pb-tab:hover { border-color: var(--color-brand-300); color: var(--color-brand-600); }
+        .pb-tab.is-active {
+            background: var(--color-brand-600);
+            border-color: var(--color-brand-600);
+            color: #fff;
         }
 
-        .class-tab:hover {
-            border-color: var(--ocean);
-            color: var(--ocean);
+        /* Fish thumbnail with gradient fallback. */
+        .pb-thumb {
+            width: 36px;
+            height: 36px;
+            border-radius: var(--radius-control);
+            object-fit: cover;
+            border: 1px solid var(--color-slate-200);
+            flex-shrink: 0;
         }
-
-        .class-tab.active {
-            background: var(--ocean);
-            border-color: var(--ocean);
-            color: white;
+        .pb-thumb-fallback {
+            width: 36px;
+            height: 36px;
+            border-radius: var(--radius-control);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            background-image: linear-gradient(135deg, var(--color-navy-800), var(--color-brand-600));
+            color: rgb(255 255 255 / 0.85);
+            font-size: 14px;
         }
+        .pb-thumb-lg { width: 38px; height: 38px; }
 
-        /* === TABLE VIEW === */
-        .price-table-wrap {
-            background: white;
-            border-radius: 12px;
-            border: 1px solid #e2e8f0;
-            overflow: hidden;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-        }
+        .pb-stock-low  { color: var(--color-danger-600); }
+        .pb-stock-ok   { color: var(--color-slate-700); }
 
-        .price-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.875rem;
-        }
-
-        .price-table thead tr {
-            background: #f8fafc;
-            border-bottom: 2px solid #e2e8f0;
-        }
-
-        .price-table th {
-            padding: 0.85rem 1rem;
-            text-align: left;
-            font-size: 0.72rem;
-            font-weight: 600;
-            color: #64748b;
-            text-transform: uppercase;
-            letter-spacing: 0.07em;
-            white-space: nowrap;
-        }
-
-        .price-table th.right { text-align: right; }
-
-        .price-table tbody tr {
-            border-bottom: 1px solid #f1f5f9;
-            transition: background 0.1s;
-        }
-
-        .price-table tbody tr:last-child { border-bottom: none; }
-        .price-table tbody tr:hover { background: #f8fafc; }
-
-        .price-table td {
-            padding: 0.85rem 1rem;
-            color: #1e293b;
-            vertical-align: middle;
-        }
-
-        .price-table td.right { text-align: right; }
-
-        .fish-name {
-            font-weight: 600;
-            color: #0f172a;
-        }
-
-        .vendor-name {
-            font-size: 0.78rem;
-            color: #64748b;
-        }
-
-        .stall-badge {
-            display: inline-block;
-            background: #f1f5f9;
-            color: #475569;
-            font-size: 0.7rem;
-            font-weight: 600;
-            padding: 2px 7px;
-            border-radius: 5px;
-            margin-left: 5px;
-        }
-
-        .class-pill {
-            display: inline-block;
-            padding: 3px 9px;
-            border-radius: 999px;
-            font-size: 0.72rem;
-            font-weight: 600;
-        }
-
-        .class-pill.first    { background: #eff6ff; color: #1d4ed8; }
-        .class-pill.second   { background: #f0fdf4; color: #15803d; }
-        .class-pill.third    { background: #fefce8; color: #a16207; }
-        .class-pill.fourth   { background: #fff7ed; color: #c2410c; }
-        .class-pill.special  { background: #fdf4ff; color: #7e22ce; }
-
-        .price-val {
-            font-size: 1rem;
-            font-weight: 700;
-            color: #0f172a;
-        }
-
-        .price-unit {
-            font-size: 0.72rem;
-            color: #94a3b8;
-            font-weight: 400;
-        }
-
-        .stock-val {
-            font-weight: 600;
-            color: #1e293b;
-        }
-
-        .stock-low { color: var(--red); }
-        .stock-ok  { color: var(--green); }
-
-        /* === CARD VIEW === */
-        .card-grid {
+        /* Card view */
+        .pb-cardgrid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
             gap: 1rem;
         }
-
-        .price-card {
-            background: white;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
+        .pb-card { overflow: hidden; }
+        .pb-card-top { background-image: linear-gradient(135deg, var(--color-navy-800), var(--color-brand-600)); }
+        .pb-cardfish { color: #fff; font-size: 1rem; font-weight: 700; }
+        .pb-cardvendor { color: rgb(255 255 255 / 0.72); font-size: 0.75rem; margin-top: 2px; }
+        .pb-cardmedia {
+            position: relative;
+            width: 100%;
+            height: 110px;
             overflow: hidden;
-            transition: box-shadow 0.15s, transform 0.15s;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
-
-        .price-card:hover {
-            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
-            transform: translateY(-1px);
+        .pb-cardmedia img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .pb-cardmedia::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to top, rgb(10 31 60 / 0.88) 0%, rgb(10 31 60 / 0.2) 60%, transparent 100%);
         }
-
-        .card-top {
-            background: linear-gradient(135deg, #0c4a6e, #0e6e9e);
-            padding: 1rem 1.15rem 0.75rem;
+        .pb-cardoverlay {
+            position: absolute;
+            bottom: 10px;
+            left: 14px;
+            right: 14px;
             display: flex;
-            align-items: flex-start;
+            align-items: flex-end;
             justify-content: space-between;
+            gap: 0.5rem;
+            z-index: 1;
         }
-
-        .card-fish {
-            font-size: 1rem;
-            font-weight: 700;
-            color: white;
+        .pb-pill-onbrand {
+            white-space: nowrap;
+            font-size: 0.65rem;
+            background: rgb(255 255 255 / 0.2);
+            color: #fff;
+            border: 1px solid rgb(255 255 255 / 0.35);
         }
-
-        .card-vendor {
-            font-size: 0.75rem;
-            color: rgba(255,255,255,0.7);
-            margin-top: 2px;
-        }
-
-        .card-body {
-            padding: 1rem 1.15rem;
-        }
-
-        .card-price-row {
-            display: flex;
-            align-items: baseline;
-            gap: 4px;
-            margin-bottom: 0.75rem;
-        }
-
-        .card-peso {
-            font-size: 1rem;
-            font-weight: 600;
-            color: #475569;
-        }
-
-        .card-price-num {
-            font-size: 1.85rem;
-            font-weight: 800;
-            color: #0f172a;
-            line-height: 1;
-        }
-
-        .card-price-unit {
-            font-size: 0.8rem;
-            color: #94a3b8;
-            align-self: flex-end;
-            padding-bottom: 3px;
-        }
-
-        .card-meta {
+        .pb-pricerow { display: flex; align-items: baseline; gap: 3px; margin-bottom: 0.75rem; }
+        .pb-peso { font-size: 1rem; font-weight: 600; color: var(--color-slate-500); }
+        .pb-pricenum { font-size: 1.85rem; font-weight: 800; color: var(--color-slate-900); line-height: 1; }
+        .pb-priceunit { font-size: 0.8rem; color: var(--color-slate-400); align-self: flex-end; padding-bottom: 3px; }
+        .pb-cardmeta {
             display: flex;
             align-items: center;
             justify-content: space-between;
             font-size: 0.8rem;
         }
+        .pb-cardstock { display: flex; align-items: center; gap: 5px; color: var(--color-slate-600); }
 
-        .card-stock {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            color: #475569;
-        }
-
-        .card-stock i { font-size: 13px; }
-
-        .card-confirmed {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            font-size: 0.7rem;
-            color: #16a34a;
-        }
-
-        /* === BY VENDOR VIEW === */
-        .vendor-section {
-            margin-bottom: 1.5rem;
-        }
-
-        .vendor-header {
+        /* Grouped-by-vendor view */
+        .pb-vendor-section { margin-bottom: 1.25rem; }
+        .pb-vendor-header {
             display: flex;
             align-items: center;
             gap: 0.75rem;
-            background: white;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px 12px 0 0;
+            background: var(--color-surface);
+            border: 1px solid var(--color-slate-200);
+            border-bottom: 2px solid var(--color-brand-600);
+            border-radius: var(--radius-card) var(--radius-card) 0 0;
             padding: 0.85rem 1.25rem;
-            border-bottom: 2px solid var(--ocean);
         }
-
-        .vendor-avatar {
+        .pb-vendor-avatar {
             width: 38px;
             height: 38px;
-            border-radius: 9px;
-            background: var(--ocean-light);
-            color: var(--ocean);
+            border-radius: var(--radius-control);
+            background: var(--color-brand-50);
+            color: var(--color-brand-600);
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: 700;
             font-size: 0.85rem;
+            flex-shrink: 0;
         }
-
-        .vendor-info .vname {
-            font-weight: 700;
-            color: #0f172a;
-            font-size: 0.95rem;
-        }
-
-        .vendor-info .vstall {
-            font-size: 0.75rem;
-            color: #64748b;
-        }
-
-        .vendor-entry-count {
+        .pb-vendor-name { font-weight: 700; color: var(--color-slate-900); font-size: 0.95rem; }
+        .pb-vendor-stall { font-size: 0.75rem; color: var(--color-slate-500); }
+        .pb-vendor-count {
             margin-left: auto;
-            background: var(--ocean-light);
-            color: var(--ocean);
+            background: var(--color-brand-50);
+            color: var(--color-brand-600);
             font-size: 0.75rem;
             font-weight: 600;
             padding: 3px 10px;
-            border-radius: 999px;
+            border-radius: var(--radius-pill);
         }
-
-        .vendor-items {
-            background: white;
-            border: 1px solid #e2e8f0;
-            border-top: none;
-            border-radius: 0 0 12px 12px;
+        .pb-vendor-items {
+            background: var(--color-surface);
+            border: 1px solid var(--color-slate-200);
+            border-top: 0;
+            border-radius: 0 0 var(--radius-card) var(--radius-card);
             overflow: hidden;
         }
-
-        .vendor-item {
+        .pb-vendor-item {
             display: grid;
             grid-template-columns: 1fr auto auto auto;
             align-items: center;
             gap: 1rem;
             padding: 0.75rem 1.25rem;
-            border-bottom: 1px solid #f1f5f9;
+            border-bottom: 1px solid var(--color-slate-100);
             font-size: 0.875rem;
         }
+        .pb-vendor-item:last-child { border-bottom: 0; }
+        .pb-vendor-item:hover { background: var(--color-surface-subtle); }
+        .pb-mini-label { font-size: 0.75rem; color: var(--color-slate-500); }
 
-        .vendor-item:last-child { border-bottom: none; }
-
-        .vendor-item:hover { background: #f8fafc; }
-
-        /* Empty state */
-        .empty-state {
-            text-align: center;
-            padding: 4rem 2rem;
-            color: #64748b;
-        }
-
-        .empty-icon {
-            font-size: 3.5rem;
-            color: #cbd5e1;
-            margin-bottom: 1rem;
-        }
-
-        .empty-state h3 {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: #475569;
-            margin-bottom: 0.5rem;
-        }
-
-        /* Footer */
-        .page-footer {
-            background: #0c1e2d;
-            color: rgba(255,255,255,0.6);
+        .pb-footer {
+            background: var(--color-navy-950);
+            color: rgb(255 255 255 / 0.6);
             text-align: center;
             padding: 1.5rem 2rem;
             font-size: 0.8rem;
-            margin-top: 2rem;
         }
+        .pb-footer strong { color: rgb(255 255 255 / 0.9); }
 
-        .page-footer strong {
-            color: rgba(255,255,255,0.9);
-        }
-
-        /* No-data highlight */
-        .no-data-row td {
-            text-align: center;
-            color: #94a3b8;
-            padding: 3rem;
-            font-size: 0.9rem;
-        }
-
-        /* Responsive */
         @media (max-width: 640px) {
-            .header-inner { padding: 1rem; }
-            .stats-inner { padding: 0.75rem 1rem; gap: 1rem; }
-            .main-wrap { padding: 1rem; }
-            .price-table th:nth-child(4),
-            .price-table td:nth-child(4) { display: none; }
+            .pb-header-inner, .pb-stats-inner { padding-left: 1rem; padding-right: 1rem; }
+            .pb-main { padding: 1rem 1rem 2rem; }
+            .pb-divider { display: none; }
         }
     </style>
 </head>
-<body>
+<body class="bg-slate-50">
 
 {{-- ═══════════════════════════════════════════════════════════
      SITE HEADER
-════════════════════════════════════════════════════════════════ --}}
-<header class="site-header">
-    <div class="header-inner">
-        <div class="header-brand">
-            <div class="header-icon" style="background: rgba(255,255,255,0.15); padding: 4px;">
-                <img src="{{ asset('logo.png') }}" alt="VPM Logo" style="width:100%; height:100%; object-fit:contain; border-radius:6px;">
+═══════════════════════════════════════════════════════════════ --}}
+<header class="pb-header">
+    <div class="pb-header-inner">
+        <div class="pb-brand">
+            <div class="pb-logo">
+                <img src="{{ asset('logo.png') }}" alt="VPM Logo">
             </div>
             <div>
-                <div class="header-title">Virac Public Market</div>
-                <div class="header-sub">Fish Section — Live Price Monitoring Board</div>
+                <div class="pb-title">Virac Public Market</div>
+                <div class="pb-sub">Fish Section — Live Price Monitoring Board</div>
             </div>
         </div>
-        <div class="header-date">
-            <div class="date-label"><span class="live-dot"></span>Live Today</div>
-            <div class="date-val">{{ \Carbon\Carbon::today()->format('F j, Y') }}</div>
+        <div class="pb-datechip">
+            <div class="pb-datechip-label"><span class="pb-livedot"></span>Live Today</div>
+            <div class="pb-datechip-value">{{ \Carbon\Carbon::today()->format('F j, Y') }}</div>
         </div>
     </div>
 </header>
 
 {{-- ═══════════════════════════════════════════════════════════
      STATS BAR
-════════════════════════════════════════════════════════════════ --}}
+═══════════════════════════════════════════════════════════════ --}}
 @php
-    $totalEntries   = $prices->count();
-    $totalVendors   = $prices->pluck('vendor_id')->unique()->count();
-    $totalStockKg   = number_format($prices->sum('stock_kg'), 1);
-    $fishTypeCount  = $prices->pluck('fish_type_id')->unique()->count();
+    $totalEntries  = $prices->count();
+    $totalVendors  = $prices->pluck('vendor_id')->unique()->count();
+    $totalStockKg  = number_format($prices->sum('stock_kg'), 1);
+    $fishTypeCount = $prices->pluck('fish_type_id')->unique()->count();
 @endphp
 
-<div class="stats-bar">
-    <div class="stats-inner">
-        <div class="stat-item">
-            <div class="stat-icon blue"><i class="fas fa-tags"></i></div>
-            <div class="stat-text">
-                <div class="val">{{ $totalEntries }}</div>
-                <div class="lbl">Price Entries</div>
+<div class="pb-stats">
+    <div class="pb-stats-inner">
+        <div class="pb-stat">
+            <div class="pb-stat-icon vpm-stat-icon"><x-icon name="bi-tags" /></div>
+            <div>
+                <div class="pb-stat-val">{{ $totalEntries }}</div>
+                <div class="pb-stat-lbl">Price Entries</div>
             </div>
         </div>
-        <div class="divider-v"></div>
-        <div class="stat-item">
-            <div class="stat-icon teal"><i class="fas fa-store"></i></div>
-            <div class="stat-text">
-                <div class="val">{{ $totalVendors }}</div>
-                <div class="lbl">Active Vendors</div>
+        <div class="pb-divider"></div>
+        <div class="pb-stat">
+            <div class="pb-stat-icon vpm-stat-icon-success"><x-icon name="bi-shop-window" /></div>
+            <div>
+                <div class="pb-stat-val">{{ $totalVendors }}</div>
+                <div class="pb-stat-lbl">Active Vendors</div>
             </div>
         </div>
-        <div class="divider-v"></div>
-        <div class="stat-item">
-            <div class="stat-icon blue"><i class="fas fa-fish"></i></div>
-            <div class="stat-text">
-                <div class="val">{{ $fishTypeCount }}</div>
-                <div class="lbl">Fish Varieties</div>
+        <div class="pb-divider"></div>
+        <div class="pb-stat">
+            <div class="pb-stat-icon vpm-stat-icon"><x-icon name="bi-fish" /></div>
+            <div>
+                <div class="pb-stat-val">{{ $fishTypeCount }}</div>
+                <div class="pb-stat-lbl">Fish Varieties</div>
             </div>
         </div>
-        <div class="divider-v"></div>
-        <div class="stat-item">
-            <div class="stat-icon amber"><i class="fas fa-weight-hanging"></i></div>
-            <div class="stat-text">
-                <div class="val">{{ $totalStockKg }} kg</div>
-                <div class="lbl">Total Stock</div>
+        <div class="pb-divider"></div>
+        <div class="pb-stat">
+            <div class="pb-stat-icon vpm-stat-icon-warning"><x-icon name="bi-weight-hanging" /></div>
+            <div>
+                <div class="pb-stat-val">{{ $totalStockKg }} kg</div>
+                <div class="pb-stat-lbl">Total Stock</div>
             </div>
         </div>
-        <div class="divider-v" style="margin-left:auto;"></div>
-        <div style="font-size:0.78rem; color:#64748b;">
-            <i class="fas fa-check-circle" style="color:#16a34a; margin-right:4px;"></i>
+        <div class="pb-divider ml-auto d-none d-md-block"></div>
+        <div class="text-[12.5px] text-slate-500">
+            <x-icon name="bi-check-circle-fill" class="text-success-500" />
             All prices verified by Market Staff
         </div>
     </div>
@@ -696,23 +384,22 @@
 
 {{-- ═══════════════════════════════════════════════════════════
      MAIN CONTENT
-════════════════════════════════════════════════════════════════ --}}
-<main class="main-wrap" x-data="priceBoard()" x-init="init()">
+═══════════════════════════════════════════════════════════════ --}}
+<main class="pb-main" x-data="priceBoard()" x-init="init()">
 
     {{-- Controls Bar --}}
-    <div class="controls">
-        <div class="search-wrap">
-            <i class="fas fa-search"></i>
-            <input
-                type="text"
-                class="search-input"
-                placeholder="Search fish type or vendor..."
-                x-model="search"
-                @input="applyFilters()"
-            />
+    <div class="pb-controls">
+        <div class="pb-search">
+            <x-icon name="bi-search" />
+            <input type="text"
+                   class="vpm-input pl-9"
+                   placeholder="Search fish type or vendor..."
+                   aria-label="Search prices"
+                   x-model="search"
+                   @input="applyFilters()">
         </div>
 
-        <select class="filter-select" x-model="sortBy" @change="applyFilters()">
+        <select class="vpm-filter-select" x-model="sortBy" @change="applyFilters()" aria-label="Sort prices">
             <option value="fish">Sort by Fish Name</option>
             <option value="price_asc">Price: Low to High</option>
             <option value="price_desc">Price: High to Low</option>
@@ -720,158 +407,154 @@
             <option value="vendor">Vendor Name</option>
         </select>
 
-        <div class="view-toggle">
-            <button class="view-btn" :class="{ active: view === 'table' }" @click="view='table'" title="Table view">
-                <i class="fas fa-table-list"></i>
+        <div class="vpm-segment" role="group" aria-label="View mode">
+            <button :aria-pressed="view === 'table'" @click="view='table'" title="Table view">
+                <x-icon name="bi-list-ul" />
             </button>
-            <button class="view-btn" :class="{ active: view === 'card' }" @click="view='card'" title="Card view">
-                <i class="fas fa-grip"></i>
+            <button :aria-pressed="view === 'card'" @click="view='card'" title="Card view">
+                <x-icon name="bi-grid" />
             </button>
-            <button class="view-btn" :class="{ active: view === 'vendor' }" @click="view='vendor'" title="By vendor">
-                <i class="fas fa-store"></i>
+            <button :aria-pressed="view === 'vendor'" @click="view='vendor'" title="By vendor">
+                <x-icon name="bi-shop-window" />
             </button>
         </div>
 
-        <span class="result-count" x-text="filtered.length + ' result' + (filtered.length !== 1 ? 's' : '')"></span>
+        <span class="pb-result" x-text="filtered.length + ' result' + (filtered.length !== 1 ? 's' : '')"></span>
     </div>
 
     {{-- Quality Class Tabs --}}
-    <div class="class-tabs">
-        <button class="class-tab" :class="{ active: classFilter === '' }" @click="classFilter=''; applyFilters()">
+    <div class="pb-tabs" role="group" aria-label="Filter by quality class">
+        <button class="pb-tab" :class="{ 'is-active': classFilter === '' }" @click="classFilter=''; applyFilters()">
             All Classes
         </button>
         @foreach(['First Class','Second Class','Third Class','Fourth Class','Special Class'] as $cls)
-        <button
-            class="class-tab"
-            :class="{ active: classFilter === '{{ $cls }}' }"
-            @click="classFilter='{{ $cls }}'; applyFilters()"
-        >{{ $cls }}</button>
+            <button class="pb-tab"
+                    :class="{ 'is-active': classFilter === '{{ $cls }}' }"
+                    @click="classFilter='{{ $cls }}'; applyFilters()">
+                {{ $cls }}
+            </button>
         @endforeach
     </div>
 
     {{-- ── TABLE VIEW ──────────────────────────────────────── --}}
     <div x-show="view === 'table'">
-        <div class="price-table-wrap">
-            <table class="price-table">
-                <thead>
-                    <tr>
-                        <th>Fish Type</th>
-                        <th>Quality Class</th>
-                        <th>Vendor / Stall</th>
-                        <th class="right">Stock Available</th>
-                        <th class="right">Price per kg</th>
-                        <th class="right">Confirmed At</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <template x-if="filtered.length === 0">
-                        <tr class="no-data-row">
-                            <td colspan="6">
-                                <i class="fas fa-fish" style="font-size:2rem; color:#cbd5e1; display:block; margin-bottom:8px;"></i>
-                                No confirmed prices found for today matching your filters.
-                            </td>
-                        </tr>
-                    </template>
-                    <template x-for="row in filtered" :key="row.id">
+        <div class="vpm-card overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="vpm-table">
+                    <thead>
                         <tr>
-                            <td>
-                                <div style="display:flex; align-items:center; gap:10px;">
-                                    <template x-if="row.fish_image">
-                                        <img :src="row.fish_image" :alt="row.fish_name"
-                                             style="width:36px; height:36px; border-radius:8px; object-fit:cover; border:1px solid #e2e8f0; flex-shrink:0;">
-                                    </template>
-                                    <template x-if="!row.fish_image">
-                                        <div style="width:36px; height:36px; border-radius:8px; background:linear-gradient(135deg,#0c4a6e,#0e6e9e); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                                            <i class="fas fa-fish" style="color:rgba(255,255,255,0.8); font-size:14px;"></i>
-                                        </div>
-                                    </template>
-                                    <div class="fish-name" x-text="row.fish_name"></div>
-                                </div>
-                            </td>
-                            <td>
-                                <span class="class-pill" :class="classPillClass(row.quality_class)" x-text="row.quality_class"></span>
-                            </td>
-                            <td>
-                                <div class="vendor-name">
-                                    <span x-text="row.vendor_name"></span>
-                                    <span class="stall-badge" x-text="'Stall ' + row.stall_number"></span>
-                                </div>
-                            </td>
-                            <td class="right">
-                                <span class="stock-val" :class="row.stock_kg < 20 ? 'stock-low' : 'stock-ok'" x-text="parseFloat(row.stock_kg).toFixed(1) + ' kg'"></span>
-                            </td>
-                            <td class="right">
-                                <div class="price-val">
-                                    ₱<span x-text="parseFloat(row.price_per_kg).toFixed(2)"></span>
-                                    <span class="price-unit">/kg</span>
-                                </div>
-                            </td>
-                            <td class="right" style="font-size:0.78rem; color:#64748b;" x-text="row.confirmed_at"></td>
+                            <th>Fish Type</th>
+                            <th>Quality Class</th>
+                            <th>Vendor / Stall</th>
+                            <th class="vpm-th-right">Stock Available</th>
+                            <th class="vpm-th-right">Price per kg</th>
+                            <th class="vpm-th-right">Confirmed At</th>
                         </tr>
-                    </template>
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        <template x-if="filtered.length === 0">
+                            <tr>
+                                <td colspan="6">
+                                    <x-empty-state icon="bi-fish"
+                                                   title="No confirmed prices found for today"
+                                                   text="Nothing matches your current filters." />
+                                </td>
+                            </tr>
+                        </template>
+                        <template x-for="row in filtered" :key="row.id">
+                            <tr>
+                                <td>
+                                    <div class="flex items-center gap-2.5">
+                                        <template x-if="row.fish_image">
+                                            <img :src="row.fish_image" :alt="row.fish_name" class="pb-thumb">
+                                        </template>
+                                        <template x-if="!row.fish_image">
+                                            <div class="pb-thumb-fallback"><x-icon name="bi-fish" /></div>
+                                        </template>
+                                        <span class="vpm-cell-strong" x-text="row.fish_name"></span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span :class="qualityClass(row.quality_class)" x-text="row.quality_class"></span>
+                                </td>
+                                <td>
+                                    <div class="vpm-cell-muted">
+                                        <span x-text="row.vendor_name"></span>
+                                        <x-badge variant="neutral" class="ml-1">Stall <span x-text="row.stall_number"></span></x-badge>
+                                    </div>
+                                </td>
+                                <td class="vpm-td-right">
+                                    <span class="font-semibold"
+                                          :class="row.stock_kg < 20 ? 'pb-stock-low' : 'pb-stock-ok'"
+                                          x-text="parseFloat(row.stock_kg).toFixed(1) + ' kg'"></span>
+                                </td>
+                                <td class="vpm-td-right">
+                                    <span class="text-[15px] font-bold text-slate-900">
+                                        &#8369;<span x-text="parseFloat(row.price_per_kg).toFixed(2)"></span>
+                                        <span class="text-[11.5px] font-normal text-slate-400">/kg</span>
+                                    </span>
+                                </td>
+                                <td class="vpm-td-right vpm-cell-muted" x-text="row.confirmed_at"></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
     {{-- ── CARD VIEW ───────────────────────────────────────── --}}
     <div x-show="view === 'card'">
         <template x-if="filtered.length === 0">
-            <div class="empty-state">
-                <div class="empty-icon"><i class="fas fa-fish"></i></div>
-                <h3>No prices available</h3>
-                <p>No confirmed price entries match your current filters.</p>
-            </div>
+            <x-empty-state icon="bi-fish"
+                           title="No prices available"
+                           text="No confirmed price entries match your current filters." />
         </template>
-        <div class="card-grid">
+        <div class="pb-cardgrid">
             <template x-for="row in filtered" :key="row.id">
-                <div class="price-card">
-                    <div class="card-top" :style="row.fish_image ? 'background:none; padding:0; position:relative;' : ''">
-                        <template x-if="row.fish_image">
-                            <div style="position:relative; width:100%; height:110px; overflow:hidden; border-radius:12px 12px 0 0;">
-                                <img :src="row.fish_image" :alt="row.fish_name"
-                                     style="width:100%; height:100%; object-fit:cover; display:block;">
-                                <div style="position:absolute;inset:0; background:linear-gradient(to top, rgba(12,74,110,0.88) 0%, rgba(12,74,110,0.2) 60%, transparent 100%);"></div>
-                                <div style="position:absolute; bottom:10px; left:14px; right:14px; display:flex; align-items:flex-end; justify-content:space-between;">
-                                    <div>
-                                        <div class="card-fish" x-text="row.fish_name"></div>
-                                        <div class="card-vendor">
-                                            <span x-text="row.vendor_name"></span>
-                                            &bull; Stall <span x-text="row.stall_number"></span>
-                                        </div>
-                                    </div>
-                                    <span class="class-pill" :class="classPillClass(row.quality_class)" x-text="row.quality_class" style="white-space:nowrap; font-size:0.65rem; background:rgba(255,255,255,0.2); color:#fff; border:1px solid rgba(255,255,255,0.35);"></span>
-                                </div>
-                            </div>
-                        </template>
-                        <template x-if="!row.fish_image">
-                            <div style="background:linear-gradient(135deg,#0c4a6e,#0e6e9e); padding:1rem 1.15rem 0.75rem; display:flex; align-items:flex-start; justify-content:space-between; width:100%; box-sizing:border-box;">
+                <div class="vpm-card vpm-card-hover pb-card">
+                    <template x-if="row.fish_image">
+                        <div class="pb-cardmedia">
+                            <img :src="row.fish_image" :alt="row.fish_name">
+                            <div class="pb-cardoverlay">
                                 <div>
-                                    <div class="card-fish" x-text="row.fish_name"></div>
-                                    <div class="card-vendor">
+                                    <div class="pb-cardfish" x-text="row.fish_name"></div>
+                                    <div class="pb-cardvendor">
                                         <span x-text="row.vendor_name"></span>
                                         &bull; Stall <span x-text="row.stall_number"></span>
                                     </div>
                                 </div>
-                                <span class="class-pill" :class="classPillClass(row.quality_class)" x-text="row.quality_class" style="white-space:nowrap; font-size:0.65rem;"></span>
+                                <span class="vpm-quality pb-pill-onbrand" x-text="row.quality_class"></span>
                             </div>
-                        </template>
-                    </div>
-                    <div class="card-body">
-                        <div class="card-price-row">
-                            <span class="card-peso">₱</span>
-                            <span class="card-price-num" x-text="parseFloat(row.price_per_kg).toFixed(2)"></span>
-                            <span class="card-price-unit">per kg</span>
                         </div>
-                        <div class="card-meta">
-                            <div class="card-stock">
-                                <i class="fas fa-box" style="color:#64748b;"></i>
-                                <span x-text="parseFloat(row.stock_kg).toFixed(1) + ' kg available'" :style="row.stock_kg < 20 ? 'color:var(--red)' : 'color:#475569'"></span>
+                    </template>
+                    <template x-if="!row.fish_image">
+                        <div class="pb-card-top p-4 pb-3 flex items-start justify-between gap-2">
+                            <div>
+                                <div class="pb-cardfish" x-text="row.fish_name"></div>
+                                <div class="pb-cardvendor">
+                                    <span x-text="row.vendor_name"></span>
+                                    &bull; Stall <span x-text="row.stall_number"></span>
+                                </div>
                             </div>
-                            <div class="card-confirmed">
-                                <i class="fas fa-circle-check"></i>
-                                Confirmed
+                            <span class="whitespace-nowrap" :class="qualityClass(row.quality_class)" style="font-size: 0.65rem"></span>
+                        </div>
+                    </template>
+                    <div class="p-4">
+                        <div class="pb-pricerow">
+                            <span class="pb-peso">&#8369;</span>
+                            <span class="pb-pricenum" x-text="parseFloat(row.price_per_kg).toFixed(2)"></span>
+                            <span class="pb-priceunit">per kg</span>
+                        </div>
+                        <div class="pb-cardmeta">
+                            <div class="pb-cardstock">
+                                <x-icon name="bi-box-seam" class="text-slate-400" />
+                                <span :class="row.stock_kg < 20 ? 'pb-stock-low' : ''"
+                                      x-text="parseFloat(row.stock_kg).toFixed(1) + ' kg available'"></span>
                             </div>
+                            <span class="vpm-badge vpm-badge-success">
+                                <x-icon name="bi-check-circle-fill" /> Confirmed
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -882,50 +565,49 @@
     {{-- ── BY VENDOR VIEW ──────────────────────────────────── --}}
     <div x-show="view === 'vendor'">
         <template x-if="filtered.length === 0">
-            <div class="empty-state">
-                <div class="empty-icon"><i class="fas fa-store"></i></div>
-                <h3>No vendors found</h3>
-                <p>No confirmed price entries match your current filters.</p>
-            </div>
+            <x-empty-state icon="bi-shop-window"
+                           title="No vendors found"
+                           text="No confirmed price entries match your current filters." />
         </template>
         <template x-for="vendor in byVendor()" :key="vendor.id">
-            <div class="vendor-section">
-                <div class="vendor-header">
-                    <div class="vendor-avatar" x-text="initials(vendor.name)"></div>
-                    <div class="vendor-info">
-                        <div class="vname" x-text="vendor.name"></div>
-                        <div class="vstall">Stall <span x-text="vendor.stall"></span></div>
+            <div class="pb-vendor-section">
+                <div class="pb-vendor-header">
+                    <div class="pb-vendor-avatar" x-text="initials(vendor.name)"></div>
+                    <div>
+                        <div class="pb-vendor-name" x-text="vendor.name"></div>
+                        <div class="pb-vendor-stall">Stall <span x-text="vendor.stall"></span></div>
                     </div>
-                    <span class="vendor-entry-count" x-text="vendor.entries.length + ' item' + (vendor.entries.length !== 1 ? 's' : '')"></span>
+                    <span class="pb-vendor-count" x-text="vendor.entries.length + ' item' + (vendor.entries.length !== 1 ? 's' : '')"></span>
                 </div>
-                <div class="vendor-items">
+                <div class="pb-vendor-items">
                     <template x-for="row in vendor.entries" :key="row.id">
-                        <div class="vendor-item">
-                            <div style="display:flex; align-items:center; gap:10px;">
+                        <div class="pb-vendor-item">
+                            <div class="flex items-center gap-2.5">
                                 <template x-if="row.fish_image">
-                                    <img :src="row.fish_image" :alt="row.fish_name"
-                                         style="width:38px; height:38px; border-radius:8px; object-fit:cover; border:1px solid #e2e8f0; flex-shrink:0;">
+                                    <img :src="row.fish_image" :alt="row.fish_name" class="pb-thumb pb-thumb-lg">
                                 </template>
                                 <template x-if="!row.fish_image">
-                                    <div style="width:38px; height:38px; border-radius:8px; background:var(--ocean-light); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                                        <i class="fas fa-fish" style="color:var(--ocean); font-size:14px;"></i>
-                                    </div>
+                                    <div class="pb-thumb-fallback pb-thumb-lg"><x-icon name="bi-fish" /></div>
                                 </template>
                                 <div>
-                                    <div class="fish-name" x-text="row.fish_name"></div>
-                                    <span class="class-pill" :class="classPillClass(row.quality_class)" x-text="row.quality_class" style="margin-top:4px; display:inline-block;"></span>
+                                    <div class="vpm-cell-strong" x-text="row.fish_name"></div>
+                                    <span :class="qualityClass(row.quality_class)" style="margin-top: 4px; display: inline-block;"></span>
                                 </div>
                             </div>
-                            <div style="text-align:right;">
-                                <div style="font-size:0.75rem; color:#64748b;">Stock</div>
-                                <div class="stock-val" :class="row.stock_kg < 20 ? 'stock-low' : ''" x-text="parseFloat(row.stock_kg).toFixed(1) + ' kg'"></div>
+                            <div class="text-right">
+                                <div class="pb-mini-label">Stock</div>
+                                <div class="font-semibold"
+                                     :class="row.stock_kg < 20 ? 'pb-stock-low' : ''"
+                                     x-text="parseFloat(row.stock_kg).toFixed(1) + ' kg'"></div>
                             </div>
-                            <div style="text-align:right; min-width:90px;">
-                                <div style="font-size:0.75rem; color:#64748b;">Price/kg</div>
-                                <div class="price-val" style="font-size:1.1rem;">₱<span x-text="parseFloat(row.price_per_kg).toFixed(2)"></span></div>
+                            <div class="text-right min-w-[90px]">
+                                <div class="pb-mini-label">Price/kg</div>
+                                <div class="text-[17px] font-bold text-slate-900">
+                                    &#8369;<span x-text="parseFloat(row.price_per_kg).toFixed(2)"></span>
+                                </div>
                             </div>
                             <div>
-                                <i class="fas fa-circle-check" style="color:#16a34a; font-size:16px;" title="Confirmed"></i>
+                                <i class="bi bi-check-circle-fill text-[16px] text-success-500" title="Confirmed"></i>
                             </div>
                         </div>
                     </template>
@@ -938,8 +620,8 @@
 
 {{-- ═══════════════════════════════════════════════════════════
      FOOTER
-════════════════════════════════════════════════════════════════ --}}
-<footer class="page-footer">
+═══════════════════════════════════════════════════════════════ --}}
+<footer class="pb-footer">
     <strong>Virac Public Market</strong> — Commodity Supply Projection &amp; Price Monitoring System
     &nbsp;|&nbsp; Prices are verified by Market Staff &amp; updated daily
     &nbsp;|&nbsp; Catanduanes State University &copy; {{ date('Y') }}
@@ -947,7 +629,7 @@
 
 {{-- ═══════════════════════════════════════════════════════════
      ALPINE.JS — CLIENT-SIDE FILTERING / SORTING / VIEW
-════════════════════════════════════════════════════════════════ --}}
+═══════════════════════════════════════════════════════════════ --}}
 
 {{-- Prepare a plain array for @json — closures inside @json() cause a ParseError --}}
 @php
@@ -972,10 +654,20 @@
     })->values()->all();
 @endphp
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/alpinejs/3.13.3/cdn.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
 <script>
+    {{-- Tier -> tone map, derived from the canonical list so this JS copy can
+         never drift from <x-quality-badge>. --}}
+    const QUALITY_TONES = @json(
+        collect(App\Models\FishType::QUALITY_CLASSES)
+            ->mapWithKeys(fn ($q) => [
+                $q => 'vpm-quality vpm-quality-' . str($q)->lower()->replace(' class', ''),
+            ])
+    );
+
     function priceBoard() {
         const raw = @json($priceRows);
+
 
         return {
             all: raw,
@@ -1029,15 +721,12 @@
                 this.filtered = data;
             },
 
-            classPillClass(cls) {
-                const map = {
-                    'First Class':   'first',
-                    'Second Class':  'second',
-                    'Third Class':   'third',
-                    'Fourth Class':  'fourth',
-                    'Special Class': 'special',
-                };
-                return map[cls] ?? 'first';
+            {{-- Resolves a quality class to the shared .vpm-quality-* tone. The
+                 map is emitted from FishType::QUALITY_CLASSES below so the tier
+                 list has a single source of truth, exactly as the server-rendered
+                 <x-quality-badge> does. --}}
+            qualityClass(cls) {
+                return QUALITY_TONES[cls] || 'vpm-quality vpm-quality-neutral';
             },
 
             byVendor() {

@@ -7,87 +7,17 @@
     <title>VPM — @yield('title', 'Dashboard')</title>
     <link rel="icon" href="{{ asset('logo.png') }}" type="image/png">
 
-    {{-- Google Fonts --}}
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+    {{-- Typography: one family for the whole product (see @theme in app.css) --}}
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;display=swap" rel="stylesheet">
 
-    {{-- Bootstrap Icons --}}
+    {{-- The single icon set. Sizing lives in .vpm-icon-* / <x-icon>. --}}
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
-    {{--
-        Tailwind CSS via CDN.
-        NOTE: If you already have Tailwind set up via Vite/npm,
-        remove this CDN script and keep your @vite() directive instead.
-    --}}
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
-                    },
-                    colors: {
-                        navy: {
-                            950: '#060f1f',
-                            900: '#0a1f3c',
-                            800: '#0f2d5e',
-                            700: '#14407f',
-                        },
-                    },
-                }
-            }
-        }
-    </script>
+    {{-- Design tokens + component classes. Replaces the Tailwind Play CDN,
+         which regenerated the whole framework in the browser on every page load. --}}
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     <style>
-        * { font-family: 'Plus Jakarta Sans', sans-serif; }
-
-        /* Sidebar scrollbar */
-        .sidebar-nav::-webkit-scrollbar { width: 3px; }
-        .sidebar-nav::-webkit-scrollbar-track { background: transparent; }
-        .sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 99px; }
-
-        /* Nav item transitions */
-        .nav-link {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 9px 12px;
-            border-radius: 8px;
-            margin-bottom: 2px;
-            color: rgba(255,255,255,0.6);
-            font-size: 13.5px;
-            font-weight: 500;
-            text-decoration: none;
-            transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-            border-left: 3px solid transparent;
-        }
-        .nav-link:hover {
-            background: rgba(255,255,255,0.07);
-            color: rgba(255,255,255,0.9);
-        }
-        .nav-link.active {
-            background: rgba(59,130,246,0.2);
-            color: #fff;
-            border-left-color: #60a5fa;
-        }
-        .nav-link .nav-icon {
-            font-size: 15px;
-            width: 18px;
-            text-align: center;
-            flex-shrink: 0;
-        }
-
-        /* Stat card hover */
-        .stat-card {
-            transition: transform 0.15s ease, box-shadow 0.15s ease;
-        }
-        .stat-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(0,0,0,0.08);
-        }
-
-        /* Sidebar slide transition */
         #sidebar {
             transition: transform 0.3s ease;
         }
@@ -107,11 +37,10 @@
 
     {{-- ═══════════════════════════════════════════════════════ SIDEBAR --}}
     <aside id="sidebar"
-           class="fixed inset-y-0 left-0 z-50
+           class="vpm-sidebar fixed inset-y-0 left-0 z-50
                   lg:static lg:inset-auto lg:z-auto lg:flex-shrink-0
                   w-64 lg:w-60 flex flex-col overflow-hidden
-                  -translate-x-full lg:translate-x-0"
-           style="background: linear-gradient(175deg, #0a1f3c 0%, #0d2a52 60%, #0f2d5e 100%); box-shadow: 4px 0 20px rgba(0,0,0,0.25);">
+                  -translate-x-full lg:translate-x-0">
 
         {{-- Branding --}}
         <div class="px-5 py-4 border-b border-white/10">
@@ -120,13 +49,14 @@
                     <img src="{{ asset('logo.png') }}" alt="VPM Logo" class="w-full h-full object-contain rounded-lg">
                 </div>
                 <div class="leading-tight">
-                    <p class="text-white font-bold" style="font-size: 12px; letter-spacing: 0.02em;">Virac Public Market</p>
-                    <p class="text-blue-300" style="font-size: 10px; font-weight: 500;">Price Monitoring System</p>
+                <p class="text-white font-bold text-[12px] tracking-[0.02em]">Virac Public Market</p>
+                <p class="text-blue-300 text-[10px] font-medium">Price Monitoring System</p>
+
                 </div>
                 {{-- Close button (mobile only) --}}
                 <button onclick="closeSidebar()"
                         class="ml-auto lg:hidden text-white/40 hover:text-white/80 transition-colors">
-                    <i class="bi bi-x-lg" style="font-size: 16px;"></i>
+                    <x-icon name="bi-x-lg" size="xl" class="text-white/60" />
                 </button>
             </div>
         </div>
@@ -136,117 +66,114 @@
             @php $role = auth()->user()->role; @endphp
 
             @if($role === 'supervisor')
-                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-amber-300"
-                      style="background: rgba(251,191,36,0.15); font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;">
-                    <i class="bi bi-shield-fill-check" style="font-size: 9px;"></i> Supervisor
+                <span class="vpm-role-pill text-amber-300" style="background: rgba(251,191,36,0.15);">
+                    <x-icon name="bi-shield-fill-check" size="2xs" /> Supervisor
                 </span>
             @elseif($role === 'staff')
-                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-emerald-300"
-                      style="background: rgba(52,211,153,0.15); font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;">
-                    <i class="bi bi-person-badge-fill" style="font-size: 9px;"></i> Market Staff
+                <span class="vpm-role-pill text-emerald-300" style="background: rgba(52,211,153,0.15);">
+                    <x-icon name="bi-person-badge-fill" size="2xs" /> Market Staff
                 </span>
             @else
-                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-blue-300"
-                      style="background: rgba(96,165,250,0.15); font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;">
-                    <i class="bi bi-shop" style="font-size: 9px;"></i> Vendor
+                <span class="vpm-role-pill text-blue-300" style="background: rgba(96,165,250,0.15);">
+                    <x-icon name="bi-shop" size="2xs" /> Vendor
                 </span>
             @endif
         </div>
 
         {{-- Navigation --}}
-        <nav class="flex-1 px-3 py-4 overflow-y-auto sidebar-nav">
+        <nav class="vpm-sidebar-nav flex-1 px-3 py-4 overflow-y-auto">
 
-            <p style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.3); padding: 0 12px; margin-bottom: 8px;">
+            <p class="vpm-nav-heading">
                 Main Menu
             </p>
 
             {{-- ── Supervisor Nav ── --}}
             @if($role === 'supervisor')
                 <a href="{{ route('supervisor.dashboard') }}"
-                   class="nav-link {{ request()->routeIs('supervisor.dashboard') ? 'active' : '' }}">
-                    <i class="bi bi-speedometer2 nav-icon"></i> Dashboard
+                   class="vpm-nav-link {{ request()->routeIs('supervisor.dashboard') ? 'is-active' : '' }}">
+                    <x-icon name="bi-speedometer2" class="vpm-nav-icon" /> Dashboard
                 </a>
                 <a href="{{ route('supervisor.vendors.index') }}"
-                   class="nav-link {{ request()->routeIs('supervisor.vendors.*') ? 'active' : '' }}">
-                    <i class="bi bi-people nav-icon"></i> Vendors
+                   class="vpm-nav-link {{ request()->routeIs('supervisor.vendors.*') ? 'is-active' : '' }}">
+                    <x-icon name="bi-people" class="vpm-nav-icon" /> Vendors
                 </a>
                 <a href="{{ route('supervisor.staff.index') }}"
-                   class="nav-link {{ request()->routeIs('supervisor.staff.*') ? 'active' : '' }}">
-                    <i class="bi bi-person-badge nav-icon"></i> Staff
+                   class="vpm-nav-link {{ request()->routeIs('supervisor.staff.*') ? 'is-active' : '' }}">
+                    <x-icon name="bi-person-badge" class="vpm-nav-icon" /> Staff
                 </a>
 
-                <p style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.3); padding: 0 12px; margin: 14px 0 8px;">
+                <p class="vpm-nav-heading">
                     Configuration
                 </p>
 
                 <a href="{{ route('supervisor.fish-types.index') }}"
-                   class="nav-link {{ request()->routeIs('supervisor.fish-types.*') ? 'active' : '' }}">
-                    <i class="bi bi-water nav-icon"></i> Fish Types
+                   class="vpm-nav-link {{ request()->routeIs('supervisor.fish-types.*') ? 'is-active' : '' }}">
+                    <x-icon name="bi-water" class="vpm-nav-icon" /> Fish Types
                 </a>
                 <a href="{{ route('supervisor.price-guides.index') }}"
-                   class="nav-link {{ request()->routeIs('supervisor.price-guides.*') ? 'active' : '' }}">
-                    <i class="bi bi-tags nav-icon"></i> Price Guides
+                   class="vpm-nav-link {{ request()->routeIs('supervisor.price-guides.*') ? 'is-active' : '' }}">
+                    <x-icon name="bi-tags" class="vpm-nav-icon" /> Price Guides
                 </a>
 
-                <p style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.3); padding: 0 12px; margin: 14px 0 8px;">
+                <p class="vpm-nav-heading">
                     Analytics
                 </p>
 
                 <a href="{{ route('supervisor.forecasts.index') }}"
-                   class="nav-link {{ request()->routeIs('supervisor.forecasts.*') ? 'active' : '' }}">
-                    <i class="bi bi-graph-up-arrow nav-icon"></i> Forecasts
+                   class="vpm-nav-link {{ request()->routeIs('supervisor.forecasts.*') ? 'is-active' : '' }}">
+                    <x-icon name="bi-graph-up-arrow" class="vpm-nav-icon" /> Forecasts
                 </a>
                 <a href="{{ route('supervisor.reports.index') }}"
-                   class="nav-link {{ request()->routeIs('supervisor.reports.*') ? 'active' : '' }}">
-                    <i class="bi bi-file-earmark-bar-graph nav-icon"></i> Reports
+                   class="vpm-nav-link {{ request()->routeIs('supervisor.reports.*') ? 'is-active' : '' }}">
+                    <x-icon name="bi-file-earmark-bar-graph" class="vpm-nav-icon" /> Reports
                 </a>
 
-                <p style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.3); padding: 0 12px; margin: 14px 0 8px;">
+                <p class="vpm-nav-heading">
                     Account
                 </p>
 
                 <a href="{{ route('supervisor.account.edit') }}"
-                   class="nav-link {{ request()->routeIs('supervisor.account.*') ? 'active' : '' }}">
-                    <i class="bi bi-person-gear nav-icon"></i> My Account
+                   class="vpm-nav-link {{ request()->routeIs('supervisor.account.*') ? 'is-active' : '' }}">
+                    <x-icon name="bi-person-gear" class="vpm-nav-icon" /> My Account
                 </a>
 
             {{-- ── Staff Nav ── --}}
             @elseif($role === 'staff')
                 <a href="{{ route('staff.dashboard') }}"
-                   class="nav-link {{ request()->routeIs('staff.dashboard') ? 'active' : '' }}">
-                    <i class="bi bi-speedometer2 nav-icon"></i> Dashboard
+                   class="vpm-nav-link {{ request()->routeIs('staff.dashboard') ? 'is-active' : '' }}">
+                    <x-icon name="bi-speedometer2" class="vpm-nav-icon" /> Dashboard
                 </a>
                 <a href="{{ route('staff.confirmations.index') }}"
-                   class="nav-link {{ request()->routeIs('staff.confirmations.*') ? 'active' : '' }}">
-                    <i class="bi bi-check2-circle nav-icon"></i> Confirmations
+                   class="vpm-nav-link {{ request()->routeIs('staff.confirmations.*') ? 'is-active' : '' }}">
+                    <x-icon name="bi-check2-circle" class="vpm-nav-icon" /> Confirmations
                 </a>
                 <a href="{{ route('staff.vendors.index') }}"
-                   class="nav-link {{ request()->routeIs('staff.vendors.*') ? 'active' : '' }}">
-                    <i class="bi bi-people nav-icon"></i> Vendors
+                   class="vpm-nav-link {{ request()->routeIs('staff.vendors.*') ? 'is-active' : '' }}">
+                    <x-icon name="bi-people" class="vpm-nav-icon" /> Vendors
                 </a>
 
-                <p style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.3); padding: 0 12px; margin: 14px 0 8px;">
+                <p class="vpm-nav-heading">
                     Records
                 </p>
 
                 <a href="{{ route('staff.price-guides.index') }}"
-                   class="nav-link {{ request()->routeIs('staff.price-guides.*') ? 'active' : '' }}">
-                    <i class="bi bi-tags nav-icon"></i> Price Guide
+                   class="vpm-nav-link {{ request()->routeIs('staff.price-guides.*') ? 'is-active' : '' }}">
+                    <x-icon name="bi-tags" class="vpm-nav-icon" /> Price Guide
                 </a>
                 <a href="{{ route('staff.reports.index') }}"
-                   class="nav-link {{ request()->routeIs('staff.reports.*') ? 'active' : '' }}">
-                    <i class="bi bi-file-earmark-text nav-icon"></i> Reports
+                   class="vpm-nav-link {{ request()->routeIs('staff.reports.*') ? 'is-active' : '' }}">
+                    <x-icon name="bi-file-earmark-text" class="vpm-nav-icon" /> Reports
                 </a>
 
             {{-- ── Vendor Nav ── --}}
             @else
                 <a href="{{ route('vendor.dashboard') }}"
-                   class="nav-link {{ request()->routeIs('vendor.dashboard') ? 'active' : '' }}">
-                    <i class="bi bi-speedometer2 nav-icon"></i> Dashboard
+                   class="vpm-nav-link {{ request()->routeIs('vendor.dashboard') ? 'is-active' : '' }}">
+                    <x-icon name="bi-speedometer2" class="vpm-nav-icon" /> Dashboard
                 </a>
                 <a href="{{ route('vendor.inventory.index') }}"
-                   class="nav-link {{ request()->routeIs('vendor.inventory.*') ? 'active' : '' }}">
-                    <i class="bi bi-box-seam nav-icon"></i> My Inventory
+                   class="vpm-nav-link {{ request()->routeIs('vendor.inventory.*') ? 'is-active' : '' }}">
+                    <x-icon name="bi-box-seam" class="vpm-nav-icon" /> My Inventory
                 </a>
             @endif
 
@@ -256,20 +183,19 @@
         <div class="px-4 py-3.5 border-t border-white/10">
             <div class="flex items-center gap-3">
                 {{-- Avatar --}}
-                <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                     style="background: rgba(59,130,246,0.25);">
-                    <i class="bi bi-person-fill text-blue-300" style="font-size: 13px;"></i>
+                <div class="w-8 h-8 rounded-full vpm-avatar flex items-center justify-center flex-shrink-0">
+                    <x-icon name="bi-person-fill" size="sm" class="text-blue-300" />
                 </div>
 
                 @if($role === 'supervisor')
                     <a href="{{ route('supervisor.account.edit') }}" class="flex-1 min-w-0 hover:opacity-80 transition-opacity" title="Manage my account">
-                        <p class="text-white font-semibold truncate" style="font-size: 11.5px;">{{ auth()->user()->name }}</p>
-                        <p class="text-white/35 truncate" style="font-size: 10px;">{{ auth()->user()->username }}</p>
+                        <p class="vpm-user-name truncate">{{ auth()->user()->name }}</p>
+                        <p class="vpm-user-handle truncate">{{ auth()->user()->username }}</p>
                     </a>
                 @else
                     <div class="flex-1 min-w-0">
-                        <p class="text-white font-semibold truncate" style="font-size: 11.5px;">{{ auth()->user()->name }}</p>
-                        <p class="text-white/35 truncate" style="font-size: 10px;">{{ auth()->user()->username }}</p>
+                        <p class="vpm-user-name truncate">{{ auth()->user()->name }}</p>
+                        <p class="vpm-user-handle truncate">{{ auth()->user()->username }}</p>
                     </div>
                 @endif
 
@@ -278,9 +204,9 @@
                     @csrf
                     <button type="submit"
                             title="Logout"
-                            class="text-white/30 hover:text-red-400 transition-colors"
-                            style="line-height: 1;">
-                        <i class="bi bi-box-arrow-right" style="font-size: 16px;"></i>
+                            class="text-white/30 hover:text-red-400 transition-colors leading-[1]"
+                           >
+                        <x-icon name="bi-box-arrow-right" size="xl" />
                     </button>
                 </form>
             </div>
@@ -292,8 +218,7 @@
     <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
 
         {{-- Top Header --}}
-        <header class="bg-white border-b border-slate-200 flex-shrink-0"
-                style="padding: 14px 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.06);">
+        <header class="vpm-header">
             <div class="flex items-center justify-between gap-3">
 
                 {{-- Left: Hamburger + Title --}}
@@ -301,14 +226,14 @@
                     {{-- Hamburger (mobile only) --}}
                     <button onclick="openSidebar()"
                             class="lg:hidden flex-shrink-0 p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors">
-                        <i class="bi bi-list" style="font-size: 20px; line-height: 1;"></i>
+                        <x-icon name="bi-list" size="2xl" />
                     </button>
 
                     <div class="min-w-0">
-                        <h1 class="text-slate-800 font-bold truncate" style="font-size: 15px;">
+                        <h1 class="vpm-page-title truncate">
                             @yield('title', 'Dashboard')
                         </h1>
-                        <p class="text-slate-400 hidden sm:block" style="font-size: 11.5px; margin-top: 1px;">
+                        <p class="text-slate-400 hidden sm:block text-[11.5px] mt-px">
                             @yield('subtitle', 'Virac Public Market · Catanduanes State University')
                         </p>
                     </div>
@@ -317,17 +242,16 @@
                 {{-- Right: Date/Time (hidden on mobile) --}}
                 <div class="hidden md:flex items-center gap-3 flex-shrink-0">
                     <div class="text-right">
-                        <p id="header-date" class="text-slate-600 font-medium" style="font-size: 12px;">
+                        <p id="header-date" class="text-slate-600 font-medium text-[12px]">
                             {{ now()->format('l, F j, Y') }}
                         </p>
-                        <p id="header-time" class="text-slate-400 text-right" style="font-size: 11px;">
+                        <p id="header-time" class="text-slate-400 text-right text-[11px]">
                             {{ now()->setTimezone('Asia/Manila')->format('g:i:s A') }} PHT
                         </p>
                     </div>
-                    <div class="w-px h-8 bg-slate-200"></div>
-                    <div class="w-8 h-8 rounded-full bg-navy-800 flex items-center justify-center"
-                         style="background: #0f2d5e;">
-                        <i class="bi bi-building text-blue-300" style="font-size: 13px;"></i>
+                    <div class="vpm-divider"></div>
+                    <div class="w-8 h-8 rounded-full bg-navy-800 flex items-center justify-center">
+                        <x-icon name="bi-building" size="sm" class="text-blue-300" />
                     </div>
                 </div>
 
@@ -335,7 +259,7 @@
         </header>
 
         {{-- Page Content --}}
-        <main class="flex-1 overflow-y-auto" style="padding: 16px; background: #f1f5f9;">
+        <main class="vpm-main">
             <div class="max-w-screen-2xl mx-auto">
                 @yield('content')
             </div>
@@ -384,7 +308,8 @@
     }
 
     // Close sidebar when a nav link is clicked on mobile
-    document.querySelectorAll('#sidebar .nav-link').forEach(link => {
+            document.querySelectorAll('#sidebar .vpm-nav-link').forEach(link => {
+
         link.addEventListener('click', () => {
             if (window.innerWidth < 1024) closeSidebar();
         });

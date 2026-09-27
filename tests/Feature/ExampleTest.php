@@ -8,12 +8,12 @@ use Tests\TestCase;
 class ExampleTest extends TestCase
 {
     /**
-     * A basic test example.
+     * The application root redirects guests to the public price board, so it
+     * answers with a redirect rather than a page. FrontendSmokeTest covers the
+     * destination page itself; this only pins the entry-point behaviour.
      */
-    public function test_the_application_returns_a_successful_response(): void
+    public function test_the_application_root_redirects_to_the_public_price_board(): void
     {
-        $response = $this->get('/');
-
-        $response->assertStatus(200);
+        $this->get('/')->assertRedirect('/prices');
     }
 }

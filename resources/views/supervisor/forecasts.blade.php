@@ -75,14 +75,14 @@
      FILTER BAR
 ═══════════════════════════════════════════════════════════════════ --}}
 <form method="GET" action="{{ route('supervisor.forecasts.index') }}" id="filterForm">
-<div class="bg-white rounded-xl border border-slate-100 px-4 py-3.5 mb-5 flex flex-wrap items-end gap-3"
-     style="box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+<div class="bg-white rounded-xl border border-slate-100 px-4 py-3.5 mb-5 flex flex-wrap items-end gap-3 shadow-card"
+    >
 
     {{-- Fish Type --}}
     <div class="flex flex-col gap-1.5 flex-shrink-0" style="min-width:170px;">
-        <label class="text-slate-400 font-semibold"
-               style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;">
-            <i class="bi bi-water" style="margin-right:4px;"></i>Fish Type
+        <label class="text-slate-400 font-semibold text-[10px] uppercase tracking-[0.08em]"
+              >
+            <i class="bi bi-water" style="margin-right:4px"></i>Fish Type
         </label>
         <select name="fish_type_id" id="forecast-fish-type"
                 onchange="forecastOnFishChange()"
@@ -99,8 +99,8 @@
 
     {{-- Quality Class --}}
     <div class="flex flex-col gap-1.5 flex-shrink-0" style="min-width:155px;">
-        <label class="text-slate-400 font-semibold"
-               style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;">
+        <label class="text-slate-400 font-semibold text-[10px] uppercase tracking-[0.08em]"
+              >
             Quality Class
         </label>
         <select name="quality_class" id="forecast-quality-class"
@@ -117,18 +117,17 @@
 
     {{-- Metric Toggle --}}
     <div class="flex flex-col gap-1.5 flex-shrink-0">
-        <label class="text-slate-400 font-semibold"
-               style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;">
+        <label class="text-slate-400 font-semibold text-[10px] uppercase tracking-[0.08em]"
+              >
             Metric
         </label>
-        <div class="flex items-stretch rounded-lg border border-slate-200 overflow-hidden"
-             style="background:#f8fafc;">
+        <div class="flex items-stretch rounded-lg border border-slate-200 overflow-hidden bg-surface-subtle"
+            >
             @foreach($metrics as $key => $label)
-                <button type="submit" name="metric" value="{{ $key }}"
-                        style="padding:7px 16px; font-size:12.5px; font-weight:600; transition:all .15s; cursor:pointer;
-                               {{ $selectedMetric === $key
-                                   ? 'background:#2563eb; color:#fff; box-shadow:inset 0 1px 3px rgba(0,0,0,0.15);'
-                                   : 'background:transparent; color:#64748b;' }}">
+                <button class="text-[12.5px] font-semibold text-slate-500" type="submit" name="metric" value="{{ $key }}"
+                        style="padding:7px 16px; transition:all .15s; cursor:pointer; {{ $selectedMetric === $key
+                                   ? 'background:#2563eb; color:#fff; box-shadow:inset 0 1px 3px rgba(0,0,0,0.15); '
+                                   : 'background:transparent; ' }}">
                     {{ config("forecast.metric_meta.{$key}.short") ?? $label }}
                 </button>
             @endforeach
@@ -138,13 +137,13 @@
     {{-- ARIMA badge / meta text --}}
     <div class="ml-auto flex-shrink-0 hidden md:flex items-end pb-0.5">
         @if($arimaString)
-            <span class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-indigo-200 text-indigo-600"
-                  style="background:#eef2ff; font-size:12px; font-weight:700; font-family:monospace; letter-spacing:.03em;">
-                <i class="bi bi-cpu" style="font-size:13px;"></i>
+            <span class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-indigo-200 text-indigo-600 text-[12px] font-bold"
+                  style="background:#eef2ff; font-family:monospace; letter-spacing:.03em">
+                <x-icon name="bi-cpu" size="md" />
                 {{ $arimaString }}
             </span>
         @else
-            <span class="flex items-center gap-1.5 text-slate-400" style="font-size:11.5px;">
+            <span class="flex items-center gap-1.5 text-slate-400 text-[11.5px]">
                 <i class="bi bi-cpu"></i> ARIMA model · Updated daily
             </span>
         @endif
@@ -160,126 +159,126 @@
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
 
     {{-- Trend Indicator --}}
-    <div class="stat-card bg-white rounded-xl p-5 border border-slate-100"
-         style="box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+    <div class="stat-card bg-white rounded-xl p-5 border border-slate-100 shadow-card"
+        >
         <div class="flex items-start justify-between">
             <div>
-                <p class="text-slate-400 font-semibold"
-                   style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;">
+                <p class="text-slate-400 font-semibold text-[10px] uppercase tracking-[0.08em]"
+                  >
                     {{ $horizon }}-Day Trend
                 </p>
 
                 @if($trendLabel === 'upward')
-                    <p class="font-bold mt-2 flex items-center gap-1.5"
-                       style="font-size:17px;line-height:1;color:#16a34a;">
+                    <p class="font-bold mt-2 flex items-center gap-1.5 leading-[1]"
+                       style="font-size:17px; color:#16a34a">
                         <i class="bi bi-arrow-up-circle-fill"></i> Upward
                     </p>
-                    <p class="text-slate-400 mt-1.5" style="font-size:11px;">
+                    <p class="text-slate-400 mt-1.5 text-[11px]">
                         {{ $metricShort }} increasing
                     </p>
                 @elseif($trendLabel === 'downward')
-                    <p class="font-bold mt-2 flex items-center gap-1.5"
-                       style="font-size:17px;line-height:1;color:#e11d48;">
+                    <p class="font-bold mt-2 flex items-center gap-1.5 leading-[1]"
+                       style="font-size:17px; color:#e11d48">
                         <i class="bi bi-arrow-down-circle-fill"></i> Downward
                     </p>
-                    <p class="text-slate-400 mt-1.5" style="font-size:11px;">
+                    <p class="text-slate-400 mt-1.5 text-[11px]">
                         {{ $metricShort }} declining
                     </p>
                 @elseif($trendLabel === 'stable')
-                    <p class="font-bold mt-2 flex items-center gap-1.5"
-                       style="font-size:17px;line-height:1;color:#64748b;">
+                    <p class="font-bold mt-2 flex items-center gap-1.5 leading-[1] text-slate-500"
+                       style="font-size:17px">
                         <i class="bi bi-dash-circle-fill"></i> Stable
                     </p>
-                    <p class="text-slate-400 mt-1.5" style="font-size:11px;">
+                    <p class="text-slate-400 mt-1.5 text-[11px]">
                         No significant movement
                     </p>
                 @else
-                    <p class="font-bold mt-2 text-slate-300"
-                       style="font-size:17px;line-height:1;">— No data</p>
-                    <p class="text-slate-400 mt-1.5" style="font-size:11px;">No forecasts yet</p>
+                    <p class="font-bold mt-2 text-slate-300 leading-[1]"
+                       style="font-size:17px">— No data</p>
+                    <p class="text-slate-400 mt-1.5 text-[11px]">No forecasts yet</p>
                 @endif
             </div>
-            <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                 style="background:#eff6ff;">
-                <i class="bi bi-graph-up-arrow text-blue-600" style="font-size:17px;"></i>
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-brand-50"
+                >
+                <x-icon name="bi-graph-up-arrow" size="lg" class="text-blue-600" />
             </div>
         </div>
     </div>
 
     {{-- Horizon Average --}}
-    <div class="stat-card bg-white rounded-xl p-5 border border-slate-100"
-         style="box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+    <div class="stat-card bg-white rounded-xl p-5 border border-slate-100 shadow-card"
+        >
         <div class="flex items-start justify-between">
             <div>
-                <p class="text-slate-400 font-semibold"
-                   style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;">
+                <p class="text-slate-400 font-semibold text-[10px] uppercase tracking-[0.08em]"
+                  >
                     Avg Forecast
                 </p>
-                <p class="text-slate-800 font-bold mt-2" style="font-size:24px;line-height:1;">
+                <p class="text-slate-800 font-bold mt-2 leading-[1]" style="font-size:24px">
                     @if($avgForecast !== null)
                         {{ $metricPrefix }}{{ number_format($avgForecast, 2) }}
-                        <span style="font-size:12px;color:#94a3b8;font-weight:600;">{{ $metricUnit }}</span>
+                        <span class="text-[12px] font-semibold text-slate-400">{{ $metricUnit }}</span>
                     @else
                         <span class="text-slate-300">—</span>
                     @endif
                 </p>
-                <p class="text-slate-400 mt-1.5" style="font-size:11px;">Over {{ $horizon }} days</p>
+                <p class="text-slate-400 mt-1.5 text-[11px]">Over {{ $horizon }} days</p>
             </div>
             <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
                  style="background:#fefce8;">
-                <i class="bi bi-calculator text-amber-500" style="font-size:17px;"></i>
+                <x-icon name="bi-calculator" size="lg" class="text-amber-500" />
             </div>
         </div>
     </div>
 
     {{-- Projected Low --}}
-    <div class="stat-card bg-white rounded-xl p-5 border border-slate-100"
-         style="box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+    <div class="stat-card bg-white rounded-xl p-5 border border-slate-100 shadow-card"
+        >
         <div class="flex items-start justify-between">
             <div>
-                <p class="text-slate-400 font-semibold"
-                   style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;">
+                <p class="text-slate-400 font-semibold text-[10px] uppercase tracking-[0.08em]"
+                  >
                     Projected Low
                 </p>
-                <p class="text-slate-800 font-bold mt-2" style="font-size:24px;line-height:1;">
+                <p class="text-slate-800 font-bold mt-2 leading-[1]" style="font-size:24px">
                     @if($minForecast !== null)
                         {{ $metricPrefix }}{{ number_format($minForecast, 2) }}
-                        <span style="font-size:12px;color:#94a3b8;font-weight:600;">{{ $metricUnit }}</span>
+                        <span class="text-[12px] font-semibold text-slate-400">{{ $metricUnit }}</span>
                     @else
                         <span class="text-slate-300">—</span>
                     @endif
                 </p>
-                <p class="text-slate-400 mt-1.5" style="font-size:11px;">Lowest in period</p>
+                <p class="text-slate-400 mt-1.5 text-[11px]">Lowest in period</p>
             </div>
             <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
                  style="background:#fff1f2;">
-                <i class="bi bi-arrow-down text-rose-400" style="font-size:17px;"></i>
+                <x-icon name="bi-arrow-down" size="lg" class="text-rose-400" />
             </div>
         </div>
     </div>
 
     {{-- Projected High --}}
-    <div class="stat-card bg-white rounded-xl p-5 border border-slate-100"
-         style="box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+    <div class="stat-card bg-white rounded-xl p-5 border border-slate-100 shadow-card"
+        >
         <div class="flex items-start justify-between">
             <div>
-                <p class="text-slate-400 font-semibold"
-                   style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;">
+                <p class="text-slate-400 font-semibold text-[10px] uppercase tracking-[0.08em]"
+                  >
                     Projected High
                 </p>
-                <p class="text-slate-800 font-bold mt-2" style="font-size:24px;line-height:1;">
+                <p class="text-slate-800 font-bold mt-2 leading-[1]" style="font-size:24px">
                     @if($maxForecast !== null)
                         {{ $metricPrefix }}{{ number_format($maxForecast, 2) }}
-                        <span style="font-size:12px;color:#94a3b8;font-weight:600;">{{ $metricUnit }}</span>
+                        <span class="text-[12px] font-semibold text-slate-400">{{ $metricUnit }}</span>
                     @else
                         <span class="text-slate-300">—</span>
                     @endif
                 </p>
-                <p class="text-slate-400 mt-1.5" style="font-size:11px;">Highest in period</p>
+                <p class="text-slate-400 mt-1.5 text-[11px]">Highest in period</p>
             </div>
-            <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                 style="background:#f0fdf4;">
-                <i class="bi bi-arrow-up text-emerald-500" style="font-size:17px;"></i>
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-success-50"
+                >
+                <x-icon name="bi-arrow-up" size="lg" class="text-emerald-500" />
             </div>
         </div>
     </div>
@@ -290,21 +289,21 @@
 {{-- ═══════════════════════════════════════════════════════════════
      MAIN CHART CARD
 ═══════════════════════════════════════════════════════════════════ --}}
-<div class="bg-white rounded-xl border border-slate-100 overflow-hidden mb-5"
-     style="box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+<div class="bg-white rounded-xl border border-slate-100 overflow-hidden mb-5 shadow-card"
+    >
 
     {{-- Card header --}}
     <div class="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center gap-x-4 gap-y-2">
 
         {{-- Title --}}
         <div class="flex-1 min-w-0">
-            <h2 class="text-slate-700 font-bold" style="font-size:14px;">
+            <h2 class="text-slate-700 font-bold text-[14px]">
                 {{ $fishTypeName }}
                 <span class="text-slate-400 font-medium">
                     — {{ $metricChartTitle }}
                 </span>
             </h2>
-            <p class="text-slate-400 mt-0.5" style="font-size:11px;">
+            <p class="text-slate-400 mt-0.5 text-[11px]">
                 {{ config('forecast.history_chart_days') }}-day historical ·
                 {{ $horizon }}-day ARIMA projection ·
                 {{ $qualityLabel($selectedQuality) }}
@@ -313,26 +312,26 @@
 
         {{-- Trend badge --}}
         @if($trendLabel === 'upward')
-            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full trend-badge-up flex-shrink-0"
-                  style="font-size:11.5px;font-weight:700;">
-                <i class="bi bi-arrow-up-short" style="font-size:15px;"></i> Upward
+            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full trend-badge-up flex-shrink-0 text-[11.5px] font-bold"
+                 >
+                <x-icon name="bi-arrow-up-short" size="base" /> Upward
             </span>
         @elseif($trendLabel === 'downward')
-            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full trend-badge-down flex-shrink-0"
-                  style="font-size:11.5px;font-weight:700;">
-                <i class="bi bi-arrow-down-short" style="font-size:15px;"></i> Downward
+            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full trend-badge-down flex-shrink-0 text-[11.5px] font-bold"
+                 >
+                <x-icon name="bi-arrow-down-short" size="base" /> Downward
             </span>
         @elseif($trendLabel === 'stable')
-            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full trend-badge-stable flex-shrink-0"
-                  style="font-size:11.5px;font-weight:700;">
-                <i class="bi bi-dash" style="font-size:14px;"></i> Stable
+            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full trend-badge-stable flex-shrink-0 text-[11.5px] font-bold"
+                 >
+                <x-icon name="bi-dash" size="md" /> Stable
             </span>
         @endif
 
         {{-- Last updated --}}
         @if($latestForecast?->generated_at)
-            <span class="text-slate-400 flex-shrink-0 hidden sm:block" style="font-size:11px;">
-                <i class="bi bi-clock" style="margin-right:3px;"></i>
+            <span class="text-slate-400 flex-shrink-0 hidden sm:block text-[11px]">
+                <i class="bi bi-clock" style="margin-right:3px"></i>
                 Updated {{ $latestForecast->generated_at->diffForHumans() }}
             </span>
         @endif
@@ -342,7 +341,7 @@
             {{-- Historical --}}
             <div class="flex items-center gap-1.5">
                 <div style="width:22px; height:2.5px; background:#2563eb; border-radius:2px;"></div>
-                <span class="text-slate-500" style="font-size:11px;">Historical</span>
+                <span class="text-slate-500 text-[11px]">Historical</span>
             </div>
             {{-- Forecast --}}
             <div class="flex items-center gap-1.5">
@@ -351,13 +350,13 @@
                           stroke="#2563eb" stroke-width="2.5"
                           stroke-dasharray="6,4"/>
                 </svg>
-                <span class="text-slate-500" style="font-size:11px;">Forecast</span>
+                <span class="text-slate-500 text-[11px]">Forecast</span>
             </div>
             {{-- CI band --}}
             <div class="flex items-center gap-1.5">
                 <div style="width:16px; height:10px; background:rgba(59,130,246,0.15);
                             border-radius:3px; border:1px solid rgba(59,130,246,0.25);"></div>
-                <span class="text-slate-500" style="font-size:11px;">95% CI</span>
+                <span class="text-slate-500 text-[11px]">95% CI</span>
             </div>
         </div>
 
@@ -366,7 +365,7 @@
     {{-- Chart body / Empty state --}}
     @if($hasForecasts || $hasHistorical)
         <div style="padding:20px 20px 14px;">
-            <div style="position:relative; height:360px;">
+            <div class="relative" style="height:360px">
                 <canvas id="forecastChart"></canvas>
             </div>
         </div>
@@ -376,12 +375,12 @@
                     background: repeating-linear-gradient(0deg,transparent,transparent 39px,#f1f5f9 39px,#f1f5f9 40px),
                                 repeating-linear-gradient(90deg,transparent,transparent 39px,#f1f5f9 39px,#f1f5f9 40px);">
             <div class="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center mb-4">
-                <i class="bi bi-graph-up text-blue-300" style="font-size:26px;"></i>
+                <x-icon name="bi-graph-up" size="2xl" class="text-blue-300" />
             </div>
-            <p class="text-slate-500 font-semibold" style="font-size:14px;">
+            <p class="text-slate-500 font-semibold text-[14px]">
                 No forecast data available
             </p>
-            <p class="text-slate-400 text-center mt-2" style="font-size:12px; max-width:300px; line-height:1.6;">
+            <p class="text-slate-400 text-center mt-2 text-[12px] leading-[1.6]" style="max-width:300px">
                 ARIMA forecasts will appear once vendors submit and confirm
                 inventory entries for <strong>{{ $fishTypeName }}</strong>.
             </p>
@@ -395,26 +394,24 @@
      FORECAST BREAKDOWN TABLE
 ═══════════════════════════════════════════════════════════════════ --}}
 @if($hasForecasts)
-<div class="bg-white rounded-xl border border-slate-100 overflow-hidden"
-     style="box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+<div class="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-card"
+    >
 
     {{-- Table header --}}
     <div class="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center gap-3">
         <div class="flex-1 min-w-0">
-            <h2 class="text-slate-700 font-bold" style="font-size:14px;">
+            <h2 class="text-slate-700 font-bold text-[14px]">
                 {{ $horizon }}-Day {{ $metricShort }} Forecast Breakdown
             </h2>
-            <p class="text-slate-400 mt-0.5" style="font-size:11px;">
+            <p class="text-slate-400 mt-0.5 text-[11px]">
                 Predicted values with confidence intervals ·
                 {{ $fishTypeName }} · {{ $metrics[$selectedMetric] }}
             </p>
         </div>
         @if($arimaString)
-            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200
-                         text-indigo-600 hidden sm:flex flex-shrink-0"
-                  style="background:#eef2ff; font-size:12px; font-weight:700;
-                         font-family:monospace; letter-spacing:.02em;">
-                <i class="bi bi-cpu" style="font-size:13px;"></i>
+            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 text-indigo-600 hidden sm:flex flex-shrink-0 text-[12px] font-bold"
+                  style="background:#eef2ff; font-family:monospace; letter-spacing:.02em">
+                <x-icon name="bi-cpu" size="md" />
                 {{ $arimaString }}
             </span>
         @endif
@@ -424,33 +421,33 @@
     <div class="overflow-x-auto">
         <table class="w-full fc-table" style="border-collapse:collapse;">
             <thead>
-                <tr style="background:#f8fafc; border-bottom:1px solid #e2e8f0;">
-                    <th class="text-left text-slate-500 font-semibold"
-                        style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;">
+                <tr class="bg-surface-subtle" style="border-bottom:1px solid #e2e8f0">
+                    <th class="text-left text-slate-500 font-semibold text-[10px] uppercase tracking-[0.07em]"
+                       >
                         Day
                     </th>
-                    <th class="text-left text-slate-500 font-semibold"
-                        style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;">
+                    <th class="text-left text-slate-500 font-semibold text-[10px] uppercase tracking-[0.07em]"
+                       >
                         Date
                     </th>
-                    <th class="text-right text-slate-500 font-semibold"
-                        style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;">
+                    <th class="text-right text-slate-500 font-semibold text-[10px] uppercase tracking-[0.07em]"
+                       >
                         Predicted {{ $metrics[$selectedMetric] }}
                     </th>
-                    <th class="text-right text-slate-500 font-semibold hidden md:table-cell"
-                        style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;">
+                    <th class="text-right text-slate-500 font-semibold hidden md:table-cell text-[10px] uppercase tracking-[0.07em]"
+                       >
                         Lower CI
                     </th>
-                    <th class="text-right text-slate-500 font-semibold hidden md:table-cell"
-                        style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;">
+                    <th class="text-right text-slate-500 font-semibold hidden md:table-cell text-[10px] uppercase tracking-[0.07em]"
+                       >
                         Upper CI
                     </th>
-                    <th class="text-right text-slate-500 font-semibold hidden sm:table-cell"
-                        style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;">
+                    <th class="text-right text-slate-500 font-semibold hidden sm:table-cell text-[10px] uppercase tracking-[0.07em]"
+                       >
                         Δ Change
                     </th>
-                    <th class="text-center text-slate-500 font-semibold"
-                        style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;">
+                    <th class="text-center text-slate-500 font-semibold text-[10px] uppercase tracking-[0.07em]"
+                       >
                         Trend
                     </th>
                 </tr>
@@ -473,44 +470,41 @@
 
                         {{-- Day number --}}
                         <td>
-                            <span class="inline-flex items-center justify-center w-6 h-6 rounded-full
-                                         font-bold text-slate-500"
-                                  style="background:#f1f5f9; font-size:10.5px;">
+                            <span class="inline-flex items-center justify-center w-6 h-6 rounded-full font-bold text-slate-500 bg-surface-muted text-[10.5px]"
+                                 >
                                 {{ $dayNum }}
                             </span>
                         </td>
 
                         {{-- Date --}}
                         <td>
-                            <p class="text-slate-700 font-semibold" style="font-size:13px;">
+                            <p class="text-slate-700 font-semibold text-[13px]">
                                 {{ $fc->forecast_date->format('D, M j') }}
                                 @if($isToday)
-                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded-full
-                                                 text-blue-600 font-bold ml-1"
-                                          style="background:#eff6ff; font-size:9px; letter-spacing:.04em;
-                                                 text-transform:uppercase;">
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-blue-600 font-bold ml-1 text-[9px] uppercase bg-brand-50 tracking-[0.04em]"
+                                         >
                                         Today
                                     </span>
                                 @endif
                             </p>
-                            <p class="text-slate-400" style="font-size:10.5px;">
+                            <p class="text-slate-400 text-[10.5px]">
                                 {{ $fc->forecast_date->format('Y-m-d') }}
                             </p>
                         </td>
 
                         {{-- Predicted value --}}
                         <td class="text-right">
-                            <p class="text-slate-800 font-bold" style="font-size:13.5px;">
+                            <p class="text-slate-800 font-bold text-[13.5px]">
                                 {{ $metricPrefix }}{{ number_format($val, 2) }}
-                                <span style="font-size:11px;color:#94a3b8;font-weight:500;">
+                                <span class="text-[11px] text-slate-400" style="font-weight:500">
                                     {{ $metricUnit }}
                                 </span>
                             </p>
                         </td>
 
                         {{-- Lower CI --}}
-                        <td class="text-right hidden md:table-cell text-slate-500"
-                            style="font-size:12.5px;">
+                        <td class="text-right hidden md:table-cell text-slate-500 text-[12.5px]"
+                           >
                             @if($fc->predicted_min !== null)
                                 {{ $metricPrefix }}{{ number_format($fc->predicted_min, 2) }}
                             @else
@@ -519,8 +513,8 @@
                         </td>
 
                         {{-- Upper CI --}}
-                        <td class="text-right hidden md:table-cell text-slate-500"
-                            style="font-size:12.5px;">
+                        <td class="text-right hidden md:table-cell text-slate-500 text-[12.5px]"
+                           >
                             @if($fc->predicted_max !== null)
                                 {{ $metricPrefix }}{{ number_format($fc->predicted_max, 2) }}
                             @else
@@ -531,42 +525,39 @@
                         {{-- Δ change --}}
                         <td class="text-right hidden sm:table-cell">
                             @if($diff === null)
-                                <span class="text-slate-300" style="font-size:11.5px;">—</span>
+                                <span class="text-slate-300 text-[11.5px]">—</span>
                             @elseif($diff > 0.001)
-                                <span class="font-semibold" style="color:#16a34a; font-size:12.5px;">
+                                <span class="font-semibold text-[12.5px]" style="color:#16a34a">
                                     +{{ $metricPrefix }}{{ number_format(abs($diff), 2) }}
                                 </span>
                             @elseif($diff < -0.001)
-                                <span class="font-semibold" style="color:#e11d48; font-size:12.5px;">
+                                <span class="font-semibold text-[12.5px]" style="color:#e11d48">
                                     −{{ $metricPrefix }}{{ number_format(abs($diff), 2) }}
                                 </span>
                             @else
-                                <span class="text-slate-400" style="font-size:12.5px;">±0.00</span>
+                                <span class="text-slate-400 text-[12.5px]">±0.00</span>
                             @endif
                         </td>
 
                         {{-- Trend badge --}}
                         <td class="text-center">
                             @if($fc->trend === 'upward')
-                                <span class="inline-flex items-center gap-0.5 px-2 py-0.5
-                                             rounded-full trend-badge-up"
-                                      style="font-size:10.5px;font-weight:700;">
-                                    <i class="bi bi-arrow-up-short" style="font-size:13px;"></i> Up
+                                <span class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full trend-badge-up text-[10.5px] font-bold"
+                                     >
+                                    <x-icon name="bi-arrow-up-short" size="md" /> Up
                                 </span>
                             @elseif($fc->trend === 'downward')
-                                <span class="inline-flex items-center gap-0.5 px-2 py-0.5
-                                             rounded-full trend-badge-down"
-                                      style="font-size:10.5px;font-weight:700;">
-                                    <i class="bi bi-arrow-down-short" style="font-size:13px;"></i> Down
+                                <span class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full trend-badge-down text-[10.5px] font-bold"
+                                     >
+                                    <x-icon name="bi-arrow-down-short" size="md" /> Down
                                 </span>
                             @elseif($fc->trend === 'stable')
-                                <span class="inline-flex items-center gap-0.5 px-2 py-0.5
-                                             rounded-full trend-badge-stable"
-                                      style="font-size:10.5px;font-weight:700;">
-                                    <i class="bi bi-dash" style="font-size:13px;"></i> Stable
+                                <span class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full trend-badge-stable text-[10.5px] font-bold"
+                                     >
+                                    <x-icon name="bi-dash" size="md" /> Stable
                                 </span>
                             @else
-                                <span class="text-slate-300" style="font-size:11px;">—</span>
+                                <span class="text-slate-300 text-[11px]">—</span>
                             @endif
                         </td>
                     </tr>

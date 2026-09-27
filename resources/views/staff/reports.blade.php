@@ -8,11 +8,6 @@
         background: #fff; border: 1px solid #e5e7eb;
         border-radius: .75rem; box-shadow: 0 1px 3px 0 rgb(0 0 0/.06);
     }
-    .stat-value   { font-size: 1.75rem; font-weight: 700; color: #111827; line-height: 1.2; }
-    .stat-label   {
-        font-size: .7rem; font-weight: 700;
-        letter-spacing: .06em; text-transform: uppercase; color: #6b7280;
-    }
     .section-heading {
         font-size: .8125rem; font-weight: 600; color: #374151;
         padding: .875rem 1.25rem; border-bottom: 1px solid #f3f4f6;
@@ -93,16 +88,16 @@
 @endphp
 
 @section('content')
-<div style="min-height:100vh; background:#f8fafc; padding:1.5rem;">
+<div class="bg-surface-subtle" style="min-height:100vh; padding:1.5rem">
 <div style="max-width:1200px; margin:0 auto;">
 
     {{-- ── Page Header ───────────────────────────────────────── --}}
     <div style="display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:1rem; margin-bottom:1.5rem;">
         <div>
-            <div style="font-size:.7rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#2563eb; margin-bottom:.25rem;">
+            <div class="font-bold uppercase tracking-[0.08em] mb-1" style="font-size:.7rem; color:#2563eb">
                 Staff Portal
             </div>
-            <h1 style="font-size:1.5rem; font-weight:700; color:#111827; margin:0 0 .25rem;">
+            <h1 class="font-bold" style="font-size:1.5rem; color:#111827; margin:0 0 .25rem">
                 Daily Market Report
             </h1>
             <p style="font-size:.8125rem; color:#6b7280; margin:0;">
@@ -133,31 +128,24 @@
     </div>
 
     {{-- ── Summary Cards ──────────────────────────────────────── --}}
-    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:1rem; margin-bottom:1.5rem;">
-        <div class="report-card" style="padding:1.125rem 1.25rem;">
-            <p class="stat-label" style="margin-bottom:.25rem;">Total Stock Volume</p>
-            <p class="stat-value">{{ number_format($totalStockKg, 2) }}
-                <span style="font-size:.875rem; font-weight:400; color:#6b7280;">kg</span>
-            </p>
-        </div>
-        <div class="report-card" style="padding:1.125rem 1.25rem;">
-            <p class="stat-label" style="margin-bottom:.25rem;">Active Vendors</p>
-            <p class="stat-value">{{ $totalVendors }}</p>
-        </div>
-        <div class="report-card" style="padding:1.125rem 1.25rem;">
-            <p class="stat-label" style="margin-bottom:.25rem;">Confirmed Entries</p>
-            <p class="stat-value">{{ $totalEntries }}</p>
-        </div>
-        <div class="report-card" style="padding:1.125rem 1.25rem; border-left:3px solid #2563eb;">
-            <p class="stat-label" style="margin-bottom:.25rem;">Report Date</p>
-            <p style="font-size:1rem; font-weight:700; color:#1e40af;">
-                {{ \Carbon\Carbon::parse($reportDate)->format('M d, Y') }}
-            </p>
-        </div>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <x-stat-card tinted tone="brand"
+                     label="Total Stock Volume"
+                     :value="$totalStockKg" unit="kg" />
+        <x-stat-card tinted tone="success"
+                     label="Active Vendors"
+                     :value="$totalVendors" decimals="0" />
+        <x-stat-card tinted tone="warning"
+                     label="Confirmed Entries"
+                     :value="$totalEntries" decimals="0" />
+        <x-stat-card tinted tone="neutral"
+                     label="Report Date"
+                     :raw="true"
+                     :value="\Carbon\Carbon::parse($reportDate)->format('M d, Y')" />
     </div>
 
     {{-- ── Summary by Fish Type & Quality ────────────────────── --}}
-    <div class="report-card" style="margin-bottom:1.5rem; overflow:hidden;">
+    <div class="report-card overflow-hidden" style="margin-bottom:1.5rem">
         <div class="section-heading">
             <svg style="display:inline; width:14px; height:14px; margin-right:6px; vertical-align:-2px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"/>
@@ -170,32 +158,32 @@
                     <tr>
                         <th style="text-align:left;">Fish Type</th>
                         <th style="text-align:left;">Quality</th>
-                        <th style="text-align:right;">Entries</th>
-                        <th style="text-align:right;">Total Volume (kg)</th>
-                        <th style="text-align:right;">Avg. Price / kg</th>
-                        <th style="text-align:right;">Min. Price / kg</th>
-                        <th style="text-align:right;">Max. Price / kg</th>
+                        <th class="text-right">Entries</th>
+                        <th class="text-right">Total Volume (kg)</th>
+                        <th class="text-right">Avg. Price / kg</th>
+                        <th class="text-right">Min. Price / kg</th>
+                        <th class="text-right">Max. Price / kg</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($summaryByType as $key => $entries)
                         @php [$fish, $quality] = explode('|||', $key, 2); @endphp
                         <tr>
-                            <td style="font-weight:600; color:#111827;">{{ $fish }}</td>
+                            <td class="font-semibold" style="color:#111827">{{ $fish }}</td>
                             <td>
                                 <span class="badge {{ $quality === 'A' ? 'badge-a' : ($quality === 'B' ? 'badge-b' : 'badge-c') }}">
                                     Class {{ $quality }}
                                 </span>
                             </td>
-                            <td style="text-align:right; color:#6b7280;">{{ $entries->count() }}</td>
-                            <td style="text-align:right; font-weight:600;">{{ number_format($entries->sum('stock_kg'), 2) }}</td>
-                            <td style="text-align:right; font-weight:600; color:#111827;">₱{{ number_format($entries->avg('price_per_kg') ?? 0, 2) }}</td>
-                            <td style="text-align:right; color:#6b7280;">₱{{ number_format($entries->min('price_per_kg') ?? 0, 2) }}</td>
-                            <td style="text-align:right; color:#6b7280;">₱{{ number_format($entries->max('price_per_kg') ?? 0, 2) }}</td>
+                            <td class="text-right" style="color:#6b7280">{{ $entries->count() }}</td>
+                            <td class="text-right font-semibold">{{ number_format($entries->sum('stock_kg'), 2) }}</td>
+                            <td class="text-right font-semibold" style="color:#111827">₱{{ number_format($entries->avg('price_per_kg') ?? 0, 2) }}</td>
+                            <td class="text-right" style="color:#6b7280">₱{{ number_format($entries->min('price_per_kg') ?? 0, 2) }}</td>
+                            <td class="text-right" style="color:#6b7280">₱{{ number_format($entries->max('price_per_kg') ?? 0, 2) }}</td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" style="text-align:center; padding:2.5rem; color:#9ca3af; font-size:.875rem;">
+                            <td class="text-center" colspan="7" style="padding:2.5rem; color:#9ca3af; font-size:.875rem">
                                 No confirmed entries found for this date.
                             </td>
                         </tr>
@@ -204,10 +192,10 @@
                 @if($summaryByType->count())
                 <tfoot>
                     <tr>
-                        <td colspan="3" style="text-align:right; font-size:.75rem; letter-spacing:.05em; text-transform:uppercase;">
+                        <td class="text-right uppercase" colspan="3" style="font-size:.75rem; letter-spacing:.05em">
                             Day Total
                         </td>
-                        <td style="text-align:right;">{{ number_format($totalStockKg, 2) }} kg</td>
+                        <td class="text-right">{{ number_format($totalStockKg, 2) }} kg</td>
                         <td colspan="3"></td>
                     </tr>
                 </tfoot>
@@ -217,7 +205,7 @@
     </div>
 
     {{-- ── Confirmed Entries Detail ────────────────────────────── --}}
-    <div class="report-card" style="overflow:hidden;">
+    <div class="report-card overflow-hidden">
         <div class="section-heading">
             <svg style="display:inline; width:14px; height:14px; margin-right:6px; vertical-align:-2px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
@@ -231,35 +219,35 @@
             <table class="rpt-table">
                 <thead>
                     <tr>
-                        <th style="text-align:center; width:36px;">#</th>
+                        <th class="text-center" style="width:36px">#</th>
                         <th style="text-align:left;">Stall No.</th>
                         <th style="text-align:left;">Vendor Name</th>
                         <th style="text-align:left;">Fish Type</th>
                         <th style="text-align:left;">Quality</th>
-                        <th style="text-align:right;">Stock (kg)</th>
-                        <th style="text-align:right;">Price / kg</th>
+                        <th class="text-right">Stock (kg)</th>
+                        <th class="text-right">Price / kg</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($confirmedEntries as $i => $entry)
                     <tr>
-                        <td style="text-align:center; color:#9ca3af; font-size:.75rem;">{{ $i + 1 }}</td>
+                        <td class="text-center" style="color:#9ca3af; font-size:.75rem">{{ $i + 1 }}</td>
                         <td style="font-family:monospace; font-size:.8rem; color:#4b5563;">
                             {{ $entry->vendor?->vendorProfile?->stall_number ?? '—' }}
                         </td>
-                        <td style="font-weight:600; color:#111827;">{{ $entry->vendor?->name ?? '—' }}</td>
+                        <td class="font-semibold" style="color:#111827">{{ $entry->vendor?->name ?? '—' }}</td>
                         <td style="color:#374151;">{{ $entry->fishType?->name ?? '—' }}</td>
                         <td>
                             <span class="badge {{ $entry->quality_class === 'A' ? 'badge-a' : ($entry->quality_class === 'B' ? 'badge-b' : 'badge-c') }}">
                                 Class {{ $entry->quality_class }}
                             </span>
                         </td>
-                        <td style="text-align:right; font-weight:600;">{{ number_format($entry->stock_kg, 2) }}</td>
-                        <td style="text-align:right; color:#374151;">₱{{ number_format($entry->price_per_kg, 2) }}</td>
+                        <td class="text-right font-semibold">{{ number_format($entry->stock_kg, 2) }}</td>
+                        <td class="text-right" style="color:#374151">₱{{ number_format($entry->price_per_kg, 2) }}</td>
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="7" style="text-align:center; padding:2.5rem; color:#9ca3af; font-size:.875rem;">
+                        <td class="text-center" colspan="7" style="padding:2.5rem; color:#9ca3af; font-size:.875rem">
                             No confirmed entries for this date.
                         </td>
                     </tr>
@@ -268,10 +256,10 @@
                 @if($confirmedEntries->count())
                 <tfoot>
                     <tr>
-                        <td colspan="5" style="text-align:right; font-size:.75rem; letter-spacing:.05em; text-transform:uppercase;">
+                        <td class="text-right uppercase" colspan="5" style="font-size:.75rem; letter-spacing:.05em">
                             Day Total
                         </td>
-                        <td style="text-align:right;">{{ number_format($totalStockKg, 2) }} kg</td>
+                        <td class="text-right">{{ number_format($totalStockKg, 2) }} kg</td>
                         <td></td>
                     </tr>
                 </tfoot>
