@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\FishType;
 use App\Models\PriceGuide;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 
 class PriceGuideController extends Controller
 {
@@ -105,13 +106,29 @@ class PriceGuideController extends Controller
     // ─── Update an existing price bracket ────────────────────────
     public function update(Request $request, PriceGuide $priceGuide)
     {
-        $request->validate([
+        $validator = Validator::make($request->all(), [
             'cheap_max'      => ['required', 'numeric', 'min:0.01'],
             'moderate_max'   => ['required', 'numeric', 'gt:cheap_max'],
             'effective_date' => ['required', 'date'],
         ], [
             'moderate_max.gt' => 'Moderate max must be greater than the cheap max.',
         ]);
+
+        // Validated by hand rather than with $request->validate() so the redirect
+        // can also say *which* modal to reopen. The bracket is edited inside a
+        // modal; a plain validation redirect would drop the supervisor back on a
+        // list where the error is invisible.
+        if ($validator->fails()) {
+            return back()
+                ->withInput()
+                ->withErrors($validator)
+                ->with('open_edit_modal', [
+                    'id'            => $priceGuide->id,
+                    'fish'          => $priceGuide->fishType?->name ?? '',
+                    'quality_class' => $priceGuide->quality_class,
+                    'action'        => route('supervisor.price-guides.update', $priceGuide),
+                ]);
+        }
 
         $priceGuide->update([
             'cheap_max'      => $request->cheap_max,

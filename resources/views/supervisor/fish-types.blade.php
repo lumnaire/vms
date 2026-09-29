@@ -5,6 +5,7 @@
 
 @push('styles')
 <style>
+    @layer components {
     .ft-table-row { transition: background 0.12s ease; }
     .ft-table-row:hover { background: #f8fafc; }
 
@@ -51,7 +52,7 @@
     /* Modal */
     .ft-modal-overlay {
         position: fixed; inset: 0; background: rgba(0,0,0,0.45);
-        z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 16px;
+        z-index: 1000; align-items: center; justify-content: center; padding: 16px;
     }
     .ft-modal-box {
         background: #fff; border-radius: 16px; width: 100%; max-width: 440px;
@@ -121,6 +122,7 @@
     .ft-img-thumb {
         width: 32px; height: 32px; border-radius: 8px; object-fit: cover;
         border: 1px solid #e2e8f0; flex-shrink: 0;
+    }
     }
 </style>
 @endpush
@@ -272,7 +274,7 @@
             </tr>
 
             {{-- ── Edit Modal (per row) ──────────────────────────── --}}
-            <div id="editModal{{ $ft->id }}" class="ft-modal-overlay hidden"
+            <div id="editModal{{ $ft->id }}" class="ft-modal-overlay hidden flex"
                  onclick="if(event.target===this) ftCloseModal('editModal{{ $ft->id }}')">
                 <div class="ft-modal-box">
                     <form action="{{ route('supervisor.fish-types.update', $ft) }}" method="POST" enctype="multipart/form-data">
@@ -294,14 +296,26 @@
                             </button>
                         </div>
                         <div class="ft-modal-body">
+                            @php $reopenedEdit = session('open_edit_modal') == $ft->id; @endphp
+                            @if($reopenedEdit && $errors->any())
+                                <div class="flex items-center gap-2 px-3 py-2 rounded-lg mb-3 bg-danger-50 border border-danger-200">
+                                    <x-icon name="bi-exclamation-circle-fill" size="md" class="text-rose-400" />
+                                    <p class="text-rose-600 font-semibold text-[12px]">{{ $errors->first() }}</p>
+                                </div>
+                            @endif
                             <label class="ft-form-label">Fish Type Name</label>
-                            <input type="text" name="name" class="ft-form-input"
-                                   value="{{ $ft->name }}" required maxlength="100">
+                            <input type="text" name="name"
+                                   class="ft-form-input {{ ($reopenedEdit && $errors->has('name')) ? 'danger' : '' }}"
+                                   value="{{ $reopenedEdit ? old('name', $ft->name) : $ft->name }}"
+                                   required maxlength="100">
 
                             <label class="ft-form-label mt-3" style="margin-top:14px;">Quality Class <span class="text-danger-500">*</span></label>
-                            <select name="quality_class" class="ft-form-input" required>
+                            <select name="quality_class"
+                                    class="ft-form-input {{ ($reopenedEdit && $errors->has('quality_class')) ? 'danger' : '' }}"
+                                    required>
                                 @foreach(\App\Models\FishType::QUALITY_CLASSES as $class)
-                                    <option value="{{ $class }}" {{ $ft->quality_class == $class ? 'selected' : '' }}>
+                                    <option value="{{ $class }}"
+                                        {{ ($reopenedEdit ? old('quality_class', $ft->quality_class) : $ft->quality_class) == $class ? 'selected' : '' }}>
                                         {{ $class }}
                                     </option>
                                 @endforeach
@@ -316,11 +330,11 @@
                                          class="ft-img-preview"
                                          src="{{ asset('storage/' . $ft->image_path) }}"
                                          alt="{{ $ft->name }}">
-                                    <p class="text-[11px] text-slate-400" id="editHintext-slate-400">Click to replace photo</p>
+                                    <p class="text-[11px] text-slate-400" id="editHint{{ $ft->id }}">Click to replace photo</p>
                                 @else
                                     <img id="editPrev{{ $ft->id }}" class="ft-img-preview hidden" src="" alt="">
                                     <i class="bi bi-image text-slate-300" style="display:block; margin-bottom:4px"></i>
-                                    <p class="text-[11px] text-slate-400" id="editHintext-slate-400">Click to upload a photo</p>
+                                    <p class="text-[11px] text-slate-400" id="editHint{{ $ft->id }}">Click to upload a photo</p>
                                 @endif
                                 <p class="text-slate-300 mt-1 text-[10.5px]">JPG, PNG, WEBP · max 2 MB</p>
                             </div>
@@ -364,7 +378,7 @@
      ══════════════════════════════════════════════════════════════ --}}
 
 {{-- ── Add Fish Type Modal ──────────────────────────────────── --}}
-<div id="addModal" class="ft-modal-overlay hidden"
+<div id="addModal" class="ft-modal-overlay hidden flex"
      onclick="if(event.target===this) ftCloseModal('addModal')">
     <div class="ft-modal-box">
         <form action="{{ route('supervisor.fish-types.store') }}" method="POST" enctype="multipart/form-data">
@@ -437,7 +451,7 @@
 </div>
 
 {{-- ── Deactivate Confirm Modal ─────────────────────────────── --}}
-<div id="deactivateModal" class="ft-modal-overlay hidden"
+<div id="deactivateModal" class="ft-modal-overlay hidden flex"
      onclick="if(event.target===this) ftCloseModal('deactivateModal')">
     <div class="ft-modal-box">
         <form id="deactivate-form" method="POST">
@@ -480,7 +494,7 @@
 </div>
 
 {{-- ── Activate Confirm Modal ───────────────────────────────── --}}
-<div id="activateModal" class="ft-modal-overlay hidden"
+<div id="activateModal" class="ft-modal-overlay hidden flex"
      onclick="if(event.target===this) ftCloseModal('activateModal')">
     <div class="ft-modal-box">
         <form id="activate-form" method="POST">
@@ -522,7 +536,7 @@
 </div>
 
 {{-- ── Delete Confirm Modal (type CONFIRM) ─────────────────── --}}
-<div id="deleteModal" class="ft-modal-overlay hidden"
+<div id="deleteModal" class="ft-modal-overlay hidden flex"
      onclick="if(event.target===this) ftCloseModal('deleteModal')">
     <div class="ft-modal-box">
         <form id="delete-form" method="POST">
@@ -570,11 +584,15 @@
     </div>
 </div>
 
-{{-- Auto-open Add modal on validation error --}}
+{{-- Reopen the modal the supervisor actually submitted from ──────── --}}
 @if($errors->any())
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        ftOpenModal('addModal');
+        @if(session('open_edit_modal'))
+            ftOpenModal('editModal{{ session('open_edit_modal') }}');
+        @else
+            ftOpenModal('addModal');
+        @endif
     });
 </script>
 @endif

@@ -5,6 +5,7 @@
 
 @push('styles')
 <style>
+    @layer components {
     .tier-pill {
         display:inline-flex; align-items:center; gap:4px;
         padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:600;
@@ -39,7 +40,7 @@
     /* Modal overlay */
     .modal-overlay {
         position:fixed; inset:0; background:rgba(0,0,0,0.45);
-        z-index:1000; display:flex; align-items:center; justify-content:center;
+        z-index:1000; align-items:center; justify-content:center;
         padding:16px;
     }
     .modal-box {
@@ -85,6 +86,7 @@
         cursor:pointer;
     }
     .filter-sel:focus { outline:none; border-color:#93c5fd; box-shadow:0 0 0 3px rgba(59,130,246,0.1); }
+    }
 </style>
 @endpush
 
@@ -263,11 +265,12 @@
                     @endif
                 </div>
                 <p class="text-slate-400 text-[11px] mt-px">
-                    {{ $fishType->priceGuides->count() }} {{ Str::plural('class', $fishType->priceGuides->count()) }} configured
+                    {{ $fishType->priceGuides->count() }} {{ Str::plural('bracket', $fishType->priceGuides->count()) }} configured
                 </p>
             </div>
-            <button class="text-[11.5px] font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors flex-shrink-0 border border-brand-200" onclick="openAddMolex items-center gap-1.5 px-3 py-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors flex-shrink-0"
-                   >
+            <button class="text-[11.5px] font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors flex-shrink-0 border border-brand-200"
+                    onclick="openAddModal({{ $fishType->id }})"
+                    title="Add a price bracket for {{ $fishType->name }}">
                 <x-icon name="bi-plus-lg" size="xs" /> Add
             </button>
         </div>
@@ -366,8 +369,9 @@
             <div class="text-center" style="padding:28px 20px">
                 <i class="bi bi-dash-circle text-slate-300" style="display:block; margin-bottom:8px"></i>
                 <p class="text-[12px] text-slate-400" style="margin-bottom:10px">No price brackets configured</p>
-                <button class="text-[12px] font-semibold inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-blue-600nline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"
-                        style="border:1px dashed #93c5fd">
+                <button class="text-[12px] font-semibold inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"
+                        style="border:1px dashed #93c5fd"
+                        onclick="openAddModal({{ $fishType->id }})">
                     <x-icon name="bi-plus-lg" size="xs" /> Configure now
                 </button>
             </div>
@@ -383,7 +387,7 @@
 
 
 {{-- ════════════════════════════════ ADD MODAL ════════════════════════════════ --}}
-<div id="addModal" class="modal-overlay hidden" onclick="handleOverlayClick(event,'addModal')">
+<div id="addModal" class="modal-overlay hidden flex" onclick="handleOverlayClick(event,'addModal')">
     <div class="modal-box">
 
         <div class="modal-header">
@@ -480,7 +484,7 @@
 
 
 {{-- ════════════════════════════════ EDIT MODAL ════════════════════════════════ --}}
-<div id="editModal" class="modal-overlay hidden" onclick="handleOverlayClick(event,'editModal')">
+<div id="editModal" class="modal-overlay hidden flex" onclick="handleOverlayClick(event,'editModal')">
     <div class="modal-box">
 
         <div class="modal-header">
@@ -510,13 +514,15 @@
                     <div>
                         <label class="form-label-pg">Cheap Max (₱/kg) <span class="text-rose-400">*</span></label>
                         <input type="number" id="edit-cheap-max" name="cheap_max" step="0.01" min="0.01"
-                               class="form-input-pg" required>
+                               value="{{ old('cheap_max') }}"
+                               class="form-input-pg {{ $errors->has('cheap_max') ? 'is-invalid' : '' }}" required>
                         <p class="text-[10.5px] text-slate-400" style="margin-top:4px">Prices at or below = Cheap</p>
                     </div>
                     <div>
                         <label class="form-label-pg">Moderate Max (₱/kg) <span class="text-rose-400">*</span></label>
                         <input type="number" id="edit-moderate-max" name="moderate_max" step="0.01" min="0.01"
-                               class="form-input-pg" required>
+                               value="{{ old('moderate_max') }}"
+                               class="form-input-pg {{ $errors->has('moderate_max') ? 'is-invalid' : '' }}" required>
                         <p class="text-[10.5px] text-slate-400" style="margin-top:4px">Above this = Expensive</p>
                     </div>
                 </div>
@@ -524,7 +530,8 @@
                 <div>
                     <label class="form-label-pg">Effective Date <span class="text-rose-400">*</span></label>
                     <input type="date" id="edit-effective-date" name="effective_date"
-                           class="form-input-pg" required>
+                           value="{{ old('effective_date') }}"
+                           class="form-input-pg {{ $errors->has('effective_date') ? 'is-invalid' : '' }}" required>
                 </div>
 
             </div>
@@ -539,7 +546,7 @@
 
 {{-- \u2500\u2500 Delete Confirmation Modal \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 --}}
 <div id="deleteModal"
-     class="modal-overlay hidden"
+     class="modal-overlay hidden flex"
      onclick="handleOverlayClick(event, 'deleteModal')">
     <div class="modal-box" style="max-width:400px;">
         <form id="delete-form" method="POST">
@@ -682,8 +689,21 @@
         openModal('deleteModal');
     }
 
-    // ── Auto-open add modal on validation error ──────────────────
-    @if($errors->isNotEmpty() && !session('open_edit_modal'))
+    // ── Reopen the modal the supervisor actually submitted from ──
+    @if(session('open_edit_modal'))
+        @php $editModalCtx = session('open_edit_modal'); @endphp
+        document.addEventListener('DOMContentLoaded', function () {
+            openEditModal(
+                {{ (int) $editModalCtx['id'] }},
+                '{{ old('cheap_max') }}',
+                '{{ old('moderate_max') }}',
+                '{{ old('effective_date') }}',
+                '{{ $editModalCtx['action'] }}',
+                '{{ addslashes($editModalCtx['quality_class']) }}',
+                '{{ addslashes($editModalCtx['fish']) }}'
+            );
+        });
+    @elseif($errors->isNotEmpty())
         document.addEventListener('DOMContentLoaded', function () {
             openAddModal({{ session('open_add_modal', 'null') }});
         });

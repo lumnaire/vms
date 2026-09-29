@@ -23,6 +23,14 @@
     }
     .form-input::placeholder { color: #cbd5e1; }
     .form-input:disabled { background: #f8fafc; color: #94a3b8; cursor: not-allowed; }
+    .form-input.is-over-guide,
+    .form-input.is-over-guide:focus {
+        border-color: #f87171;
+        color: #991b1b;
+        -webkit-text-fill-color: #991b1b;
+        font-weight: 600;
+        box-shadow: 0 0 0 3px rgba(248,113,113,0.15);
+    }
     .form-label {
         display: block;
         font-size: 12px;
@@ -182,16 +190,34 @@
 
                     {{-- Price per kg --}}
                     <div>
-                        <label class="form-label">
+                        <label class="form-label" for="pricePerKgInput">
                             Price per kg (₱) <span class="text-danger-500">*</span>
                         </label>
                         <div class="relative">
                             <span class="absolute text-[13px] font-semibold left-3 top-1/2 -translate-y-1/2 text-slate-400">₱</span>
-                            <input type="number" name="price_per_kg"
+                            <input type="number" name="price_per_kg" id="pricePerKgInput"
                                    value="{{ old('price_per_kg') }}"
                                    step="0.01" min="0.01" max="99999.99"
                                    placeholder="0.00"
+                                   oninput="checkPriceGuide()"
                                    required class="form-input" style="padding-left: 28px;">
+                        </div>
+                        <p class="mt-1 text-slate-400 text-[11px]" id="priceGuideHint"
+                           >Select a fish type to see its price guideline.</p>
+
+                        {{-- Shown when the entered price is above the guideline --}}
+                        <div id="priceGuideWarning" class="hidden mt-2">
+                            <div class="flex items-start gap-1.5 rounded-lg px-2.5 py-2 text-[11px] leading-[1.45]"
+                                 style="background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;">
+                                <span class="flex-shrink-0 mt-px" id="priceGuideWarningIcon"
+                                      title="Price exceeds the price guideline.">
+                                    <x-icon name="bi-exclamation-triangle-fill" size="xs" />
+                                </span>
+                                <span>
+                                    <strong class="font-semibold">Price exceeds the price guideline.</strong>
+                                    <span id="priceGuideWarningText"></span>
+                                </span>
+                            </div>
                         </div>
                     </div>
 
@@ -507,6 +533,18 @@
     const fishSelect  = document.getElementById('fishTypeSelect');
     const allFishOpts = Array.from(fishSelect.options).filter(o => o.value !== '');
 
+    // Active price guidelines, keyed by "<fish_type_id>_<quality class>"
+    const PRICE_GUIDES  = {!! json_encode($priceGuides) !!};
+    const priceInput    = document.getElementById('pricePerKgInput');
+    const guideHint     = document.getElementById('priceGuideHint');
+    const guideWarning  = document.getElementById('priceGuideWarning');
+    const guideWarnText = document.getElementById('priceGuideWarningText');
+    const guideWarnIcon = document.getElementById('priceGuideWarningIcon');
+    const peso = (n) => '₱' + Number(n).toLocaleString('en-PH', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
+
     function filterFishTypes() {
         const selectedClass = qcSelect.value;
         const previousValue = fishSelect.value;
@@ -521,9 +559,46 @@
 
         const hasPrevious = Array.from(fishSelect.options).some(o => o.value === previousValue);
         fishSelect.value = hasPrevious ? previousValue : '';
+
+        checkPriceGuide();
+    }
+
+    // Flags the price red + shows the warning when it is above the guideline
+    function checkPriceGuide() {
+        const guide = fishSelect.value
+            ? PRICE_GUIDES[fishSelect.value + '_' + qcSelect.value]
+            : undefined;
+        const price = parseFloat(priceInput.value);
+
+        if (!guide) {
+            priceInput.classList.remove('is-over-guide');
+            guideWarning.classList.add('hidden');
+            guideHint.textContent = fishSelect.value
+                ? 'No price guideline is set for this fish type and quality class.'
+                : 'Select a fish type to see its price guideline.';
+            return;
+        }
+
+        guideHint.textContent = 'Guideline: Cheap ≤ ' + peso(guide.cheap)
+            + ' · Moderate ≤ ' + peso(guide.moderate) + ' per kg.';
+
+        const isOver = Number.isFinite(price) && price > guide.moderate;
+
+        priceInput.classList.toggle('is-over-guide', isOver);
+        guideWarning.classList.toggle('hidden', !isOver);
+
+        if (isOver) {
+            guideWarnText.textContent = ' The guideline for this fish and quality class is up to '
+                + peso(guide.moderate) + ' per kg. You may still submit, but staff '
+                + 'will see this as an expensive price.';
+            guideWarnIcon.setAttribute('title', 'Price exceeds the price guideline (max '
+                + peso(guide.moderate) + ' per kg).');
+        }
     }
 
     qcSelect.addEventListener('change', filterFishTypes);
+    fishSelect.addEventListener('change', checkPriceGuide);
     filterFishTypes(); // run once so old() input is preserved after validation errors
+    checkPriceGuide();
 </script>
 @endpush

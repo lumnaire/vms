@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Vendor;
 
 use App\Http\Controllers\Controller;
 use App\Models\FishType;
+use App\Models\PriceGuide;
 use App\Models\VendorInventory;
 use Illuminate\Http\Request;
 use App\Models\ActivityLog;
@@ -43,6 +44,16 @@ class InventoryController extends Controller
             ->map(fn($e) => $e->fish_type_id . '_' . $e->quality_class)
             ->toArray();
 
+        // Active price guidelines keyed by fish type + quality class, used by the
+        // live price check in the submit form
+        $priceGuides = PriceGuide::where('is_active', true)
+            ->get()
+            ->keyBy(fn($g) => $g->fish_type_id . '_' . $g->quality_class)
+            ->map(fn($g) => [
+                'cheap'    => (float) $g->cheap_max,
+                'moderate' => (float) $g->moderate_max,
+            ]);
+
         return view('vendor.inventory', compact(
             'fishTypes',
             'todayEntries',
@@ -52,6 +63,7 @@ class InventoryController extends Controller
             'confirmedCount',
             'rejectedCount',
             'submittedCombos',
+            'priceGuides',
         ));
     }
 

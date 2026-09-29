@@ -246,8 +246,8 @@
                             data-vendor="{{ $entry->vendor->name }}"
                             data-stall="{{ $entry->vendor->vendorProfile->stall_number ?? '' }}"
                             data-stock="{{ number_format($entry->stock_kg, 1) }}"
-                            data-label="{{ $prilex-1 lg:flex-none w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-semibold transition-colors"
-                           
+                            data-label="{{ $priceLabel ?? '' }}"
+                            data-labelclass="{{ $priceLabelClass ?? '' }}"
                             onmouseover="this.style.background='#047857'"
                             onmouseout="this.style.background='#059669'" style="color: white; border: none; cursor: pointer">
                         <x-icon name="bi-check2-circle" size="md" />
@@ -263,7 +263,6 @@
                             data-quality="{{ $entry->quality_class }}"
                             data-price="{{ number_format($entry->price_per_kg, 2) }}"
                             data-vendor="{{ $entry->vendor->name }}"
-    lex-1 lg:flex-none w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-semibold transition-colors"
                             style="background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; cursor: pointer"
                             onmouseover="this.style.background='#fee2e2'"
                             onmouseout="this.style.background='#fef2f2'">

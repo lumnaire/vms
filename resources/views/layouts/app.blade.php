@@ -50,8 +50,6 @@
                 </div>
                 <div class="leading-tight">
                 <p class="text-white font-bold text-[12px] tracking-[0.02em]">Virac Public Market</p>
-                <p class="text-blue-300 text-[10px] font-medium">Price Monitoring System</p>
-
                 </div>
                 {{-- Close button (mobile only) --}}
                 <button onclick="closeSidebar()"

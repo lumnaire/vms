@@ -301,8 +301,8 @@
                             <button class="text-[12px] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-colors border border-slate-200 text-slate-600 bg-white" onclick="openEditModal(
                                         {{ $member->id }},
                                         '{{ addslashes($member->name) }}',
-                                        '{{ $member->usnline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-colors"
-                                   
+                                        '{{ $member->username }}'
+                                    )"
                                     onmouseover="this.style.background='#f8fafc'; this.style.borderColor='#cbd5e1'"
                                     onmouseout="this.style.background='white'; this.style.borderColor='#e2e8f0'">
                                 <x-icon name="bi-pencil-square" size="xs" /> Edit
@@ -320,8 +320,7 @@
                                             onclick="openDeactivateModal(
                                                 {{ $member->id }},
                                                 '{{ addslashes($member->name) }}'
-     nline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-colors"
-                                           
+                                            )"
                                             onmouseover="this.style.background='#fef3c7'"
                                             onmouseout="this.style.background='#fffbeb'">
                                         <x-icon name="bi-pause-circle" size="xs" /> Deactivate
@@ -331,8 +330,7 @@
                                             onclick="openActivateModal(
                                                 {{ $member->id }},
                                                 '{{ addslashes($member->name) }}'
-     nline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-colors"
-                                           
+                                            )"
                                             onmouseover="this.style.background='#d1fae5'"
                                             onmouseout="this.style.background='#ecfdf5'" style="border: 1px solid #a7f3d0; color: #065f46">
                                         <x-icon name="bi-play-circle" size="xs" /> Activate
@@ -344,8 +342,8 @@
                             @if($member->status === 'inactive')
                                 <button class="text-[12px] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-colors border border-danger-200 text-danger-800 bg-danger-50" onclick="openDeleteModal(
                                             {{ $member->id }},
-                                            '{{ addslashes($member->name) }nline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-colors"
-                                       
+                                            '{{ addslashes($member->name) }}'
+                                        )"
                                         onmouseover="this.style.background='#fee2e2'; this.style.borderColor='#fca5a5'"
                                         onmouseout="this.style.background='#fef2f2'; this.style.borderColor='#fecaca'">
                                     <x-icon name="bi-trash3" size="xs" /> Delete
