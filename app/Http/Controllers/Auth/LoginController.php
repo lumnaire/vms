@@ -9,17 +9,6 @@ use Illuminate\Support\Facades\Auth;
 
 class LoginController extends Controller
 {
-    // ─── Show Login Form ─────────────────────────────────────────
-    public function showForm()
-    {
-        // Redirect already logged-in users to their dashboard
-        if (Auth::check()) {
-            return $this->redirectByRole(Auth::user()->role);
-        }
-
-        return view('auth.login');
-    }
-
     // ─── Handle Login ────────────────────────────────────────────
     public function login(Request $request)
     {
@@ -30,7 +19,11 @@ class LoginController extends Controller
 
         $credentials = $request->only('username', 'password');
 
-        if (!Auth::attempt($credentials, $request->boolean('remember'))) {
+        // No "remember me": the session cookie is issued without an expiry so the
+        // browser throws it away when the window closes (config/session.php,
+        // expire_on_close). Passing `false` here guarantees Laravel never adds
+        // the long-lived remember cookie that would survive a browser restart.
+        if (!Auth::attempt($credentials, false)) {
             return back()
                 ->withInput($request->only('username'))
                 ->withErrors(['username' => 'Invalid username or password.']);
@@ -46,6 +39,9 @@ class LoginController extends Controller
                 ->withErrors(['username' => 'Your account is inactive. Please contact the supervisor.']);
         }
 
+        // A fresh id for the new session, so a pre-login cookie cannot be
+        // replayed. The new cookie also inherits the session-only (no expiry)
+        // attribute from the previous one.
         $request->session()->regenerate();
 
         ActivityLog::create([
@@ -73,7 +69,8 @@ class LoginController extends Controller
             'description' => "{$userName} ({$userRole}) logged out.",
         ]);
 
-        return redirect()->route('login');
+        // Back to the consumer board, which is also where the login form lives.
+        return redirect()->route('home');
     }
 
     // ─── Role-Based Redirect ─────────────────────────────────────

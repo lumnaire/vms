@@ -58,11 +58,13 @@ return [
     | The ARIMA metrics generated for every fish_type x quality_class pair.
     |   price   — average price_per_kg per day          (unit: PHP/kg)
     |   supply  — total stock_kg brought in per day     (unit: kg)
-    |   demand  — total sold_kg per day (realized demand, unit: kg)
+    |
+    | Demand was dropped: it was derived from sold_kg, which is itself filled in
+    | from the vendor's end-of-day sale report, so forecasting it was circular.
     |
     */
 
-    'metrics' => ['price', 'supply', 'demand'],
+    'metrics' => ['price', 'supply'],
 
     /*
     |--------------------------------------------------------------------------
@@ -86,13 +88,6 @@ return [
             'label' => 'Supply (kg)',
             'short' => 'Supply',
             'chart' => 'Supply Forecast',
-            'unit'  => 'kg',
-            'prefix' => '',
-        ],
-        'demand' => [
-            'label' => 'Demand (kg)',
-            'short' => 'Demand',
-            'chart' => 'Demand Forecast',
             'unit'  => 'kg',
             'prefix' => '',
         ],

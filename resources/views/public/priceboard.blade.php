@@ -42,8 +42,10 @@
             gap: 1rem;
             padding: 1.125rem 2rem;
         }
+        .pb-header-actions { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
         .pb-brand { display: flex; align-items: center; gap: 0.875rem; }
         .pb-logo {
+
             width: 48px;
             height: 48px;
             border-radius: var(--radius-card);
@@ -92,6 +94,150 @@
         @keyframes pb-pulse {
             0%, 100% { opacity: 1; transform: scale(1); }
             50%      { opacity: 0.55; transform: scale(0.82); }
+        }
+
+        /* ── Navbar sign-in ──────────────────────────────────────────────
+           The board is the home page and the only place an account holder
+           signs in from, so the credentials live in the header rather than
+           on a separate page. On translucent navy the inputs need their own
+           light treatment rather than the white .vpm-input. */
+        .pb-signin { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+        .pb-signin-row { display: flex; align-items: center; gap: 6px; }
+        .pb-signin-label {
+            color: rgb(255 255 255 / 0.65);
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-right: 2px;
+        }
+        .pb-signin-input {
+            width: 132px;
+            padding: 0.4rem 0.6rem;
+            border-radius: var(--radius-control);
+            border: 1px solid rgb(255 255 255 / 0.25);
+            background: rgb(255 255 255 / 0.12);
+            color: #fff;
+            font-size: 0.78rem;
+            outline: none;
+            transition: border-color 0.15s ease, background-color 0.15s ease;
+        }
+        .pb-signin-input::placeholder { color: rgb(255 255 255 / 0.5); }
+        .pb-signin-input:focus {
+            border-color: rgb(255 255 255 / 0.7);
+            background: rgb(255 255 255 / 0.2);
+        }
+        .pb-signin-input.has-error { border-color: rgb(253 164 175 / 0.9); }
+        .pb-signin-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 0.4rem 0.85rem;
+            border-radius: var(--radius-control);
+            background: #fff;
+            color: var(--color-navy-800);
+            border: none;
+            font-size: 0.78rem;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: opacity 0.15s ease;
+        }
+        .pb-signin-btn:hover { opacity: 0.88; }
+
+        /* Shown in place of the form once signed in. */
+        .pb-account {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .pb-account-text {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            line-height: 1.25;
+        }
+        .pb-account-name {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #fff;
+            max-width: 190px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .pb-account-role {
+            font-size: 0.62rem;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: rgb(255 255 255 / 0.6);
+        }
+        .pb-account-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 0.4rem 0.85rem;
+            border-radius: var(--radius-control);
+            background: #fff;
+            color: var(--color-navy-800);
+            border: none;
+            font-size: 0.78rem;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+            text-decoration: none;
+            transition: opacity 0.15s ease;
+        }
+        .pb-account-btn:hover { opacity: 0.88; }
+        .pb-account-signout { background: rgb(255 255 255 / 0.14); color: #fff; }
+
+        .pb-signin-error {
+            color: rgb(253 164 175);
+            font-size: 0.7rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* Info tooltip: states who is allowed to sign in. Visible on hover and
+           on keyboard focus so it is not mouse-only. */
+        .pb-tip-wrap { position: relative; display: inline-flex; }
+        .pb-tip-wrap > i { color: rgb(255 255 255 / 0.65); font-size: 0.85rem; cursor: help; }
+        .pb-tip-wrap:focus-visible > i { outline: 2px solid #fff; outline-offset: 2px; border-radius: 50%; }
+        .pb-tip {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            width: 250px;
+            padding: 10px 12px;
+            border-radius: var(--radius-control);
+            background: var(--color-navy-950);
+            color: rgb(255 255 255 / 0.92);
+            border: 1px solid rgb(255 255 255 / 0.18);
+            box-shadow: 0 10px 30px rgb(0 0 0 / 0.35);
+            font-size: 0.72rem;
+            line-height: 1.45;
+            text-align: left;
+            text-transform: none;
+            letter-spacing: 0;
+            font-weight: 500;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-4px);
+            transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
+            z-index: 30;
+            pointer-events: none;
+        }
+        .pb-tip strong { color: #fff; font-weight: 700; }
+        .pb-tip-wrap:hover .pb-tip,
+        .pb-tip-wrap:focus-visible .pb-tip,
+        .pb-tip-wrap:focus-within .pb-tip {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
         }
 
         .pb-stats { background: var(--color-surface); border-bottom: 1px solid var(--color-slate-200); }
@@ -305,6 +451,14 @@
             .pb-header-inner, .pb-stats-inner { padding-left: 1rem; padding-right: 1rem; }
             .pb-main { padding: 1rem 1rem 2rem; }
             .pb-divider { display: none; }
+            .pb-header-actions { width: 100%; }
+            .pb-signin { align-items: flex-start; width: 100%; }
+            .pb-signin-row { flex-wrap: wrap; width: 100%; }
+            .pb-signin-label { width: 100%; }
+            .pb-signin-input { flex: 1; width: auto; min-width: 0; }
+            .pb-account { width: 100%; }
+            .pb-account-text { align-items: flex-start; }
+            .pb-account-name { max-width: 100%; }
         }
     </style>
 </head>
@@ -324,9 +478,88 @@
                 <div class="pb-sub">Fish Section — Live Price Monitoring Board</div>
             </div>
         </div>
-        <div class="pb-datechip">
-            <div class="pb-datechip-label"><span class="pb-livedot"></span>Live Today</div>
-            <div class="pb-datechip-value">{{ \Carbon\Carbon::today()->format('F j, Y') }}</div>
+        <div class="pb-header-actions">
+            {{-- ── Sign-in ───────────────────────────────────────────────
+                 Only vendor, staff and supervisor accounts have credentials,
+                 so the form is hidden from anyone already signed in and the
+                 tooltip spells out the rule next to it. --}}
+            @guest
+            <form method="POST" action="{{ route('login') }}" class="pb-signin" autocomplete="off">
+                @csrf
+                <div class="pb-signin-row">
+                    <span class="pb-signin-label">Sign in</span>
+                    <input type="text" name="username"
+                           class="pb-signin-input @error('username') has-error @enderror"
+                           placeholder="Username"
+                           aria-label="Username"
+                           value="{{ old('username') }}"
+                           required>
+                    <input type="password" name="password"
+                           class="pb-signin-input @error('username') has-error @enderror"
+                           placeholder="Password"
+                           aria-label="Password"
+                           required>
+                    <button type="submit" class="pb-signin-btn">
+                        <i class="bi bi-box-arrow-in-right"></i> Log In
+                    </button>
+                    <span class="pb-tip-wrap" tabindex="0" role="note" aria-describedby="pb-login-tip">
+                        <i class="bi bi-info-circle" aria-hidden="true"></i>
+                        <span class="pb-tip" id="pb-login-tip" role="tooltip">
+                            <strong>Vendor, staff and supervisor accounts only.</strong>
+                            There is no consumer sign-in &mdash; this price board
+                            is public. Signing in here takes you to your own
+                            dashboard.
+                        </span>
+                    </span>
+                </div>
+                @error('username')
+                    <span class="pb-signin-error">
+                        <i class="bi bi-exclamation-circle-fill"></i> {{ $message }}
+                    </span>
+                @elseif(session('auth_intent'))
+                    <span class="pb-signin-error">
+                        <i class="bi bi-lock-fill"></i> {{ session('auth_intent') }}
+                    </span>
+                @endif
+            </form>
+            @endguest
+
+            {{-- ── Already signed in ───────────────────────────────────────
+                 The form above is hidden for anyone signed in. Without this the
+                 header just went blank, which reads as a broken page rather than
+                 as "you are already in" — and left no way back out from here. --}}
+            @auth
+            @php
+                $dashboardRoute = match (\Illuminate\Support\Facades\Auth::user()->role) {
+                    'supervisor' => 'supervisor.dashboard',
+                    'staff'      => 'staff.dashboard',
+                    'vendor'     => 'vendor.dashboard',
+                    default      => null,
+                };
+            @endphp
+            <div class="pb-account">
+                <div class="pb-account-text">
+                    <span class="pb-account-name">{{ \Illuminate\Support\Facades\Auth::user()->name }}</span>
+                    <span class="pb-account-role">{{ \Illuminate\Support\Str::title(\Illuminate\Support\Facades\Auth::user()->role) }}</span>
+                </div>
+                @if($dashboardRoute)
+                <a href="{{ route($dashboardRoute) }}" class="pb-account-btn">
+                    <i class="bi bi-speedometer2"></i> My Dashboard
+                </a>
+                @endif
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <button type="submit" class="pb-account-btn pb-account-signout">
+                        <i class="bi bi-box-arrow-right"></i> Sign Out
+                    </button>
+                </form>
+            </div>
+            @endauth
+
+            <div class="pb-datechip">
+                <div class="pb-datechip-label"><span class="pb-livedot"></span>Live Today</div>
+                <div class="pb-datechip-value">{{ \Carbon\Carbon::today()->format('F j, Y') }}</div>
+            </div>
         </div>
     </div>
 </header>
@@ -490,7 +723,7 @@
                                 </td>
                                 <td class="vpm-td-right">
                                     <span class="text-[15px] font-bold text-slate-900">
-                                        &#8369;<span x-text="parseFloat(row.price_per_kg).toFixed(2)"></span>
+                                        ₱<span x-text="parseFloat(row.price_per_kg).toFixed(2)"></span>
                                         <span class="text-[11.5px] font-normal text-slate-400">/kg</span>
                                     </span>
                                 </td>
@@ -542,7 +775,7 @@
                     </template>
                     <div class="p-4">
                         <div class="pb-pricerow">
-                            <span class="pb-peso">&#8369;</span>
+                            <span class="pb-peso">₱</span>
                             <span class="pb-pricenum" x-text="parseFloat(row.price_per_kg).toFixed(2)"></span>
                             <span class="pb-priceunit">per kg</span>
                         </div>
@@ -603,7 +836,7 @@
                             <div class="text-right min-w-[90px]">
                                 <div class="pb-mini-label">Price/kg</div>
                                 <div class="text-[17px] font-bold text-slate-900">
-                                    &#8369;<span x-text="parseFloat(row.price_per_kg).toFixed(2)"></span>
+                                    ₱<span x-text="parseFloat(row.price_per_kg).toFixed(2)"></span>
                                 </div>
                             </div>
                             <div>

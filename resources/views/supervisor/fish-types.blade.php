@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'Fish Type Management')
-@section('subtitle', 'Add, rename, or deactivate fish types available in the market')
+@section('subtitle', 'Add and edit the fish types available in the market')
 
 @push('styles')
 <style>
@@ -24,30 +24,6 @@
         transition: all 0.12s;
     }
     .btn-ft-outline:hover { border-color: #94a3b8; color: #1e293b; background: #f8fafc; }
-
-    .btn-ft-warn {
-        display: inline-flex; align-items: center; gap: 5px;
-        padding: 5px 12px; border-radius: 7px; font-size: 12px; font-weight: 600;
-        background: #fff; border: 1px solid #fde68a; color: #92400e; cursor: pointer;
-        transition: all 0.12s;
-    }
-    .btn-ft-warn:hover { background: #fffbeb; border-color: #fbbf24; }
-
-    .btn-ft-activate {
-        display: inline-flex; align-items: center; gap: 5px;
-        padding: 5px 12px; border-radius: 7px; font-size: 12px; font-weight: 600;
-        background: #fff; border: 1px solid #bbf7d0; color: #15803d; cursor: pointer;
-        transition: all 0.12s;
-    }
-    .btn-ft-activate:hover { background: #f0fdf4; border-color: #4ade80; }
-
-    .btn-ft-delete {
-        display: inline-flex; align-items: center; gap: 5px;
-        padding: 5px 10px; border-radius: 7px; font-size: 12px; font-weight: 600;
-        background: #fff; border: 1px solid #fecaca; color: #dc2626; cursor: pointer;
-        transition: all 0.12s;
-    }
-    .btn-ft-delete:hover { background: #fef2f2; border-color: #f87171; }
 
     /* Modal */
     .ft-modal-overlay {
@@ -88,21 +64,6 @@
         transition: background 0.15s;
     }
     .ft-btn-save:hover { background: #1e40af; }
-    .ft-btn-danger {
-        padding: 8px 18px; border-radius: 9px; font-size: 13px; font-weight: 600;
-        background: #dc2626; color: #fff; border: none; cursor: pointer;
-        transition: background 0.15s;
-        display: inline-flex; align-items: center; gap: 6px;
-    }
-    .ft-btn-danger:hover { background: #b91c1c; }
-    .ft-btn-danger:disabled { background: #fca5a5; cursor: not-allowed; }
-    .ft-btn-warn-solid {
-        padding: 8px 18px; border-radius: 9px; font-size: 13px; font-weight: 600;
-        background: #d97706; color: #fff; border: none; cursor: pointer;
-        transition: background 0.15s;
-        display: inline-flex; align-items: center; gap: 6px;
-    }
-    .ft-btn-warn-solid:hover { background: #b45309; }
 
     /* Image upload */
     .ft-img-dropzone {
@@ -133,7 +94,10 @@
 <div class="flex items-center justify-between mb-6">
     <div>
         <h1 class="text-slate-800 font-bold" style="font-size: 20px;">Fish Type Management</h1>
-        <p class="text-slate-400 mt-0.5 text-[12.5px]">Add, rename, or deactivate fish types available in the market.</p>
+        <p class="text-slate-400 mt-0.5 text-[12.5px]">
+            Add and edit the fish types available in the market. A fish type that is
+            listed is in use &mdash; it is corrected, never switched off.
+        </p>
     </div>
     {{-- <button class="btn-ft-primary" onclick="ftOpenModal('addModal')">
         <i class="bi bi-plus-lg"></i> Add Fish Type
@@ -157,34 +121,37 @@
 @endif
 
 {{-- ── Stat Cards ───────────────────────────────────────────── --}}
-<div class="grid grid-cols-2 gap-4 mb-6" style="max-width: 400px;">
+<div class="grid grid-cols-2 gap-4 mb-6" style="max-width: 420px;">
     <div class="bg-white rounded-xl p-4 border border-slate-100 shadow-card">
-        <p class="text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]">Active</p>
-        <p class="text-blue-600 font-bold mt-1 leading-[1]" style="font-size:30px">{{ $totalActive }}</p>
-        <p class="text-slate-400 mt-1 text-[11px]">Fish types in use</p>
+        <p class="text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]">Fish Types</p>
+        <p class="text-blue-600 font-bold mt-1 leading-[1]" style="font-size:30px">{{ $fishTypes->count() }}</p>
+        <p class="text-slate-400 mt-1 text-[11px]">In the market catalogue</p>
     </div>
     <div class="bg-white rounded-xl p-4 border border-slate-100 shadow-card">
-        <p class="text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]">Inactive</p>
-        <p class="text-slate-400 font-bold mt-1 leading-[1]" style="font-size:30px">{{ $totalInactive }}</p>
-        <p class="text-slate-400 mt-1 text-[11px]">Deactivated types</p>
+        <p class="text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]">Classified</p>
+        <p class="text-emerald-600 font-bold mt-1 leading-[1]" style="font-size:30px">{{ $fishTypes->whereNotNull('quality_class')->count() }}</p>
+        <p class="text-slate-400 mt-1 text-[11px]">With a quality class</p>
     </div>
 </div>
 
 {{-- ── Table ────────────────────────────────────────────────── --}}
 <div class="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-card">
-    <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+    <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
         <p class="text-slate-700 font-bold text-[13.5px]">All Fish Types</p>
-        <span class="text-slate-400 text-[11.5px]">{{ $fishTypes->count() }} total</span>
+        <span class="text-slate-400 text-[11.5px]">
+            {{ $fishTypes->count() }} total &middot; cheapest class first
+        </span>
     </div>
 
-    <table style="width:100%; border-collapse:collapse;">
+    <div class="overflow-x-auto">
+    <table style="width:100%; border-collapse:collapse; min-width: 520px;">
         <thead>
             <tr class="bg-surface-subtle" style="border-bottom:1px solid #f1f5f9">
                 <th class="text-left text-slate-400 font-semibold px-5 py-3 text-[11px] uppercase tracking-[0.07em]" style="width:50px">#</th>
                 <th class="text-left text-slate-400 font-semibold px-4 py-3 text-[11px] uppercase tracking-[0.07em]">Fish Type Name</th>
                 <th class="text-left text-slate-400 font-semibold px-4 py-3 text-[11px] uppercase tracking-[0.07em]">Quality Class</th>
-                <th class="text-left text-slate-400 font-semibold px-4 py-3 text-[11px] uppercase tracking-[0.07em]" style="width:120px">Status</th>
-                <th class="text-right text-slate-400 font-semibold px-5 py-3 text-[11px] uppercase tracking-[0.07em]" style="width:220px">Actions</th>
+                <th class="text-right text-slate-400 font-semibold px-4 py-3 text-[11px] uppercase tracking-[0.07em]" style="width:90px">Guides</th>
+                <th class="text-right text-slate-400 font-semibold px-5 py-3 text-[11px] uppercase tracking-[0.07em]" style="width:110px">Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -196,80 +163,36 @@
                         @if($ft->image_path)
                             <img src="{{ asset('storage/' . $ft->image_path) }}"
                                  alt="{{ $ft->name }}"
-                                 class="ft-img-thumb"
-                                 style="{{ $ft->is_active ? '' : 'opacity:0.45;' }}">
+                                 class="ft-img-thumb">
                         @else
                             <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                                 style="background:{{ $ft->is_active ? 'linear-gradient(135deg,#0f2d5e,#1d4ed8)' : '#f1f5f9' }};">
-                                <i class="bi bi-fish" style="color:{{ $ft->is_active ? '#fff' : '#94a3b8' }}"></i>
+                                 style="background:linear-gradient(135deg,#0f2d5e,#1d4ed8);">
+                                <i class="bi bi-fish" style="color:#fff"></i>
                             </div>
                         @endif
-                        <span class="font-semibold text-[13.5px]" style="color:{{ $ft->is_active ? '#334155' : '#94a3b8' }}">
+                        <span class="font-semibold text-[13.5px] text-slate-700">
                             {{ $ft->name }}
                         </span>
                     </div>
                 </td>
                 <td class="px-4 py-3">
                     @if($ft->quality_class)
-                        <span class="inline-flex items-center px-2.5 py-1 rounded-full font-semibold text-[11px] bg-brand-50 text-brand-600 border border-brand-200"
-                             >
-                            {{ $ft->quality_class }}
-                        </span>
+                        <x-quality-badge :quality="$ft->quality_class" />
                     @else
-                        <span class="text-slate-300 text-[11px]">—</span>
+                        <span class="text-slate-300 text-[11px]">&mdash;</span>
                     @endif
                 </td>
-                <td class="px-4 py-3">
-                    @if($ft->is_active)
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-semibold text-[11px] bg-success-50"
-                              style="color:#15803d; border:1px solid #bbf7d0">
-                            <span style="width:6px;height:6px;border-radius:50%;background:#22c55e;display:inline-block;"></span>
-                            Active
-                        </span>
-                    @else
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-semibold text-[11px] bg-surface-subtle text-slate-400 border border-slate-200"
-                             >
-                            <span class="bg-slate-300" style="width:6px; height:6px; border-radius:50%; display:inline-block"></span>
-                            Inactive
-                        </span>
-                    @endif
+                <td class="px-4 py-3 text-right">
+                    <span class="text-slate-600 text-[12.5px] font-semibold">{{ $ft->price_guides_count }}</span>
                 </td>
                 <td class="px-5 py-3 text-right">
-                    <div class="flex items-center justify-end gap-2">
-                        {{-- Edit --}}
-                        <button class="btn-ft-outline"
-                                onclick="ftOpenModal('editModal{{ $ft->id }}')">
-                            <x-icon name="bi-pencil" size="xs" /> Edit
-                        </button>
-
-                        {{-- Deactivate (active) --}}
-                        @if($ft->is_active)
-                            <button class="btn-ft-warn"
-                                    onclick="ftOpenDeactivate(
-                                        '{{ route('supervisor.fish-types.toggle', $ft) }}',
-                                        '{{ addslashes($ft->name) }}'
-                                    )">
-                                <x-icon name="bi-slash-circle" size="xs" /> Deactivate
-                            </button>
-
-                        {{-- Activate + Delete (inactive) --}}
-                        @else
-                            <button class="btn-ft-activate"
-                                    onclick="ftOpenActivate(
-                                        '{{ route('supervisor.fish-types.toggle', $ft) }}',
-                                        '{{ addslashes($ft->name) }}'
-                                    )">
-                                <x-icon name="bi-check-circle" size="xs" /> Activate
-                            </button>
-                            <button class="btn-ft-delete"
-                                    onclick="ftOpenDelete(
-                                        '{{ route('supervisor.fish-types.destroy', $ft) }}',
-                                        '{{ addslashes($ft->name) }}'
-                                    )">
-                                <x-icon name="bi-trash-fill" size="xs" />
-                            </button>
-                        @endif
-                    </div>
+                    {{-- Edit is the only action. A fish type has no on/off switch
+                         and cannot be deleted, so this column never has to
+                         change width as rows move between states. --}}
+                    <button class="btn-ft-outline"
+                            onclick="ftOpenModal('editModal{{ $ft->id }}')">
+                        <x-icon name="bi-pencil" size="xs" /> Edit
+                    </button>
                 </td>
             </tr>
 
@@ -287,7 +210,7 @@
                                 </div>
                                 <div>
                                     <p class="text-slate-800 font-bold text-[14px]">Edit Fish Type</p>
-                                    <p class="text-slate-400 text-[11px]">Update the name or photo of this fish type</p>
+                                    <p class="text-slate-400 text-[11px]">Update the name, class or photo of this fish type</p>
                                 </div>
                             </div>
                             <button class="text-slate-400" type="button" onclick="ftCloseModal('editModal{{ $ft->id }}')"
@@ -309,7 +232,7 @@
                                    value="{{ $reopenedEdit ? old('name', $ft->name) : $ft->name }}"
                                    required maxlength="100">
 
-                            <label class="ft-form-label mt-3" style="margin-top:14px;">Quality Class <span class="text-danger-500">*</span></label>
+                            <label class="ft-form-label" style="margin-top:14px;">Quality Class <span class="text-danger-500">*</span></label>
                             <select name="quality_class"
                                     class="ft-form-input {{ ($reopenedEdit && $errors->has('quality_class')) ? 'danger' : '' }}"
                                     required>
@@ -320,8 +243,12 @@
                                     </option>
                                 @endforeach
                             </select>
+                            <p class="mt-1.5 text-[11px] text-slate-400">
+                                Changing the class moves this fish type's price brackets and
+                                inventory to the new class so they stay in step.
+                            </p>
 
-                            <label class="ft-form-label mt-3" style="margin-top:14px;">Photo <span class="font-normal text-slate-400">(optional)</span></label>
+                            <label class="ft-form-label" style="margin-top:14px;">Photo <span class="font-normal text-slate-400">(optional)</span></label>
                             <div class="ft-img-dropzone" id="editDrop{{ $ft->id }}">
                                 <input type="file" name="image" accept="image/jpg,image/jpeg,image/png,image/webp"
                                        onchange="ftPreviewImg(this, 'editPrev{{ $ft->id }}', 'editHint{{ $ft->id }}')">
@@ -336,7 +263,7 @@
                                     <i class="bi bi-image text-slate-300" style="display:block; margin-bottom:4px"></i>
                                     <p class="text-[11px] text-slate-400" id="editHint{{ $ft->id }}">Click to upload a photo</p>
                                 @endif
-                                <p class="text-slate-300 mt-1 text-[10.5px]">JPG, PNG, WEBP · max 2 MB</p>
+                                <p class="text-[10.5px] text-slate-300 mt-1">JPG, PNG, WEBP &middot; max 2 MB</p>
                             </div>
                             @if($ft->image_path)
                                 <label class="flex items-center gap-2 mt-2 cursor-pointer text-[12px] text-danger-500">
@@ -364,18 +291,18 @@
                             <x-icon name="bi-fish" size="2xl" class="text-blue-400" />
                         </div>
                         <p class="text-slate-500 font-semibold text-[13px]">No fish types found</p>
-                        <p class="text-slate-400 text-[12px]">Add one using the button above.</p>
+                        <p class="text-slate-400 text-[12px]">
+                            Load the market catalogue with
+                            <span class="font-mono text-slate-500">php artisan db:seed --class=FishTypeSeeder</span>.
+                        </p>
                     </div>
                 </td>
             </tr>
             @endforelse
         </tbody>
     </table>
+    </div>
 </div>
-
-{{-- ══════════════════════════════════════════════════════════════
-     SHARED MODALS (single instance, populated via JS)
-     ══════════════════════════════════════════════════════════════ --}}
 
 {{-- ── Add Fish Type Modal ──────────────────────────────────── --}}
 <div id="addModal" class="ft-modal-overlay hidden flex"
@@ -419,7 +346,7 @@
 
                 <label class="ft-form-label" style="margin-top:14px;">Quality Class <span class="text-danger-500">*</span></label>
                 <select name="quality_class" class="ft-form-input @error('quality_class') border-rose-300 @enderror" required>
-                    <option value="">— Select class —</option>
+                    <option value="">&mdash; Select class &mdash;</option>
                     @foreach(\App\Models\FishType::QUALITY_CLASSES as $class)
                         <option value="{{ $class }}" {{ old('quality_class') == $class ? 'selected' : '' }}>
                             {{ $class }}
@@ -437,147 +364,13 @@
                     <img id="addPrev" class="ft-img-preview hidden" src="" alt="">
                     <i class="bi bi-image text-slate-300" id="addIcon" style="font-size:22px; display:block; margin-bottom:4px;"></i>
                     <p id="addHint" class="text-slate-400 text-[11px]">Click to upload a photo</p>
-                    <p class="text-slate-300 mt-1 text-[10.5px]">JPG, PNG, WEBP · max 2 MB</p>
+                    <p class="text-slate-300 mt-1 text-[10.5px]">JPG, PNG, WEBP &middot; max 2 MB</p>
                 </div>
             </div>
             <div class="ft-modal-footer">
                 <button type="button" class="ft-btn-cancel" onclick="ftCloseModal('addModal')">Cancel</button>
                 <button type="submit" class="ft-btn-save">
                     <x-icon name="bi-plus-lg" size="sm" /> Add Fish Type
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-{{-- ── Deactivate Confirm Modal ─────────────────────────────── --}}
-<div id="deactivateModal" class="ft-modal-overlay hidden flex"
-     onclick="if(event.target===this) ftCloseModal('deactivateModal')">
-    <div class="ft-modal-box">
-        <form id="deactivate-form" method="POST">
-            @csrf @method('PATCH')
-            <div class="ft-modal-header" style="border-bottom:1px solid #fef9c3;">
-                <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 border border-warning-200"
-                         style="background:#fefce8">
-                        <x-icon name="bi-slash-circle-fill" size="base" class="text-warning-600" />
-                    </div>
-                    <div>
-                        <p class="text-slate-800 font-bold text-[14px]">Deactivate Fish Type</p>
-                        <p class="text-slate-400 text-[11px]">It will be hidden from all dropdowns</p>
-                    </div>
-                </div>
-                <button class="text-slate-400" type="button" onclick="ftCloseModal('deactivateModal')"
-                        style="border:none; background:transparent; cursor:pointer; padding:4px">
-                    <x-icon name="bi-x-lg" size="md" />
-                </button>
-            </div>
-            <div class="ft-modal-body">
-                <div class="rounded-xl p-4 border border-warning-200" style="background:#fefce8">
-                    <p class="font-semibold text-[13px] text-warning-800">
-                        Are you sure you want to deactivate
-                        <span id="deactivate-name" class="font-bold"></span>?
-                    </p>
-                    <p class="mt-1 text-[11.5px]" style="color:#a16207">
-                        Vendors won't be able to submit entries for this fish type until it's reactivated.
-                    </p>
-                </div>
-            </div>
-            <div class="ft-modal-footer">
-                <button type="button" class="ft-btn-cancel" onclick="ftCloseModal('deactivateModal')">Cancel</button>
-                <button type="submit" class="ft-btn-warn-solid">
-                    <x-icon name="bi-slash-circle" size="sm" /> Yes, Deactivate
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-{{-- ── Activate Confirm Modal ───────────────────────────────── --}}
-<div id="activateModal" class="ft-modal-overlay hidden flex"
-     onclick="if(event.target===this) ftCloseModal('activateModal')">
-    <div class="ft-modal-box">
-        <form id="activate-form" method="POST">
-            @csrf @method('PATCH')
-            <div class="ft-modal-header" style="border-bottom:1px solid #dcfce7;">
-                <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-success-50"
-                         style="border:1px solid #bbf7d0">
-                        <x-icon name="bi-check-circle-fill" size="base" class="text-success-600" />
-                    </div>
-                    <div>
-                        <p class="text-slate-800 font-bold text-[14px]">Activate Fish Type</p>
-                        <p class="text-slate-400 text-[11px]">It will be visible in all dropdowns again</p>
-                    </div>
-                </div>
-                <button class="text-slate-400" type="button" onclick="ftCloseModal('activateModal')"
-                        style="border:none; background:transparent; cursor:pointer; padding:4px">
-                    <x-icon name="bi-x-lg" size="md" />
-                </button>
-            </div>
-            <div class="ft-modal-body">
-                <div class="rounded-xl p-4 bg-success-50" style="border:1px solid #bbf7d0">
-                    <p class="font-semibold text-[13px]" style="color:#14532d">
-                        Reactivate <span id="activate-name" class="font-bold"></span>?
-                    </p>
-                    <p class="mt-1 text-[11.5px]" style="color:#15803d">
-                        Vendors will be able to submit inventory entries for this fish type again.
-                    </p>
-                </div>
-            </div>
-            <div class="ft-modal-footer">
-                <button type="button" class="ft-btn-cancel" onclick="ftCloseModal('activateModal')">Cancel</button>
-                <button type="submit" class="ft-btn-save" style="background:#16a34a;">
-                    <x-icon name="bi-check-circle" size="sm" /> Yes, Activate
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-{{-- ── Delete Confirm Modal (type CONFIRM) ─────────────────── --}}
-<div id="deleteModal" class="ft-modal-overlay hidden flex"
-     onclick="if(event.target===this) ftCloseModal('deleteModal')">
-    <div class="ft-modal-box">
-        <form id="delete-form" method="POST">
-            @csrf @method('DELETE')
-            <div class="ft-modal-header" style="border-bottom:1px solid #fef2f2;">
-                <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-danger-50 border border-danger-200"
-                        >
-                        <x-icon name="bi-trash-fill" size="base" class="text-danger-600" />
-                    </div>
-                    <div>
-                        <p class="text-slate-800 font-bold text-[14px]">Permanently Delete</p>
-                        <p class="text-slate-400 text-[11px]">This cannot be undone</p>
-                    </div>
-                </div>
-                <button class="text-slate-400" type="button" onclick="ftCloseModal('deleteModal')"
-                        style="border:none; background:transparent; cursor:pointer; padding:4px">
-                    <x-icon name="bi-x-lg" size="md" />
-                </button>
-            </div>
-            <div class="ft-modal-body">
-                <div class="rounded-xl p-4 mb-4 bg-danger-50 border border-danger-200">
-                    <p class="font-semibold text-[13px] text-danger-800">
-                        You are about to permanently delete
-                        <span id="delete-name" class="font-bold"></span>.
-                    </p>
-                    <p class="mt-1 text-[11.5px] text-danger-700">
-                        All associated price guides and historical data for this fish type may be affected.
-                        This action is <strong>irreversible</strong>.
-                    </p>
-                </div>
-                <label class="ft-form-label text-danger-600">
-                    Type <span class="font-mono font-bold bg-danger-50 border border-danger-200" style="padding:1px 6px; border-radius:4px">CONFIRM</span> to delete
-                </label>
-                <input type="text" id="delete-confirm-input" class="ft-form-input danger"
-                       placeholder="Type CONFIRM here" autocomplete="off">
-            </div>
-            <div class="ft-modal-footer">
-                <button type="button" class="ft-btn-cancel" onclick="ftCloseModal('deleteModal')">Cancel</button>
-                <button type="submit" id="delete-submit-btn" class="ft-btn-danger" disabled>
-                    <x-icon name="bi-trash-fill" size="sm" /> Delete Permanently
                 </button>
             </div>
         </form>
@@ -641,33 +434,5 @@
         document.getElementById(id).style.display = 'none';
         document.body.style.overflow = '';
     }
-
-    // ── Deactivate modal ─────────────────────────────────────────
-    function ftOpenDeactivate(actionUrl, name) {
-        document.getElementById('deactivate-form').action = actionUrl;
-        document.getElementById('deactivate-name').textContent = name;
-        ftOpenModal('deactivateModal');
-    }
-
-    // ── Activate modal ───────────────────────────────────────────
-    function ftOpenActivate(actionUrl, name) {
-        document.getElementById('activate-form').action = actionUrl;
-        document.getElementById('activate-name').textContent = name;
-        ftOpenModal('activateModal');
-    }
-
-    // ── Delete modal ─────────────────────────────────────────────
-    function ftOpenDelete(actionUrl, name) {
-        document.getElementById('delete-form').action = actionUrl;
-        document.getElementById('delete-name').textContent = name;
-        document.getElementById('delete-confirm-input').value = '';
-        document.getElementById('delete-submit-btn').disabled = true;
-        ftOpenModal('deleteModal');
-    }
-
-    // Enable delete button only when "CONFIRM" is typed exactly
-    document.getElementById('delete-confirm-input').addEventListener('input', function () {
-        document.getElementById('delete-submit-btn').disabled = this.value !== 'CONFIRM';
-    });
 </script>
 @endpush

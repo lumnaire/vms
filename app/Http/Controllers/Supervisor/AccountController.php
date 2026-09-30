@@ -14,7 +14,13 @@ class AccountController extends Controller
     // ─── Show the supervisor's own account settings ──────────────
     public function edit()
     {
-        return view('supervisor.account', ['user' => Auth::user()]);
+        return view('supervisor.account', [
+            'user' => Auth::user(),
+            // The activity log lived on the dashboard, where it competed with
+            // the operational cards. It is an account-level concern, so it is
+            // rendered here instead.
+            'recentActivity' => ActivityLog::with('user')->latest()->take(10)->get(),
+        ]);
     }
 
     // ─── Update name / username ──────────────────────────────────

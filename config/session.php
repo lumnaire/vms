@@ -34,7 +34,23 @@ return [
 
     'lifetime' => (int) env('SESSION_LIFETIME', 120),
 
-    'expire_on_close' => env('SESSION_EXPIRE_ON_CLOSE', false),
+    /*
+    | When the session cookie expires.
+    |
+    | `true` issues the session cookie WITHOUT an Expires/Max-Age attribute, so
+    | the browser discards it the moment the last tab is closed. Reopening the
+    | site therefore starts a brand-new session and the user must sign in
+    | again — this is what makes logging out on browser close total rather
+    | than best-effort.
+    |
+    | There is deliberately no server-side way to do this: the HTTP response for
+    | a closed tab is never sent, so the session row on the server survives
+    | until it ages out. Making the cookie a session cookie moves the decision
+    | to the browser, which is the only party that actually knows the window
+    | is gone. See SESSION_EXPIRE_ON_CLOSE in .env.example.
+    */
+
+    'expire_on_close' => env('SESSION_EXPIRE_ON_CLOSE', true),
 
     /*
     |--------------------------------------------------------------------------

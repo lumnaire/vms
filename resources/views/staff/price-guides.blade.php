@@ -112,10 +112,25 @@
         box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
     }
 
+    /* On a phone the three-column row collapses to one, which would leave the
+       header stacked above the first value instead of labelling each one. So the
+       header is dropped and every cell carries its own caption instead. */
+    .pg-label {
+        display: none;
+        font-size: 9.5px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #94a3b8;
+        margin-bottom: 2px;
+    }
+
     @media (max-width: 640px) {
         .price-grid-row { grid-template-columns: 1fr; }
         .price-grid-cell { border-right: none; border-bottom: 1px solid #f1f5f9; }
         .price-grid-cell:last-child { border-bottom: none; }
+        .price-grid-head { display: none; }
+        .pg-label { display: block; }
     }
 </style>
 @endpush
@@ -305,7 +320,7 @@
 
             {{-- Column Headers --}}
             @if($fishType->priceGuides->isNotEmpty())
-            <div class="price-grid-row bg-surface-subtle">
+            <div class="price-grid-row price-grid-head bg-surface-subtle">
                 <div class="price-grid-cell">
                     <p class="font-bold uppercase tracking-[0.08em] text-slate-400" style="font-size: 9.5px">
                         Quality Class
@@ -334,6 +349,7 @@
 
                 {{-- Cheap max --}}
                 <div class="price-grid-cell">
+                    <span class="pg-label">Cheap up to</span>
                     <div class="flex items-center gap-1.5">
                         <span class="tier-pill tier-cheap text-[10.5px]" style="padding: 2px 8px">
                             ₱ {{ number_format($guide->cheap_max, 2) }}
@@ -344,6 +360,7 @@
 
                 {{-- Moderate max --}}
                 <div class="price-grid-cell">
+                    <span class="pg-label">Moderate up to</span>
                     <div class="flex items-center gap-1.5">
                         <span class="tier-pill tier-moderate text-[10.5px]" style="padding: 2px 8px">
                             ₱ {{ number_format($guide->moderate_max, 2) }}

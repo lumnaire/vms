@@ -125,6 +125,10 @@
                    class="vpm-nav-link {{ request()->routeIs('supervisor.reports.*') ? 'is-active' : '' }}">
                     <x-icon name="bi-file-earmark-bar-graph" class="vpm-nav-icon" /> Reports
                 </a>
+                <a href="{{ route('supervisor.sale-reports.index') }}"
+                   class="vpm-nav-link {{ request()->routeIs('supervisor.sale-reports.*') ? 'is-active' : '' }}">
+                    <x-icon name="bi-clipboard-data" class="vpm-nav-icon" /> Sale Reports
+                </a>
 
                 <p class="vpm-nav-heading">
                     Account
@@ -162,6 +166,10 @@
                    class="vpm-nav-link {{ request()->routeIs('staff.reports.*') ? 'is-active' : '' }}">
                     <x-icon name="bi-file-earmark-text" class="vpm-nav-icon" /> Reports
                 </a>
+                <a href="{{ route('staff.sale-reports.index') }}"
+                   class="vpm-nav-link {{ request()->routeIs('staff.sale-reports.*') ? 'is-active' : '' }}">
+                    <x-icon name="bi-clipboard-data" class="vpm-nav-icon" /> Sale Reports
+                </a>
 
             {{-- ── Vendor Nav ── --}}
             @else
@@ -172,6 +180,10 @@
                 <a href="{{ route('vendor.inventory.index') }}"
                    class="vpm-nav-link {{ request()->routeIs('vendor.inventory.*') ? 'is-active' : '' }}">
                     <x-icon name="bi-box-seam" class="vpm-nav-icon" /> My Inventory
+                </a>
+                <a href="{{ route('vendor.sale-report.index') }}"
+                   class="vpm-nav-link {{ request()->routeIs('vendor.sale-report.*') ? 'is-active' : '' }}">
+                    <x-icon name="bi-clipboard-check" class="vpm-nav-icon" /> Sale Report
                 </a>
             @endif
 

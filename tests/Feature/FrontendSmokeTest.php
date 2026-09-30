@@ -42,7 +42,7 @@ class FrontendSmokeTest extends TestCase
             'vendor' => [
                 '/vendor/dashboard', '/vendor/inventory',
             ],
-            default => ['/prices', '/login'],
+            default => ['/'],
         };
     }
 
@@ -63,16 +63,105 @@ class FrontendSmokeTest extends TestCase
 
     public function test_guest_pages_render(): void
     {
-        foreach (['/prices', '/login'] as $uri) {
-            $this->get($uri)
+        // "/" is the price board and carries the navbar sign-in form, so it is
+        // the only guest page: there is no separate /prices or /login page.
+        $this->get('/')
+            ->assertOk()
+            ->assertDontSee('Whoops', false);
+
+        $this->get('/prices')->assertNotFound();
+
+        // There is no sign-in page to land on, so an old bookmark or a
+        // remembered URL is sent back to the board instead of an error.
+        $this->get('/login')->assertRedirect('/');
+    }
+
+    public function test_root_serves_the_public_price_board_with_a_navbar_login_form(): void
+    {
+        $response = $this->get('/')->assertOk();
+
+        // Consumer board content.
+        $response->assertSee('Live Price Monitoring Board', false);
+
+        // Credentials in the navbar, not on a separate page.
+        $response->assertSee('name="username"', false);
+        $response->assertSee('name="password"', false);
+        $response->assertSee(route('login'), false);
+
+        // The tooltip has to state who may sign in.
+        $response->assertSee('Vendor, staff and supervisor accounts only.', false);
+    }
+
+    public function test_signed_in_users_do_not_see_the_navbar_login_form(): void
+    {
+        $supervisor = $this->makeUser('supervisor');
+
+        $this->actingAs($supervisor)
+            ->get('/')
+            ->assertOk()
+            ->assertDontSee('name="password"', false);
+    }
+
+    /**
+     * Hiding the form must not leave a blank header. Someone already signed in
+     * needs to see who they are, a way to their dashboard, and a way out —
+     * otherwise the board reads as broken and there is no way back to the
+     * sign-in form from here.
+     */
+    public function test_signed_in_users_see_their_account_instead_of_a_blank_header(): void
+    {
+        $supervisor = $this->makeUser('supervisor');
+
+        $response = $this->actingAs($supervisor)->get('/')->assertOk();
+
+        $response->assertSee($supervisor->name);
+        $response->assertSee('Supervisor');
+        $response->assertSee('My Dashboard');
+        $response->assertSee(route('supervisor.dashboard'), false);
+        $response->assertSee('Sign Out');
+        $response->assertSee(route('logout'), false);
+    }
+
+    public function test_each_role_is_sent_to_its_own_dashboard(): void
+    {
+        foreach ([
+            'supervisor' => '/supervisor/dashboard',
+            'staff'      => '/staff/dashboard',
+            'vendor'     => '/vendor/dashboard',
+        ] as $role => $path) {
+            $user = $this->makeUser($role);
+
+            $this->actingAs($user)
+                ->get('/')
                 ->assertOk()
-                ->assertDontSee('Whoops', false);
+                ->assertSee($path, false);
         }
     }
 
-    public function test_root_redirects_to_the_public_price_board(): void
+    /**
+     * The session cookie must carry no Expires/Max-Age, so the browser drops it
+     * when the last tab closes and the next visit starts signed out.
+     */
+    public function test_session_cookie_expires_when_the_browser_closes(): void
     {
-        $this->get('/')->assertRedirect('/prices');
+        $user = $this->makeUser('supervisor');
+
+        $response = $this->post('/login', [
+            'username' => $user->username,
+            'password' => 'password',
+        ]);
+
+        $response->assertRedirect(route('supervisor.dashboard'));
+
+        $cookie = collect($response->headers->getCookies())
+            ->first(fn ($c) => $c->getName() === config('session.cookie'));
+
+        $this->assertNotNull($cookie, 'No session cookie was issued on login.');
+
+        // Symfony reports 0 for "no expiry", i.e. a session cookie. A timed
+        // expiry would keep the user signed in after the browser closed.
+        $this->assertSame(0, $cookie->getExpiresTime(), 'Session cookie must not expire on a timer.');
+        $this->assertSame(0, $cookie->getMaxAge(), 'Session cookie must not carry a Max-Age.');
     }
 
     public function test_every_authenticated_page_renders_for_its_role(): void
@@ -141,8 +230,7 @@ class FrontendSmokeTest extends TestCase
         $problems = [];
 
         $pages = [
-            'guest:/prices'    => ['/prices', null],
-            'guest:/login'     => ['/login', null],
+            'guest:/'          => ['/', null],
         ];
 
         foreach (['supervisor', 'staff', 'vendor'] as $role) {

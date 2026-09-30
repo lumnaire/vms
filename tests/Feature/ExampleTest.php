@@ -2,18 +2,25 @@
 
 namespace Tests\Feature;
 
-// use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
 {
+    // The board reads fish types, so the schema has to exist for this to render.
+    use RefreshDatabase;
+
     /**
-     * The application root redirects guests to the public price board, so it
-     * answers with a redirect rather than a page. FrontendSmokeTest covers the
-     * destination page itself; this only pins the entry-point behaviour.
+     * The public price board IS the home page — there is no separate /prices
+     * route and no standalone login page, so "/" renders for a guest rather
+     * than redirecting. FrontendSmokeTest covers the rendered board in detail;
+     * this only pins the entry-point behaviour.
      */
-    public function test_the_application_root_redirects_to_the_public_price_board(): void
+    public function test_the_application_root_serves_the_public_price_board(): void
     {
-        $this->get('/')->assertRedirect('/prices');
+        $this->get('/')
+            ->assertOk()
+            ->assertSee('Fish Price Board', false)
+            ->assertSee('Virac Public Market', false);
     }
 }

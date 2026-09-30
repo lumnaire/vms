@@ -446,15 +446,17 @@
                                >Price/kg</th>
                             <th class="text-right px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
                                >Stock</th>
+                            <th class="text-right px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
+                               >Remaining</th>
                             <th class="text-center px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
                                >Status</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach($recentEntries as $entry)
-                        <tr style="border-bottom: 1px solid #f8fafc; opacity: 0.85; transition: background 0.1s;"
-                            onmouseover="this.style.background='#f8fafc'; this.style.opacity='1'"
-                            onmouseout="this.style.background='transparent'; this.style.opacity='0.85'">
+                        <tr style="border-bottom: 1px solid #f8fafc; {{ $entry->isStale() ? 'background:#fef2f2;' : 'opacity: 0.85;' }} transition: background 0.1s;"
+                            onmouseover="this.style.background='#fef2f2'; this.style.opacity='1'"
+                            onmouseout="this.style.background='{{ $entry->isStale() ? '#fef2f2' : 'transparent' }}'; this.style.opacity='{{ $entry->isStale() ? '1' : '0.85' }}'">
 
                             <td class="px-4 py-3">
                                 <span class="text-slate-500 text-[12px]">
@@ -482,6 +484,34 @@
                                 <span class="text-slate-500 text-[12px]">
                                     {{ number_format($entry->stock_kg, 1) }} kg
                                 </span>
+                            </td>
+
+                            {{-- Remaining = released − declared sold. Unsold stock that has
+                                 aged past the freshness window is flagged in red with its age,
+                                 so it is impossible to miss on a list of old entries. --}}
+                            <td class="px-4 py-3 text-right">
+                                @php
+                                    $isStale = $entry->isStale();
+                                    // Built outside the markup: a `>` inside {{ }} within an
+                                    // HTML attribute makes Blade terminate the echo early and
+                                    // emit broken PHP.
+                                    $staleTitle = $isStale
+                                        ? '₱' . number_format((float) $entry->getRemainingStockValue(), 2)
+                                            . ' of unsold stock held for ' . $entry->getAgeInDays() . ' days'
+                                        : '';
+                                @endphp
+                                @if($isStale)
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-danger-50 text-danger-700"
+                                          style="border:1px solid #fecaca" title="{{ $staleTitle }}">
+                                        <x-icon name="bi-exclamation-octagon-fill" size="2xs" />
+                                        {{ number_format($entry->getRemainingStock(), 1) }} kg
+                                        <span class="font-normal">· {{ $entry->getAgeInDays() }}d</span>
+                                    </span>
+                                @else
+                                    <span class="text-slate-600 text-[12px] font-semibold">
+                                        {{ number_format($entry->getRemainingStock(), 1) }} kg
+                                    </span>
+                                @endif
                             </td>
 
                             <td class="px-4 py-3 text-center">

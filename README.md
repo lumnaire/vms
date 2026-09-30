@@ -13,7 +13,10 @@ A web-based commodity supply projection and price monitoring system for the fish
 - [Default Login Credentials](#default-login-credentials)
 - [Running the App](#running-the-app)
 - [ARIMA Forecasting](#arima-forecasting)
+- [Sale Reports](#sale-reports)
+- [Stale Stock Alerts](#stale-stock-alerts)
 - [Common Commands](#common-commands)
+- [Project Structure](#project-structure-key-files)
 
 ---
 
@@ -35,8 +38,8 @@ A web-based commodity supply projection and price monitoring system for the fish
 | -------------- | -------------------------------------------------------------------------------- |
 | **Supervisor** | Full control — vendors, staff, fish types, price guides, forecasts, reports      |
 | **Staff**      | Confirm/reject vendor price entries, manage vendors, view price guides & reports |
-| **Vendor**     | Submit daily inventory and pricing entries                                       |
-| **Public**     | View live price board at `/prices` — no login required                           |
+| **Vendor**     | Submit daily inventory and pricing entries, file the daily sale declaration      |
+| **Public**     | View the live price board at `/` — no login required                             |
 
 ---
 
@@ -157,7 +160,7 @@ EXIT;
 php artisan migrate
 ```
 
-> This creates all the tables in `virac_market_db`: `users`, `sessions`, `cache`, `jobs`, `vendor_profiles`, `fish_types`, `price_guides`, `vendor_inventories`, `activity_logs`, `forecasts`, `reports`.
+> This creates all the tables in `virac_market_db`: `users`, `sessions`, `cache`, `jobs`, `vendor_profiles`, `fish_types`, `price_guides`, `vendor_inventories`, `vendor_sale_reports`, `vendor_sale_report_items`, `activity_logs`, `forecasts`, `reports`.
 
 ---
 
@@ -171,9 +174,15 @@ php artisan db:seed
 >
 > - 1 Supervisor account, 1 Staff account, 12 Vendor accounts
 > - All common Catanduanes fish types
-> - Sample price guides, 37 days of inventory history, and 3-day ARIMA forecasts
->   for **price**, **supply** (stock in) and **demand** (sold kg) —
->   see [ARIMA Forecasting](#arima-forecasting) for how each number is calculated
+> - Sample price guides, 153 days of inventory history, 14 days of vendor sale
+>   declarations, and 3-day ARIMA forecasts for **price** and **supply**
+>   (stock in) — see [ARIMA Forecasting](#arima-forecasting) for how each number
+>   is calculated
+>
+> The seeded history is deliberately realistic: older trading days mostly sold
+> out, with a small deterministic share of leftovers, plus a handful of entries
+> forced to sit unsold past the freshness window so the
+> [stale-stock alert](#stale-stock-alerts) has something real to show.
 
 ---
 
@@ -207,9 +216,12 @@ npm run build    # production build
 If you're using Laragon, your site is already accessible at the virtual host you configured. No extra command needed.
 
 ```
-http://vms.test/prices     ← public price board
-http://vms.test/login      ← login
+http://vms.test/           ← public price board
 ```
+
+> The board is the site root. Signing in happens through the form in the board's
+> own navbar — there is no separate `/login` page. Closing the browser signs you
+> out, because the session cookie is issued without an expiry.
 
 **Option B — Built-in PHP server:**
 
@@ -220,8 +232,7 @@ php artisan serve
 Then open: **http://localhost:8000**
 
 ```
-http://localhost:8000/prices    ← public price board
-http://localhost:8000/login     ← login
+http://localhost:8000/     ← public price board
 ```
 
 > If you use `php artisan serve`, temporarily change `APP_URL=http://localhost:8000` in your `.env`.
@@ -271,48 +282,48 @@ Everything below lives in two files:
 
 ---
 
-### The 3 metrics
+### The 2 metrics
 
-All three are built from the same table, `vendor_inventories`, which vendors fill
+Both are built from the same table, `vendor_inventories`, which vendors fill
 in daily and staff confirm. Only **confirmed** rows are used, and only rows dated
 **before today** — the model never sees partial or unverified entries.
 
 For each day, the confirmed rows for that fish type and quality class are
 collected and reduced to a single number:
 
-| Metric        | Question it answers                    | Source column   | How the day is calculated            | Unit  |
-| ------------- | -------------------------------------- | --------------- | ------------------------------------ | ----- |
-| **Price**     | "What will one kilo cost tomorrow?"     | `price_per_kg`  | **Average** of every vendor's price  | ₱/kg  |
-| **Supply**    | "How much will be available?"           | `stock_kg`      | **Sum** of every vendor's stock      | kg    |
-| **Demand**    | "How much will actually be bought?"     | `sold_kg`       | **Sum** of every vendor's sales      | kg    |
+| Metric     | Question it answers                | Source column  | How the day is calculated            | Unit |
+| ---------- | ---------------------------------- | -------------- | ------------------------------------ | ---- |
+| **Price**  | "What will one kilo cost tomorrow?" | `price_per_kg` | **Average** of every vendor's price  | ₱/kg |
+| **Supply** | "How much will be available?"       | `stock_kg`     | **Sum** of every vendor's stock      | kg   |
 
-#### Why price is averaged but the other two are summed
+> `sold_kg` is no longer a forecasting metric. What a vendor actually sold is
+> now declared once per day in a [sale report](#sale-reports), and it feeds the
+> stale-stock alert rather than a demand projection.
+
+#### Why price is averaged but supply is summed
 
 This is the part that most often causes confusion, so it is worth being precise.
 
-**Price is a rate, supply and demand are quantities.** Adding three vendors'
-prices together (`₱180 + ₱190 + ₱200 = ₱570`) would be meaningless — there is no
-such thing as a "total price". So price is **averaged**, giving the typical
-market price for that day.
+**Price is a rate, supply is a quantity.** Adding three vendors' prices together
+(`₱180 + ₱190 + ₱200 = ₱570`) would be meaningless — there is no such thing as a
+"total price". So price is **averaged**, giving the typical market price for that
+day.
 
-**Supply and demand are physical amounts of fish.** If vendor A brings 12 kg,
-vendor B brings 8 kg and vendor C brings 5 kg, then 25 kg reached the market
-that day. Summing is the only meaningful operation, and it is the same for
-demand: if those vendors sold 9 kg, 6 kg and 3 kg, then 18 kg of fish actually
-changed hands.
+**Supply is a physical amount of fish.** If vendor A brings 12 kg, vendor B brings
+8 kg and vendor C brings 5 kg, then 25 kg reached the market that day. Summing is
+the only meaningful operation.
 
 A worked day for one fish type and quality class:
 
-| Vendor | `price_per_kg` | `stock_kg` | `sold_kg` |
-| ------ | --------------: | ---------: | --------: |
-| A      |           ₱180.00 |         12 |          9 |
-| B      |           ₱190.00 |          8 |          6 |
-| C      |           ₱200.00 |          5 |          3 |
-| **Daily metric** | **₱190.00** | **25** | **18** |
+| Vendor | `price_per_kg` | `stock_kg` |
+| ------ | --------------: | ---------: |
+| A      |           ₱180.00 |         12 |
+| B      |           ₱190.00 |          8 |
+| C      |           ₱200.00 |          5 |
+| **Daily metric** | **₱190.00** | **25** |
 
 > Price: `(180 + 190 + 200) ÷ 3 = 190`
 > Supply: `12 + 8 + 5 = 25 kg`
-> Demand: `9 + 6 + 3 = 18 kg`
 
 The same `AVG` / `SUM` rule is defined once, in `ArimaService::buildSeries()` and
 `ArimaService::historicalSeries()`.
@@ -522,8 +533,8 @@ in the ratio √1 : √2 : √3.
 ### Viewing the output
 
 Supervisors see the forecasts at **`/supervisor/forecasts`**, where the metric
-can be switched between Price, Supply and Demand. The page shows the last 30
-days of actuals behind the projection and labels the model as `AR(1)I(1)MA(1)`.
+can be switched between Price and Supply. The page shows the last 30 days of
+actuals behind the projection and labels the model as `AR(1)I(1)MA(1)`.
 
 The fitted coefficients themselves (`φ`, `θ`, `μ`, `σ`) are not shown on the
 page — they are stored per row in the `forecasts.arima_params` column so every
@@ -578,12 +589,82 @@ php artisan forecast:generate --quality_class="First Class"
 
 - **A day with no confirmed rows is skipped, not counted as zero.** If a fish
   type has no entries on a given day, that day is simply absent from the series,
-  so one "daily change" may span more than 24 hours. This avoids dragging
-  genuine zero-sales days into the average.
+  so one "daily change" may span more than 24 hours.
 - **Forecasts are per fish type *and* quality class.** A `First Class` forecast
   is fitted only from `First Class` entries.
 - **A new series needs at least 7 recorded days** before any forecast appears.
   This is the usual reason the forecast table is empty right after seeding.
+
+---
+
+## Sale Reports
+
+Each vendor closes the trading day by declaring what they actually sold, in one
+pass, against the entries staff confirmed that day.
+
+```
+GET  /vendor/sale-report    the declaration form + the vendor's own history
+POST /vendor/sale-report    submit, or revise before the cutoff
+GET  /staff/sale-reports    staff view: totals, unsold value, calendar
+GET  /supervisor/sale-reports
+```
+
+### The rules it enforces
+
+| Rule                     | Why                                                                                     |
+| ------------------------ | --------------------------------------------------------------------------------------- |
+| Only **confirmed** stock | An entry awaiting staff approval has no agreed price, so there is nothing to sell against |
+| **Every** entry declared | Totals are summed from what arrives, so a partial payload would silently understate the day |
+| Never more than released | A declaration cannot invent stock that staff did not release for sale                     |
+| Own fish only             | Entries are resolved from the signed-in vendor, so a hand-built request cannot reach another's stock |
+| Cutoff at `SALE_REPORT_DEADLINE` | Default `23:59`, in the app timezone. Before then the day may be revised; after it, ask staff |
+| Previous days are closed  | Only today is reportable                                                                  |
+
+Submitting writes the declared kg back to `vendor_inventories.sold_kg`, so the
+price board's remaining stock always agrees with the declaration.
+
+### Why the lines are copied, not joined
+
+`vendor_sale_report_items` snapshots fish name, quality class, price, released kg
+and the declared kg onto the item. A sale report is a statement about a day that
+has already happened, so it must keep showing what was true that day even after
+a price guide or quality class is later corrected.
+
+### The staff/supervisor view
+
+Both roles see the same page. It answers three questions at once:
+
+- a table of vendor / fish / quality / price / kg / value, filterable by date and
+  vendor, with what each line left unsold
+- **which vendors have confirmed stock but have not filed** — the outstanding
+  notice resolves from the whole day, so it is unaffected by the vendor filter
+- **which trading days have declarations at all**, as a calendar, so a gap is
+  visible without hunting through dates
+
+A vendor with no confirmed stock is never listed as outstanding — there is
+nothing to declare.
+
+---
+
+## Stale Stock Alerts
+
+Fresh fish does not keep. An inventory entry is flagged when **both** hold:
+
+- it is at least `STALE_STOCK_AFTER_DAYS` old (default 3), measured from
+  `entry_date` — the trading day, not `created_at`, so a back-filled entry cannot
+  look fresh
+- it still has unsold stock remaining
+
+Age is measured from `entry_date` because that is when the vendor declared the
+stock. `created_at` would make a back-filled entry look new.
+
+Flagged entries appear in red:
+
+- **on the vendor dashboard**, oldest first, capped at ten rows with a count of
+  what is not shown, and what the leftover is costing at the confirmed price
+- **in the inventory history**, as a red row with the remaining kg and its age
+
+Sold-out and unconfirmed entries are never stale — there is nothing left to lose.
 
 ---
 
@@ -629,28 +710,31 @@ php artisan schedule:run          # Trigger due scheduled tasks
 ```
 ├── app/
 │   ├── Http/Controllers/
-│   │   ├── Auth/           # Login/logout
+│   │   ├── Auth/           # Login/logout (POST only)
 │   │   ├── Public/         # Price board (no auth)
 │   │   ├── Supervisor/     # Supervisor panel
 │   │   ├── Staff/          # Staff panel
-│   │   └── Vendor/         # Vendor panel
-│   ├── Models/             # Eloquent models
+│   │   ├── Vendor/         # Vendor panel
+│   │   └── SaleReportController.php   # Shared staff/supervisor declaration view
+│   ├── Models/             # Eloquent models, incl. VendorSaleReport(+Item)
 │   ├── Services/           # ArimaService — forecasting engine
 │   ├── Console/Commands/   # forecast:generate, inventory:lock
 │   └── Http/Middleware/    # Role-based access
 ├── config/
-│   └── forecast.php        # Forecast horizon, metrics, ARIMA settings
+│   ├── forecast.php        # Forecast horizon, metrics, ARIMA settings
+│   └── inventory.php       # Stale-stock window and sale-report cutoff
 ├── database/
 │   ├── migrations/         # Table definitions
 │   └── seeders/            # Sample data
 ├── tests/
 │   ├── Unit/               # ArimaServiceTest
-│   └── Feature/            # Page smoke tests
+│   └── Feature/            # MarketplaceFlow, FrontendSmoke, SaleReport
 ├── resources/views/
 │   ├── public/             # priceboard.blade.php
 │   ├── supervisor/         # Supervisor views
 │   ├── staff/              # Staff views
 │   ├── vendor/             # Vendor views
+│   ├── sale-reports/       # Shared staff/supervisor declaration view
 │   └── layouts/            # Shared layout
 ├── routes/
 │   └── web.php             # All routes

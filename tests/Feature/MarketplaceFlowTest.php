@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ActivityLog;
 use App\Models\FishType;
 use App\Models\PriceGuide;
 use App\Models\User;
@@ -409,41 +410,69 @@ class MarketplaceFlowTest extends TestCase
         $this->assertStringNotContainsString('editHintext-slate-400', $html);
     }
 
-    public function test_only_inactive_fish_types_can_be_deactivated_or_deleted(): void
+    /**
+     * A fish type that is listed is in use, so it is corrected rather than
+     * switched off. There is no activate/deactivate and no delete: the
+     * endpoints are gone, not merely hidden from the UI.
+     */
+    public function test_fish_types_cannot_be_toggled_or_deleted(): void
     {
         $fish = $this->makeFishType();
         $supervisor = $this->makeUser('supervisor');
 
+        // Only GET/POST/PUT exist on this URI now, so a DELETE is rejected on
+        // the method rather than reaching a controller.
         $this->actingAs($supervisor)
             ->delete('/supervisor/fish-types/'.$fish->id)
-            ->assertRedirect('/supervisor/fish-types')
-            ->assertSessionHas('error');
+            ->assertStatus(405);
 
-        $this->assertDatabaseHas('fish_types', ['id' => $fish->id, 'is_active' => true]);
-
+        // The toggle route was removed outright, so nothing matches the URI.
         $this->actingAs($supervisor)
             ->patch('/supervisor/fish-types/'.$fish->id.'/toggle')
-            ->assertRedirect('/supervisor/fish-types');
+            ->assertNotFound();
 
-        $this->assertFalse($fish->fresh()->is_active);
+        $this->assertDatabaseHas('fish_types', ['id' => $fish->id, 'is_active' => true]);
+    }
 
-        $this->actingAs($supervisor)
-            ->delete('/supervisor/fish-types/'.$fish->id)
-            ->assertRedirect('/supervisor/fish-types');
+    public function test_the_fish_type_page_offers_edit_and_nothing_else(): void
+    {
+        $this->makeFishType();
+        $this->makeFishType();
+        $supervisor = $this->makeUser('supervisor');
 
-        $this->assertDatabaseCount('fish_types', 0);
+        $html = $this->actingAs($supervisor)->get('/supervisor/fish-types')
+            ->assertOk()->getContent();
+
+        // One edit form per row, and nothing that spoofs a different verb.
+        $this->assertSame(2, substr_count($html, 'value="PUT"'));
+        $this->assertStringNotContainsString('value="DELETE"', $html);
+        $this->assertStringNotContainsString('value="PATCH"', $html);
+
+        // Edit is the only action rendered.
+        $this->assertMatchesRegularExpression('/>\s*Edit\s*</', $html);
+
+        // No lifecycle affordances, and no dead references to the helpers that
+        // used to drive their modals.
+        foreach (['Deactivate', 'Activate', 'Delete', 'ftOpenDeactivate', 'ftOpenActivate', 'ftOpenDelete'] as $gone) {
+            $this->assertStringNotContainsString($gone, $html);
+        }
+
+        foreach (['fish-types.toggle', 'fish-types.destroy'] as $route) {
+            $this->assertStringNotContainsString($route, $html);
+        }
     }
 
     /**
-     * vendor_inventories.fish_type_id is restrictOnDelete, so deleting a fish
-     * type that has been sold used to raise a 500 instead of an explanation.
+     * vendor_inventories.fish_type_id is restrictOnDelete, so the old delete
+     * endpoint raised a 500 rather than an explanation. With delete removed the
+     * row can no longer be touched at all, and editing still works.
      */
-    public function test_a_fish_type_with_inventory_is_kept_and_explained(): void
+    public function test_a_fish_type_with_inventory_can_still_be_edited(): void
     {
         $fish = $this->makeFishType();
         $vendor = $this->makeUser('vendor');
 
-        VendorInventory::create([
+        $entry = VendorInventory::create([
             'vendor_id'     => $vendor->id,
             'fish_type_id'  => $fish->id,
             'quality_class' => 'First Class',
@@ -456,15 +485,18 @@ class MarketplaceFlowTest extends TestCase
             'is_locked'     => true,
         ]);
 
-        $fish->update(['is_active' => false]);
         $supervisor = $this->makeUser('supervisor');
 
         $this->actingAs($supervisor)
-            ->delete('/supervisor/fish-types/'.$fish->id)
+            ->put('/supervisor/fish-types/'.$fish->id, [
+                'name'          => 'Bangus Laka',
+                'quality_class' => 'Second Class',
+            ])
             ->assertRedirect('/supervisor/fish-types')
-            ->assertSessionHas('error');
+            ->assertSessionHasNoErrors();
 
-        $this->assertDatabaseHas('fish_types', ['id' => $fish->id]);
+        $this->assertSame('Bangus Laka', $fish->fresh()->name);
+        $this->assertDatabaseHas('vendor_inventories', ['id' => $entry->id]);
     }
 
     // ─── Staff: confirmation workflow ──────────────────────────────
@@ -591,7 +623,7 @@ class MarketplaceFlowTest extends TestCase
 
         // The public board reflects a confirmed entry.
         $this->actingAs($staff)->patch('/staff/confirmations/'.$entry->id.'/approve');
-        $this->get('/prices')->assertOk()->assertSee($fish->name);
+        $this->get('/')->assertOk()->assertSee($fish->name);
     }
 
     /**
@@ -623,11 +655,11 @@ class MarketplaceFlowTest extends TestCase
     // ─── Supervisor dashboard scope ────────────────────────────────
 
     /**
-     * The client asked for the dashboard to be figures and activity only, so the
-     * ARIMA chart and its Chart.js payload are gone from this page. Forecasting
-     * still has its own page, so that one must keep working.
+     * The client asked for the dashboard to be figures only, so the ARIMA chart
+     * and its Chart.js payload are gone from this page. The activity log moved
+     * to My Account, which is where an account-level record belongs.
      */
-    public function test_supervisor_dashboard_shows_figures_and_activity_but_no_forecast_chart(): void
+    public function test_supervisor_dashboard_shows_figures_but_no_forecast_chart_or_activity(): void
     {
         $supervisor = $this->makeUser('supervisor');
 
@@ -639,10 +671,9 @@ class MarketplaceFlowTest extends TestCase
         $response = $this->actingAs($supervisor)->get('/supervisor/dashboard');
         $response->assertOk();
 
-        // The analytics figures and the activity log are what remains.
+        // The analytics figures are what remains.
         $response->assertSee('Total Vendors');
         $response->assertSee('Total Stalls');
-        $response->assertSee('Recent Activity');
 
         // The forecast card, its canvas and its CDN script are not.
         $response->assertDontSee('Price Forecast', false);
@@ -650,7 +681,26 @@ class MarketplaceFlowTest extends TestCase
         $response->assertDontSee('chart.js', false);
         $response->assertDontSee('ARIMA', false);
 
+        // The activity log now lives on My Account.
+        $response->assertDontSee('Recent Activity');
+
         // The dedicated forecast page is untouched.
         $this->actingAs($supervisor)->get('/supervisor/forecasts')->assertOk();
+    }
+
+    public function test_my_account_shows_the_recent_activity_log(): void
+    {
+        $supervisor = $this->makeUser('supervisor');
+
+        ActivityLog::create([
+            'user_id'     => $supervisor->id,
+            'action'      => 'update',
+            'description' => 'Something worth seeing in the log.',
+        ]);
+
+        $this->actingAs($supervisor)->get('/supervisor/account')
+            ->assertOk()
+            ->assertSee('Recent Activity')
+            ->assertSee('Something worth seeing in the log.', false);
     }
 }

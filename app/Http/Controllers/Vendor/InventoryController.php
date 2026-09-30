@@ -162,37 +162,12 @@ class InventoryController extends Controller
     }
 
     // ─── Update sold quantity for a confirmed entry ───────────────
-    public function updateSold(Request $request, VendorInventory $inventory)
-    {
-        // Only the owning vendor may update
-        if ($inventory->vendor_id !== Auth::id()) {
-            abort(403);
-        }
-
-        // Only confirmed (and unlocked) entries can have sold_kg updated
-        if ($inventory->status !== 'confirmed') {
-            return back()->withErrors(['sold_kg' => 'Only confirmed entries can be updated.']);
-        }
-
-        if ($inventory->is_locked) {
-            return back()->withErrors(['sold_kg' => 'This entry is locked and can no longer be edited.']);
-        }
-
-        $request->validate([
-            'sold_kg' => [
-                'required',
-                'numeric',
-                'min:0',
-                // sold_kg cannot exceed released_kg
-                'max:' . $inventory->released_kg,
-            ],
-        ], [
-            'sold_kg.max' => 'Sold quantity cannot exceed released quantity (' . $inventory->released_kg . ' kg).',
-        ]);
-
-        $inventory->update(['sold_kg' => $request->sold_kg]);
-
-        return redirect()->route('vendor.inventory.index')
-            ->with('success', 'Sold quantity updated successfully.');
-    }
+    /**
+     * Removed: sold kg is no longer edited entry-by-entry.
+     *
+     * Doing it per entry let the numbers drift out of step with each other and
+     * left no record of who declared what. The vendor now closes the day in one
+     * place — see Vendor\SaleReportController — which writes sold_kg back onto
+     * each entry from the declared totals.
+     */
 }

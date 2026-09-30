@@ -918,7 +918,7 @@
         box-shadow: 0 0 0 3px rgb(59 130 246 / 0.1);
     }
 
-    /* Segmented metric toggle (price / supply / demand). */
+    /* Segmented metric toggle (price / supply). */
     .vpm-segment {
         display: flex;
         align-items: stretch;

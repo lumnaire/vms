@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Supervisor;
 
 use App\Http\Controllers\Controller;
-use App\Models\ActivityLog;
 use App\Models\User;
 use App\Models\VendorProfile;
 use App\Models\VendorInventory;
@@ -21,15 +20,12 @@ class DashboardController extends Controller
             ->whereDate('entry_date', today())
             ->sum('stock_kg');
 
-        // Recent activity: latest 10 logs with user
-        $recentActivity = ActivityLog::with('user')->latest()->take(10)->get();
-
+        // The activity log is rendered on My Account, not here.
         return view('supervisor.dashboard', compact(
             'totalVendors',
             'totalStalls',
             'activeStaff',
             'totalStockKg',
-            'recentActivity',
         ));
     }
 }

@@ -9,8 +9,8 @@ use Illuminate\Console\Command;
 /**
  * GenerateForecasts
  *
- * Generates rolling ARIMA(1,1,1) forecasts for fish price, supply volume and
- * consumer demand. For each active fish type x quality class x metric that has
+ * Generates rolling ARIMA(1,1,1) forecasts for fish price and supply volume.
+ * For each active fish type x quality class x metric that has
  * enough confirmed history, it writes the configured forecast horizon
  * (see config/forecast.php) into the forecasts table.
  *
@@ -26,9 +26,9 @@ class GenerateForecasts extends Command
     protected $signature = 'forecast:generate
                             {--fish_type_id= : Limit to a specific fish type ID}
                             {--quality_class= : Limit to a specific quality class}
-                            {--metric= : Limit to a specific metric (price, supply, demand)}';
+                            {--metric= : Limit to a specific metric (price, supply)}';
 
-    protected $description = 'Generate rolling ARIMA(1,1,1) forecasts for fish price, supply and demand.';
+    protected $description = 'Generate rolling ARIMA(1,1,1) forecasts for fish price and supply.';
 
     public function handle(ArimaService $arima): int
     {

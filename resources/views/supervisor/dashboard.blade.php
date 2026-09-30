@@ -97,74 +97,9 @@
 
     </div>
 
-    {{-- ── Recent Activity ──────────────────────────────────────── --}}
-    {{-- Price forecasting lives on its own page; the dashboard stays on
-         figures and activity. --}}
-    {{-- Recent Activity --}}
-    <div class="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-card">
-        <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-            <div>
-                <h2 class="text-slate-700 font-bold text-[13.5px]">Recent Activity</h2>
-                <p class="text-slate-400 text-[11px] mt-px">System activity log</p>
-            </div>
-            @if ($recentActivity->isNotEmpty())
-                <span
-                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-50 text-slate-400 text-[10px] font-semibold border border-slate-200">
-                    {{ $recentActivity->count() }} entries
-                </span>
-            @endif
-        </div>
-
-        @if ($recentActivity->isNotEmpty())
-            <ul class="divide-y divide-slate-50 overflow-y-auto" style="max-height: 360px;">
-                @foreach ($recentActivity as $log)
-                    @php
-                        // Token classes rather than raw hex so the values come from
-                        // the design system and stay purgeable by Tailwind.
-                        $iconMap = [
-                            'login' => ['bi-box-arrow-in-right', 'text-info-600', 'bg-info-50'],
-                            'logout' => ['bi-box-arrow-right', 'text-slate-500', 'bg-slate-50'],
-                            'confirm_price' => ['bi-patch-check-fill', 'text-success-600', 'bg-success-50'],
-                            'submit_inventory' => ['bi-archive-fill', 'text-warning-600', 'bg-warning-50'],
-                            'create' => ['bi-plus-circle-fill', 'text-brand-600', 'bg-brand-50'],
-                            'update' => ['bi-pencil-fill', 'text-info-600', 'bg-info-50'],
-                            'delete' => ['bi-trash-fill', 'text-danger-600', 'bg-danger-50'],
-                        ];
-                        $action = strtolower($log->action);
-                        [$icon, $textClass, $bgClass] = $iconMap[$action] ?? [
-                            'bi-activity',
-                            'text-slate-500',
-                            'bg-slate-50',
-                        ];
-                    @endphp
-                    <li class="flex items-start gap-3 px-5 py-3 hover:bg-slate-50 transition-colors">
-                        <div
-                            class="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 {{ $bgClass }}">
-                            <i class="bi {{ $icon }} {{ $textClass }} text-[12px]"></i>
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <p class="text-slate-700 font-medium truncate text-[12px]">
-                                {{ $log->description ?? ucwords(str_replace('_', ' ', $log->action)) }}
-                            </p>
-                            <p class="text-slate-400 mt-0.5 text-[10.5px]">
-                                {{ $log->user?->name ?? 'System' }}
-                                &bull;
-                                {{ $log->created_at->diffForHumans() }}
-                            </p>
-                        </div>
-                    </li>
-                @endforeach
-            </ul>
-        @else
-            {{-- Empty state --}}
-            <div class="flex flex-col items-center justify-center" style="height: 360px;">
-                <div class="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center mb-3">
-                    <x-icon name="bi-clock-history" size="lg" class="text-slate-300" />
-                </div>
-                <p class="text-slate-400 font-medium text-[12px]">No recent activity</p>
-                <p class="text-slate-300 mt-0.5 text-[11px]">Activity will appear here</p>
-            </div>
-        @endif
-    </div>
+    {{-- ── Next Section ─────────────────────────────────────────────
+         The activity log used to sit here. It is an account-level record
+         rather than an operational figure, so it now renders on My
+         Account (see supervisor/account.blade.php). --}}
 
 @endsection

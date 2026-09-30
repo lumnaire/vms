@@ -11,7 +11,7 @@ use Illuminate\Database\Seeder;
  * ForecastSeeder
  *
  * Pre-populates the forecasts table with rolling ARIMA(1,1,1) projections for
- * price, supply and demand, starting the day after the current date.
+ * price and supply, starting the day after the current date.
  *
  * Run AFTER VendorInventorySeeder so historical data exists.
  * Usage: php artisan db:seed --class=ForecastSeeder

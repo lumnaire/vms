@@ -74,4 +74,47 @@ class VendorInventory extends Model
     {
         return $this->status === 'rejected';
     }
+
+    // ─── Stock Age ────────────────────────────────────────────────
+    //
+    // Remaining stock is released minus what the vendor declared sold, so it
+    // always reflects the day's own submission rather than a separate tally.
+
+    /** Whether any kg is still unsold. */
+    public function hasRemainingStock(): bool
+    {
+        return $this->getRemainingStock() > 0;
+    }
+
+    /**
+     * Trading days this entry has been sitting on the stall.
+     *
+     * Measured from entry_date, the day the vendor declared the stock, rather
+     * than created_at — a back-filled entry is as old as the day it claims.
+     */
+    public function getAgeInDays(): int
+    {
+        return (int) $this->entry_date->startOfDay()->diffInDays(today()->startOfDay());
+    }
+
+    /**
+     * Unsold stock that has been held too long to sell fresh.
+     *
+     * Only confirmed stock counts: pending or rejected entries were never
+     * released for sale, so flagging them would cry wolf.
+     */
+    public function isStale(): bool
+    {
+        if (! $this->isConfirmed() || ! $this->hasRemainingStock()) {
+            return false;
+        }
+
+        return $this->getAgeInDays() >= config('inventory.stale_after_days');
+    }
+
+    /** Value of the unsold stock, for the loss figure on the stale alert. */
+    public function getRemainingStockValue(): float
+    {
+        return round($this->getRemainingStock() * (float) $this->price_per_kg, 2);
+    }
 }

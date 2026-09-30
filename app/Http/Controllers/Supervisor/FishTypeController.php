@@ -14,9 +14,10 @@ use Illuminate\Support\Str;
 /**
  * FishTypeController
  *
- * Allows the Supervisor to add new fish types, edit their names,
- * and toggle their active/inactive status.
- * Deactivated fish types are hidden from all dropdowns and the public board.
+ * Allows the Supervisor to add new fish types and edit their name, quality
+ * class and photo. There is no activate/deactivate or delete action: a fish
+ * type that exists is in use, and the only lifecycle rule is that editing one
+ * keeps its price brackets and inventory in step with the new class.
  */
 class FishTypeController extends Controller
 {
@@ -34,12 +35,32 @@ class FishTypeController extends Controller
     // ─── List all fish types ──────────────────────────────────────
     public function index()
     {
-        $fishTypes = FishType::orderBy('name')->get();
+        $fishTypes = FishType::withCount('priceGuides')
+            ->orderByRaw($this->classOrderSql())
+            ->orderBy('name')
+            ->get();
 
-        $totalActive   = $fishTypes->where('is_active', true)->count();
-        $totalInactive = $fishTypes->where('is_active', false)->count();
+        return view('supervisor.fish-types', compact('fishTypes'));
+    }
 
-        return view('supervisor.fish-types', compact('fishTypes', 'totalActive', 'totalInactive'));
+    /**
+     * Sort rows by quality class cheapest-first, so the list reads the same way
+     * the price guide does: Fourth Class (the cheapest tier) at the top through
+     * to Special Class. Ordering by the name alone used to scatter the classes
+     * alphabetically, which made the catalogue impossible to scan.
+     *
+     * CASE falls back to the enum position for any class outside the four
+     * cheapest-first tiers, so an unexpected value never drops a row.
+     */
+    private function classOrderSql(): string
+    {
+        return "CASE quality_class "
+            . implode(' ', array_map(
+                fn($i, $class) => "WHEN '{$class}' THEN {$i}",
+                array_keys($cheapestFirst = ['Fourth Class', 'Third Class', 'Second Class', 'First Class', 'Special Class']),
+                $cheapestFirst
+            ))
+            . ' ELSE 99 END';
     }
 
     // ─── Store a new fish type ────────────────────────────────────
@@ -139,43 +160,5 @@ class FishTypeController extends Controller
 
         return redirect()->route('supervisor.fish-types.index')
             ->with('success', 'Fish type updated successfully.');
-    }
-
-    // ─── Toggle active / inactive ─────────────────────────────────
-    public function toggleStatus(FishType $fishType)
-    {
-        $fishType->update(['is_active' => !$fishType->is_active]);
-
-        $label = $fishType->is_active ? 'activated' : 'deactivated';
-
-        return redirect()->route('supervisor.fish-types.index')
-            ->with('success', "Fish type \"{$fishType->name}\" has been {$label}.");
-    }
-
-    // ─── Permanently delete (inactive only) ──────────────────────
-    public function destroy(FishType $fishType)
-    {
-        if ($fishType->is_active) {
-            return redirect()->route('supervisor.fish-types.index')
-                ->with('error', 'Only inactive fish types can be deleted.');
-        }
-
-        // vendor_inventories.fish_type_id is restrictOnDelete, so a fish type
-        // that has been sold cannot be removed without failing the delete.
-        if ($fishType->vendorInventories()->exists()) {
-            return redirect()->route('supervisor.fish-types.index')
-                ->with('error', "\"{$fishType->name}\" has recorded inventory and cannot be deleted. Deactivate it instead to keep its history.");
-        }
-
-        $name = $fishType->name;
-
-        if ($fishType->image_path) {
-            Storage::disk('public')->delete($fishType->image_path);
-        }
-
-        $fishType->delete();
-
-        return redirect()->route('supervisor.fish-types.index')
-            ->with('success', "Fish type \"{$name}\" has been permanently deleted.");
     }
 }

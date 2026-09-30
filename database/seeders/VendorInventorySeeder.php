@@ -6,7 +6,10 @@ use Illuminate\Database\Seeder;
 use App\Models\User;
 use App\Models\FishType;
 use App\Models\VendorInventory;
+use App\Models\VendorSaleReport;
+use App\Models\VendorSaleReportItem;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * VendorInventorySeeder
@@ -31,7 +34,15 @@ class VendorInventorySeeder extends Seeder
 {
     public function run(): void
     {
+        // MySQL refuses to TRUNCATE a table that a foreign key points at, and
+        // vendor_sale_report_items references vendor_inventories. Declarations
+        // are derived from the entries below, so clearing them here is correct:
+        // a reseeded inventory invalidates every report built on top of it.
+        Schema::disableForeignKeyConstraints();
+        VendorSaleReportItem::truncate();
+        VendorSaleReport::truncate();
         VendorInventory::truncate();
+        Schema::enableForeignKeyConstraints();
 
         $staff   = User::where('role', 'staff')->first();
         $vendors = User::where('role', 'vendor')->orderBy('id')->get();
@@ -103,6 +114,9 @@ class VendorInventorySeeder extends Seeder
         $startDate = Carbon::create(2026, 5, 1);
         $endDate   = Carbon::today();
 
+        // Days on or before this are "old" for freshness purposes.
+        $staleCutoff = Carbon::today()->subDays(config('inventory.stale_after_days'));
+
         $inserted  = 0;
         $confirmed = 0;
         $pending   = 0;
@@ -172,6 +186,20 @@ class VendorInventorySeeder extends Seeder
                     $soldPct = 0.70 + ((($dayOfYear * 3 + $vIndex * 7 + strlen($fishName)) % 26) / 100);
                     $soldKg  = min(round($releasedKg * $soldPct, 1), $releasedKg);
 
+                    // ── Freshness ────────────────────────────────────────────
+                    // Fish does not sit. Once a trading day is past the freshness
+                    // window the vendor has almost always cleared the stall, so
+                    // only a small deterministic share of older days keep a
+                    // leftover. Without this, every historical entry would be
+                    // "stale" and the red alert would stop carrying information.
+                    // seedStaleStock() then supplies the deliberate exceptions.
+                    if (! $isToday && $date->lt($staleCutoff)) {
+                        $leftover = ((int) $date->dayOfYear * 7 + $vIndex * 13 + strlen($fishName)) % 1000 < 8;
+                        if (! $leftover) {
+                            $soldKg = $releasedKg; // sold out
+                        }
+                    }
+
                     // ── Status logic ───────────────────────────────────────────
                     // Historical dates → always confirmed
                     // Today     → depends on vendor index (0-6 confirmed, 7-8 mixed, 9-11 pending)
@@ -224,6 +252,58 @@ class VendorInventorySeeder extends Seeder
         $this->command->info("✅ VendorInventorySeeder: {$inserted} entries over {$days} days.");
         $this->command->info("   ✔ Confirmed : {$confirmed}");
         $this->command->info("   ⏳ Pending  : {$pending}  ← visible in staff confirmation queue");
-        $this->command->info("   📋 Today's confirmed entries are live on /prices.");
+
+        $this->seedStaleStock();
+
+        $this->command->info('   📋 Today\'s confirmed entries are live on the price board at "/".');
+    }
+
+    /**
+     * Guarantee the stale-stock alert has something to show.
+     *
+     * The daily generator already leaves 5-30% unsold on most historic entries,
+     * which is enough to trip the freshness window on its own. This pass makes
+     * the signal unmistakable: a spread of entries 3-8 days old that sold
+     * nothing at all, so the vendor dashboard opens on a real red alert instead
+     * of a hypothetical one.
+     *
+     * Only rows that already exist are touched — this adds no new stock, it
+     * just zeroes the sold_kg on a deterministic handful of old entries.
+     */
+    private function seedStaleStock(): void
+    {
+        $threshold = config('inventory.stale_after_days');
+        $touched    = 0;
+
+        foreach (range(0, 7) as $offset) {
+            $daysAgo = $threshold + $offset;
+
+            $date = Carbon::today()->subDays($daysAgo);
+
+            // One entry per age, oldest vendor first, so the list reads as a
+            // ladder of how long the fish has been sitting there.
+            $entry = VendorInventory::where('status', 'confirmed')
+                ->whereDate('entry_date', $date)
+                ->orderBy('id')
+                ->skip($offset)
+                ->first();
+
+            if (! $entry) {
+                continue;
+            }
+
+            // Left entirely unsold: the worst case the alert is meant to catch.
+            $entry->update(['sold_kg' => 0]);
+            $touched++;
+        }
+
+        $staleCount = VendorInventory::all()
+            ->filter(fn ($e) => $e->isStale())
+            ->count();
+
+        $this->command->info(
+            "   ⚠️ Stale stock: {$touched} entr" . ($touched === 1 ? 'y' : 'ies')
+            . " forced unsold · {$staleCount} total flagged at {$threshold}+ days."
+        );
     }
 }

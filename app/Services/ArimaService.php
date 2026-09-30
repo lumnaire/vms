@@ -12,10 +12,9 @@ use App\Models\VendorInventory;
  * the application. Both `forecast:generate` (scheduled daily) and
  * `ForecastSeeder` delegate here so the model is defined exactly once.
  *
- * Three metrics are forecast for every fish_type x quality_class pair:
+ * Two metrics are forecast for every fish_type x quality_class pair:
  *   price   — average price_per_kg per day
  *   supply  — total stock_kg brought into the market per day
- *   demand  — total sold_kg per day (realized consumer demand)
  *
  * Estimation is by method of moments (Hannan-Rissanen style): first-difference
  * the series, take the AR(1) coefficient from the lag-1 autocorrelation of the
@@ -76,7 +75,7 @@ class ArimaService
     // ─────────────────────────────────────────────────────────────
     /**
      * Build the daily history used to fit the model: average price for
-     * `price`, total stock for `supply`, total sold for `demand`.
+     * `price`, total stock for `supply`.
      *
      * @return array<int, float> chronological values
      */
@@ -101,7 +100,6 @@ class ArimaService
                 return match ($metric) {
                     'price'  => (float) $entries->avg('price_per_kg'),
                     'supply' => (float) $entries->sum('stock_kg'),
-                    'demand' => (float) $entries->sum('sold_kg'),
                     default  => 0.0,
                 };
             })
@@ -131,7 +129,6 @@ class ArimaService
                 $value = match ($metric) {
                     'price'  => (float) $entries->avg('price_per_kg'),
                     'supply' => (float) $entries->sum('stock_kg'),
-                    'demand' => (float) $entries->sum('sold_kg'),
                     default  => 0.0,
                 };
 

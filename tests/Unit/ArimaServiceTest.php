@@ -164,4 +164,19 @@ class ArimaServiceTest extends TestCase
 
         $this->assertSame('stable', $out[0]['trend']);
     }
+
+    /**
+     * Demand was removed: it was derived from sold_kg, which the vendor's own
+     * end-of-day sale report fills in, so projecting it fed the model its own
+     * output. Only price and supply remain.
+     */
+    public function test_demand_is_no_longer_a_forecast_metric(): void
+    {
+        $this->assertSame(['price', 'supply'], config('forecast.metrics'));
+        $this->assertArrayNotHasKey('demand', config('forecast.metric_meta'));
+
+        // The generator refuses unknown metrics outright, so a stale caller
+        // cannot reintroduce demand rows.
+        $this->assertSame(0, $this->arima->generate(1, 'First Class', 'demand'));
+    }
 }

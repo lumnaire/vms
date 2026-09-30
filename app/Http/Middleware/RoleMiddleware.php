@@ -18,9 +18,13 @@ class RoleMiddleware
      */
     public function handle(Request $request, Closure $next, string ...$roles): Response
     {
-        // Not logged in → redirect to login
+        // Not logged in → back to the consumer board, which carries the navbar
+        // login form. There is no standalone /login page any more, and no
+        // separate "you must sign in" page either: one page does both jobs.
         if (!Auth::check()) {
-            return redirect()->route('login');
+            return redirect()
+                ->route('home')
+                ->with('auth_intent', 'Sign in to reach that page.');
         }
 
         $user = Auth::user();
@@ -28,7 +32,8 @@ class RoleMiddleware
         // Inactive account → force logout
         if ($user->status !== 'active') {
             Auth::logout();
-            return redirect()->route('login')
+            return redirect()
+                ->route('home')
                 ->withErrors(['username' => 'Your account has been deactivated.']);
         }
 

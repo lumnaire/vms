@@ -4,14 +4,17 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\LoginController;
 
 // ── Public ──────────────────────────────────────────────────────
-// Consumer/Guest: no login required
-Route::get('/', fn() => redirect('/prices'));
-Route::get('/prices', [\App\Http\Controllers\Public\PriceboardController::class, 'index'])
-    ->name('prices.index');
+// Consumer/Guest: no login required. The board IS the home page — there is
+// no separate /prices route; signing in happens from the navbar on "/".
+Route::get('/', [\App\Http\Controllers\Public\PriceboardController::class, 'index'])
+    ->name('home');
 
 // ── Auth ─────────────────────────────────────────────────────────
-Route::get('/login',  [LoginController::class, 'showForm'])->name('login');
-Route::post('/login', [LoginController::class, 'login'])->name('login.post');
+// Signing in happens from the navbar form on "/", which POSTs here. There is no
+// standalone sign-in page, so an old link or a remembered bookmark that still
+// says /login is sent back to the board rather than shown an error.
+Route::get('/login', fn () => redirect()->route('home'));
+Route::post('/login',  [LoginController::class, 'login'])->name('login');
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
 // ── Supervisor ───────────────────────────────────────────────────
@@ -38,11 +41,11 @@ Route::middleware(['auth', 'role:supervisor'])
 
         // ── Analytics ──────────────────────────────────────────────
         // ── Fish Type Management ───────────────────────────────────
+        // Edit only: there is no activate/deactivate or delete, so a fish type
+        // that is listed is in use until the supervisor corrects it.
         Route::get('/fish-types',                 [\App\Http\Controllers\Supervisor\FishTypeController::class, 'index'])->name('fish-types.index');
         Route::post('/fish-types',                [\App\Http\Controllers\Supervisor\FishTypeController::class, 'store'])->name('fish-types.store');
         Route::put('/fish-types/{fishType}',      [\App\Http\Controllers\Supervisor\FishTypeController::class, 'update'])->name('fish-types.update');
-        Route::patch('/fish-types/{fishType}/toggle', [\App\Http\Controllers\Supervisor\FishTypeController::class, 'toggleStatus'])->name('fish-types.toggle');
-        Route::delete('/fish-types/{fishType}',   [\App\Http\Controllers\Supervisor\FishTypeController::class, 'destroy'])->name('fish-types.destroy');
 
         Route::get('/price-guides',                [\App\Http\Controllers\Supervisor\PriceGuideController::class, 'index'])->name('price-guides.index');
         Route::post('/price-guides',               [\App\Http\Controllers\Supervisor\PriceGuideController::class, 'store'])->name('price-guides.store');
@@ -51,6 +54,9 @@ Route::middleware(['auth', 'role:supervisor'])
 
         Route::get('/forecasts', [\App\Http\Controllers\Supervisor\ForecastController::class, 'index'])->name('forecasts.index');
         Route::get('/reports',   [\App\Http\Controllers\Supervisor\ReportController::class,   'index'])->name('reports.index');
+
+        // ── Vendor Sale Reports ─────────────────────────────────────
+        Route::get('/sale-reports', [\App\Http\Controllers\SaleReportController::class, 'index'])->name('sale-reports.index');
 
         // ── My Account ─────────────────────────────────────────────
         Route::get('/account',           [\App\Http\Controllers\Supervisor\AccountController::class, 'edit'])->name('account.edit');
@@ -80,6 +86,9 @@ Route::middleware(['auth', 'role:staff'])
         // ── Records ────────────────────────────────────────────────
         Route::get('/price-guides', [\App\Http\Controllers\Staff\PriceGuideController::class, 'index'])->name('price-guides.index');
         Route::get('/reports',      [\App\Http\Controllers\Staff\ReportController::class,     'index'])->name('reports.index');
+
+        // ── Vendor Sale Reports ─────────────────────────────────────
+        Route::get('/sale-reports', [\App\Http\Controllers\SaleReportController::class, 'index'])->name('sale-reports.index');
     });
 
 // ── Vendor ─────────────────────────────────────────────────────────
@@ -92,5 +101,11 @@ Route::middleware(['auth', 'role:vendor'])
         Route::get('/inventory',     [\App\Http\Controllers\Vendor\InventoryController::class, 'index'])->name('inventory.index');
         Route::post('/inventory',    [\App\Http\Controllers\Vendor\InventoryController::class, 'store'])->name('inventory.store');
         Route::delete('/inventory/{inventory}', [\App\Http\Controllers\Vendor\InventoryController::class, 'destroy'])->name('inventory.destroy');
-        Route::patch('/inventory/{inventory}/sold',  [\App\Http\Controllers\Vendor\InventoryController::class, 'updateSold'])->name('inventory.updateSold');
+
+        // ── Sale Report ───────────────────────────────────────────────
+        // The vendor declares the day's sales against the entries staff
+        // confirmed. Closes at 11:59 PM on the report date; `sold_kg` is no
+        // longer edited entry-by-entry.
+        Route::get('/sale-report',  [\App\Http\Controllers\Vendor\SaleReportController::class, 'index'])->name('sale-report.index');
+        Route::post('/sale-report', [\App\Http\Controllers\Vendor\SaleReportController::class, 'store'])->name('sale-report.store');
     });
