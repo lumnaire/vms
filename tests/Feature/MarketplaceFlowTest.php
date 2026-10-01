@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\ActivityLog;
 use App\Models\FishType;
+use App\Models\Forecast;
 use App\Models\PriceGuide;
 use App\Models\User;
 use App\Models\VendorInventory;
@@ -702,5 +703,54 @@ class MarketplaceFlowTest extends TestCase
             ->assertOk()
             ->assertSee('Recent Activity')
             ->assertSee('Something worth seeing in the log.', false);
+    }
+
+    // ─── Supervisor: ARIMA forecast ────────────────────────────────
+
+    /**
+     * The forecast page reads pre-computed rows out of the forecasts table, so an
+     * empty table renders "No data". On shared hosting nothing regenerates those
+     * rows without a cron job, and a deploy migration truncates the table — which
+     * is why the forecast was empty on Hostinger while working locally. The page
+     * has to fit the model itself when it finds no stored rows.
+     */
+    public function test_forecast_page_generates_on_demand_when_no_stored_rows_exist(): void
+    {
+        $fish = $this->makeFishType('Bangus', 'First Class');
+        $this->makeGuide($fish);
+        $vendor = $this->makeUser('vendor');
+
+        // Enough confirmed history for the model to fit, spread over the past
+        // week and all strictly before today, which is what buildSeries() reads.
+        $prices = [100, 101, 103, 102, 105, 104, 108, 107];
+
+        foreach ($prices as $i => $price) {
+            VendorInventory::create([
+                'vendor_id'     => $vendor->id,
+                'fish_type_id'  => $fish->id,
+                'quality_class' => 'First Class',
+                'price_per_kg'  => $price,
+                'stock_kg'      => 10,
+                'released_kg'   => 10,
+                'sold_kg'       => 0,
+                'status'        => 'confirmed',
+                'entry_date'    => today()->subDays(count($prices) - $i),
+                'is_locked'     => false,
+            ]);
+        }
+
+        // Nothing has ever been generated: no seeder, no cron, no command.
+        $this->assertDatabaseCount('forecasts', 0);
+
+        $query = 'fish_type_id='.$fish->id.'&quality_class=First+Class&metric=price';
+
+        $response = $this->actingAs($this->makeUser('supervisor'))
+            ->get('/supervisor/forecasts?'.$query)
+            ->assertOk();
+
+        // The page fitted and persisted the series instead of showing "No data".
+        $this->assertGreaterThan(0, Forecast::where('fish_type_id', $fish->id)->count());
+
+        $response->assertDontSee('No forecasts yet');
     }
 }

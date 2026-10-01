@@ -291,10 +291,10 @@ in daily and staff confirm. Only **confirmed** rows are used, and only rows date
 For each day, the confirmed rows for that fish type and quality class are
 collected and reduced to a single number:
 
-| Metric     | Question it answers                | Source column  | How the day is calculated            | Unit |
-| ---------- | ---------------------------------- | -------------- | ------------------------------------ | ---- |
-| **Price**  | "What will one kilo cost tomorrow?" | `price_per_kg` | **Average** of every vendor's price  | ₱/kg |
-| **Supply** | "How much will be available?"       | `stock_kg`     | **Sum** of every vendor's stock      | kg   |
+| Metric     | Question it answers                 | Source column  | How the day is calculated           | Unit |
+| ---------- | ----------------------------------- | -------------- | ----------------------------------- | ---- |
+| **Price**  | "What will one kilo cost tomorrow?" | `price_per_kg` | **Average** of every vendor's price | ₱/kg |
+| **Supply** | "How much will be available?"       | `stock_kg`     | **Sum** of every vendor's stock     | kg   |
 
 > `sold_kg` is no longer a forecasting metric. What a vendor actually sold is
 > now declared once per day in a [sale report](#sale-reports), and it feeds the
@@ -315,12 +315,12 @@ the only meaningful operation.
 
 A worked day for one fish type and quality class:
 
-| Vendor | `price_per_kg` | `stock_kg` |
-| ------ | --------------: | ---------: |
-| A      |           ₱180.00 |         12 |
-| B      |           ₱190.00 |          8 |
-| C      |           ₱200.00 |          5 |
-| **Daily metric** | **₱190.00** | **25** |
+| Vendor           | `price_per_kg` | `stock_kg` |
+| ---------------- | -------------: | ---------: |
+| A                |        ₱180.00 |         12 |
+| B                |        ₱190.00 |          8 |
+| C                |        ₱200.00 |          5 |
+| **Daily metric** |    **₱190.00** |     **25** |
 
 > Price: `(180 + 190 + 200) ÷ 3 = 190`
 > Supply: `12 + 8 + 5 = 25 kg`
@@ -333,17 +333,17 @@ The same `AVG` / `SUM` rule is defined once, in `ArimaService::buildSeries()` an
 ### How the projection is calculated
 
 Each metric becomes a **time series** — one number per day, oldest first. ARIMA
-then looks at how that series has been *changing* and projects the change
+then looks at how that series has been _changing_ and projects the change
 forward.
 
 The model is **ARIMA(1,1,1)**, which in plain English means:
 
 - **(1)** the change from one day to the next tends to **follow the previous
-  day's change** (the *autoregressive* part),
+  day's change** (the _autoregressive_ part),
 - **(1)** we model the **day-to-day change** rather than the raw level, because
-  raw levels drift (the *differencing* part),
+  raw levels drift (the _differencing_ part),
 - **(1)** recent **surprises** nudge the next day before fading out (the
-  *moving-average* part).
+  _moving-average_ part).
 
 The full pipeline, implemented in `ArimaService::project()`:
 
@@ -406,7 +406,7 @@ compares today against **yesterday's** change:
 ```
 
 > **Why the lag matters.** If ε were built from today's change paired with
-> *itself* instead of with yesterday's, then ε would be just a scaled copy of
+> _itself_ instead of with yesterday's, then ε would be just a scaled copy of
 > the differenced series. Because the φ formula divides by a sum of squares, it
 > cannot tell a series from a scaled copy of itself — so it would return φ for
 > θ as well, and the moving-average term would contribute nothing while still
@@ -488,13 +488,13 @@ checked by hand:
 y : 100  101  103  102  105  104  108  107  111  110
 ```
 
-| Step | Calculation                              | Result                          |
-| ---- | ---------------------------------------- | ------------------------------- |
-| 1    | Daily changes `Δy`                       | `1, 2, −1, 3, −1, 4, −1, 4, −1` |
-| 2    | Average change `μ`                       | `1.1111`                        |
-| 3    | AR coefficient `φ`                       | `−0.8832`                       |
-| 4    | MA coefficient `θ`                       | `−0.1366`                       |
-| 5    | Typical error `σ`                        | `0.7659`                        |
+| Step | Calculation        | Result                          |
+| ---- | ------------------ | ------------------------------- |
+| 1    | Daily changes `Δy` | `1, 2, −1, 3, −1, 4, −1, 4, −1` |
+| 2    | Average change `μ` | `1.1111`                        |
+| 3    | AR coefficient `φ` | `−0.8832`                       |
+| 4    | MA coefficient `θ` | `−0.1366`                       |
+| 5    | Typical error `σ`  | `0.7659`                        |
 
 **Projecting day 1.** Yesterday's change was `−1`, so the model expects the move
 to partly reverse, damped by `φ`. The last residual was `0.4388`:
@@ -509,15 +509,15 @@ to partly reverse, damped by `φ`. The last residual was `0.4388`:
 band = 1.96 × 0.7659 × √1 = 1.50
 ```
 
-**Days 2 and 3** repeat the same step, each one using the previous *forecast*
+**Days 2 and 3** repeat the same step, each one using the previous _forecast_
 as the new "yesterday", and with the shock term now zero. Every fitted value is
 stored with the forecast in the `forecasts` table's `arima_params` column.
 
-| Day | Predicted | Range (95%)      | Width |
-| --- | ---------: | ---------------- | -----: |
-| 1   |  ₱112.92   | ₱111.41 – ₱114.42 |  3.01 |
-| 2   |  ₱112.43   | ₱110.31 – ₱114.56 |  4.25 |
-| 3   |  ₱114.95   | ₱112.35 – ₱117.55 |  5.20 |
+| Day | Predicted | Range (95%)       | Width |
+| --- | --------: | ----------------- | ----: |
+| 1   |   ₱112.92 | ₱111.41 – ₱114.42 |  3.01 |
+| 2   |   ₱112.43 | ₱110.31 – ₱114.56 |  4.25 |
+| 3   |   ₱114.95 | ₱112.35 – ₱117.55 |  5.20 |
 
 All three days carry the same trend label, `stable`, because day 3 (₱114.95) is
 only 1.8% above day 1 (₱112.92) — inside the ±2% band — even though the series
@@ -553,19 +553,48 @@ ORDER  BY fish_type_id, metric, forecast_date;
 
 Every value lives in `config/forecast.php`. The first four can be set in `.env`:
 
-| Setting               | `.env` variable                | Default | What it controls                                              |
-| --------------------- | ------------------------------ | ------- | ------------------------------------------------------------- |
-| `horizon`             | `FORECAST_HORIZON`             | `3`     | How many days ahead are projected                             |
-| `min_history`         | `FORECAST_MIN_HISTORY`         | `7`     | Minimum recorded days before a series is forecast at all      |
-| `history_days`        | `FORECAST_HISTORY_DAYS`        | `90`    | Days of history used to **fit** the model                     |
-| `history_chart_days`  | `FORECAST_HISTORY_CHART_DAYS`  | `30`    | Days of history **displayed** on the chart behind the forecast |
-| `order`               | —                              | `1,1,1` | The ARIMA order                                              |
-| `z`                   | —                              | `1.96`  | Range width — `1.96` gives 95%                                 |
-| `trend_threshold`     | —                              | `0.02`  | The ±2% band used for the trend label                         |
+| Setting              | `.env` variable               | Default | What it controls                                               |
+| -------------------- | ----------------------------- | ------- | -------------------------------------------------------------- |
+| `horizon`            | `FORECAST_HORIZON`            | `3`     | How many days ahead are projected                              |
+| `min_history`        | `FORECAST_MIN_HISTORY`        | `7`     | Minimum recorded days before a series is forecast at all       |
+| `history_days`       | `FORECAST_HISTORY_DAYS`       | `90`    | Days of history used to **fit** the model                      |
+| `history_chart_days` | `FORECAST_HISTORY_CHART_DAYS` | `30`    | Days of history **displayed** on the chart behind the forecast |
+| `order`              | —                             | `1,1,1` | The ARIMA order                                                |
+| `z`                  | —                             | `1.96`  | Range width — `1.96` gives 95%                                 |
+| `trend_threshold`    | —                             | `0.02`  | The ±2% band used for the trend label                          |
 
 Note that the **fit window (90 days)** and the **chart window (30 days)** are
 deliberately different: the model uses everything available, while the chart
 shows only the recent past so the projection stays readable.
+
+### Hostinger: the scheduler does not run by itself
+
+The forecast page reads pre-computed rows out of the `forecasts` table. Nothing
+regenerates those rows unless `forecast:generate` runs, and on shared hosting the
+Laravel scheduler is **not** automatic. If hPanel has no cron job, the page sits
+at "No data" forever even when there is plenty of history to fit the model.
+
+Add this in **hPanel → Advanced → Cron Jobs** (Hostinger's own docs call this
+"PHP commands"; tick the box next to it so the output is emailed to you):
+
+| Field     | Value                                                                     |
+| --------- | ------------------------------------------------------------------------- |
+| Command   | `/usr/bin/php /home/USER/domains/DOMAIN/public_html/artisan schedule:run` |
+| Frequency | `* * * * *` (every minute)                                                |
+
+> Run it from the directory that holds `artisan`, and adjust `USER` / `DOMAIN` to
+> match your account. `schedule:run` picks up both nightly tasks in
+> `bootstrap/app.php` — `forecast:generate` at 00:01 and `inventory:lock` at 00:05.
+> The every-minute frequency is correct: Laravel only fires each task once, when
+> its own `dailyAt()` time arrives.
+
+To confirm it is alive, add a temporary entry to the crontab at `* * * * *` and
+check the emailed output for the `[VPM] Starting forecast generation` line.
+
+**If you cannot set up cron**, the supervisor forecast page generates the
+selected series on demand when it finds no stored rows for it, so the chart
+still renders. That covers the page itself; only the nightly refresh of
+series nobody has looked at is lost.
 
 ### Regenerating forecasts
 
@@ -583,14 +612,19 @@ php artisan forecast:generate --quality_class="First Class"
 > and will not update on its own until the next scheduled run. Remember
 > `php artisan config:clear` if you changed a value in `.env`.
 
----
+> ⚠️ Deploying runs `migrate`, and the
+> `switch_forecasts_to_three_day_supply_demand` migration truncates the
+> `forecasts` table. Push, deploy, then run `php artisan forecast:generate`
+> once — or just reload the forecast page, which now regenerates on demand.
+
+## `
 
 ### Good to know
 
 - **A day with no confirmed rows is skipped, not counted as zero.** If a fish
   type has no entries on a given day, that day is simply absent from the series,
   so one "daily change" may span more than 24 hours.
-- **Forecasts are per fish type *and* quality class.** A `First Class` forecast
+- **Forecasts are per fish type _and_ quality class.** A `First Class` forecast
   is fitted only from `First Class` entries.
 - **A new series needs at least 7 recorded days** before any forecast appears.
   This is the usual reason the forecast table is empty right after seeding.
@@ -611,14 +645,14 @@ GET  /supervisor/sale-reports
 
 ### The rules it enforces
 
-| Rule                     | Why                                                                                     |
-| ------------------------ | --------------------------------------------------------------------------------------- |
-| Only **confirmed** stock | An entry awaiting staff approval has no agreed price, so there is nothing to sell against |
-| **Every** entry declared | Totals are summed from what arrives, so a partial payload would silently understate the day |
-| Never more than released | A declaration cannot invent stock that staff did not release for sale                     |
-| Own fish only             | Entries are resolved from the signed-in vendor, so a hand-built request cannot reach another's stock |
-| Cutoff at `SALE_REPORT_DEADLINE` | Default `23:59`, in the app timezone. Before then the day may be revised; after it, ask staff |
-| Previous days are closed  | Only today is reportable                                                                  |
+| Rule                             | Why                                                                                                  |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Only **confirmed** stock         | An entry awaiting staff approval has no agreed price, so there is nothing to sell against            |
+| **Every** entry declared         | Totals are summed from what arrives, so a partial payload would silently understate the day          |
+| Never more than released         | A declaration cannot invent stock that staff did not release for sale                                |
+| Own fish only                    | Entries are resolved from the signed-in vendor, so a hand-built request cannot reach another's stock |
+| Cutoff at `SALE_REPORT_DEADLINE` | Default `23:59`, in the app timezone. Before then the day may be revised; after it, ask staff        |
+| Previous days are closed         | Only today is reportable                                                                             |
 
 Submitting writes the declared kg back to `vendor_inventories.sold_kg`, so the
 price board's remaining stock always agrees with the declaration.
