@@ -181,6 +181,10 @@
                    class="vpm-nav-link {{ request()->routeIs('vendor.inventory.*') ? 'is-active' : '' }}">
                     <x-icon name="bi-box-seam" class="vpm-nav-icon" /> My Inventory
                 </a>
+                <a href="{{ route('vendor.my-stock.index') }}"
+                   class="vpm-nav-link {{ request()->routeIs('vendor.my-stock.*') ? 'is-active' : '' }}">
+                    <x-icon name="bi-boxes" class="vpm-nav-icon" /> My Stock
+                </a>
                 <a href="{{ route('vendor.sale-report.index') }}"
                    class="vpm-nav-link {{ request()->routeIs('vendor.sale-report.*') ? 'is-active' : '' }}">
                     <x-icon name="bi-clipboard-check" class="vpm-nav-icon" /> Sale Report
@@ -260,9 +264,7 @@
                         </p>
                     </div>
                     <div class="vpm-divider"></div>
-                    <div class="w-8 h-8 rounded-full bg-navy-800 flex items-center justify-center">
-                        <x-icon name="bi-building" size="sm" class="text-blue-300" />
-                    </div>
+                   
                 </div>
 
             </div>

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\PriceGuide;
 use App\Models\VendorInventory;
 use App\Models\ActivityLog;
+use App\Services\CarryForwardStock;
 use Illuminate\Support\Facades\Auth;
 
 class ConfirmationController extends Controller
@@ -74,11 +75,17 @@ class ConfirmationController extends Controller
     }
 
     // ─── Reject a pending inventory entry ────────────────────────
-    public function reject(VendorInventory $inventory)
+    public function reject(VendorInventory $inventory, CarryForwardStock $carry)
     {
         abort_if($inventory->status !== 'pending', 422, 'This entry is no longer pending.');
 
         $inventory->update(['status' => 'rejected']);
+
+        // A refused resubmission hands its stock back to the line it came from. The
+        // source has been counting nothing for as long as this replacement was
+        // pending, so without this the kilograms would be on the vendor's books and
+        // on nobody's stall.
+        $carry->release($inventory);
 
         $label = "{$inventory->fishType->name} ({$inventory->quality_class} Class)";
 
@@ -88,7 +95,11 @@ class ConfirmationController extends Controller
             'description' => "Rejected: {$label} from {$inventory->vendor->name}.",
         ]);
 
+        $note = $inventory->carried_from_id
+            ? ' The unsold stock it carried has been returned to the original entry.'
+            : '';
+
         return redirect()->route('staff.confirmations.index')
-            ->with('error', "✗ Entry rejected: {$label} from {$inventory->vendor->name}.");
+            ->with('error', "✗ Entry rejected: {$label} from {$inventory->vendor->name}.{$note}");
     }
 }

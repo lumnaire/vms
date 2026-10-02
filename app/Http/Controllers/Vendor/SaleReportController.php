@@ -7,9 +7,13 @@ use App\Models\ActivityLog;
 use App\Models\VendorInventory;
 use App\Models\VendorSaleReport;
 use App\Models\VendorSaleReportItem;
+use App\Services\CarryForwardStock;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 /**
  * SaleReportController
@@ -23,6 +27,10 @@ use Illuminate\Support\Facades\DB;
  *  - before the deadline the vendor may submit, then revise, until the deadline
  *  - submitting writes the declared kg back onto vendor_inventories.sold_kg, so
  *    remaining stock on the public board stays consistent with the declaration
+ *
+ * Once the day is filed, restock() loads a later day with whatever the declaration
+ * says is left. That is the other half of the loop: the declaration settles what
+ * moved, and the restock keeps what did not from being stranded on a closed day.
  */
 class SaleReportController extends Controller
 {
@@ -58,7 +66,17 @@ class SaleReportController extends Controller
             ->limit(14)
             ->get();
 
-        return view('vendor.sale-report', compact('report', 'entries', 'history'));
+        // Bounds for the restock date picker. Defaulting to tomorrow matches how a
+        // vendor actually works — today is nearly over and its numbers are already
+        // on the declaration.
+        return view('vendor.sale-report', [
+            'report'             => $report,
+            'entries'            => $entries,
+            'history'            => $history,
+            'restockMinDate'     => $today->copy()->addDay()->toDateString(),
+            'restockMaxDate'     => $today->copy()->addDays(CarryForwardStock::MAX_DAYS_AHEAD)->toDateString(),
+            'restockMaxDays'     => CarryForwardStock::MAX_DAYS_AHEAD,
+        ]);
     }
 
     // ─── Submit / revise the day ─────────────────────────────────
@@ -210,5 +228,120 @@ class SaleReportController extends Controller
 
         return redirect()->route('vendor.sale-report.index')
             ->with('success', 'Sale report submitted. You can revise it until 11:59 PM.');
+    }
+
+    // ─── Load tomorrow with what today did not sell ───────────────
+    /**
+     * Carry the leftover from today's declaration onto a later trading day.
+     *
+     * The declaration is what finally says how much of each fish really moved, so
+     * it is also the only moment the leftover is a fact rather than a guess — which
+     * is why restocking waits for the day to be filed instead of being offered
+     * alongside the form.
+     *
+     * The destination is always a future day. Today's entries are already declared
+     * and already counted; putting the same kilograms back on today would either be
+     * a no-op or a second entry contradicting the first.
+     */
+    public function restock(Request $request, CarryForwardStock $carry)
+    {
+        $vendorId = Auth::id();
+        $today    = today();
+
+        $report = VendorSaleReport::where('vendor_id', $vendorId)
+            ->whereDate('report_date', $today)
+            ->first();
+
+        // Without a filed declaration the leftover is whatever the vendor last typed,
+        // which they can still be editing. Restocking off that would load a later
+        // day with a number the vendor themselves have not committed to.
+        if (! $report?->isSubmitted()) {
+            return back()->withErrors([
+                'carry_date' => 'File today\'s sale report first. The restock is based on what you declared sold.',
+            ]);
+        }
+
+        $request->validate([
+            'carry_date' => ['required', 'date'],
+            'entries'    => ['required', 'array', 'min:1'],
+            'entries.*'  => ['integer'],
+        ], [
+            'carry_date.required' => 'Choose the trading day to load.',
+            'carry_date.date'     => 'Choose a valid trading day.',
+            'entries.required'    => 'Tick at least one line to restock.',
+            'entries.min'         => 'Tick at least one line to restock.',
+            'entries.*.integer'   => 'Invalid line selected.',
+        ]);
+
+        $carryDate = Carbon::parse($request->input('carry_date'))->startOfDay();
+
+        // Only today's confirmed entries may be restocked, so a hand-built payload
+        // naming another vendor's fish or an entry from a closed day is refused
+        // rather than quietly ignored.
+        $entries = VendorInventory::with('fishType')
+            ->where('vendor_id', $vendorId)
+            ->whereDate('entry_date', $today)
+            ->where('status', 'confirmed')
+            ->whereIn('id', $request->input('entries', []))
+            ->get()
+            ->keyBy('id');
+
+        $errors = [];
+
+        // Check every ticked line before writing any of them.
+        //
+        // The tick list is one instruction — "load these onto that day" — so it is
+        // either all of it or none. Carrying as it goes would leave the stall half
+        // loaded on a failure: the vendor reads "restock failed", fixes the one bad
+        // line, submits again, and the four that already worked are now rejected as
+        // sold through.
+        foreach ($request->input('entries', []) as $id) {
+            $entry = $entries->get((int) $id);
+
+            if (! $entry) {
+                $errors["entries.{$id}"] = 'That line is not a confirmed entry for today.';
+                continue;
+            }
+
+            try {
+                $carry->assertCanCarry($entry, $carryDate);
+            } catch (ValidationException $e) {
+                // Reported per line rather than as one flat failure: a vendor
+                // restocking five kinds of fish should see which four worked.
+                // Anything that is not a line-level problem (the trading day
+                // itself) keeps its own key so it is not pinned to one fish.
+                foreach ($e->errors() as $field => $messages) {
+                    $key = $field === 'stock' ? "entries.{$id}" : $field;
+
+                    $errors[$key] = $messages[0];
+                }
+            }
+        }
+
+        if ($errors !== []) {
+            return back()->withInput()->withErrors($errors);
+        }
+
+        // Now that the whole batch is known good, write it. Still one transaction,
+        // so a failure part-way through cannot leave two lines of the same restock
+        // on two different days.
+        $made = DB::transaction(function () use ($request, $entries, $carry, $carryDate) {
+            $carried = [];
+
+            foreach ($request->input('entries', []) as $id) {
+                $carried[] = $carry->carry($entries->get((int) $id), $carryDate);
+            }
+
+            return $carried;
+        });
+
+        $kg = round(array_sum(array_map(fn ($e) => (float) $e->released_kg, $made)), 2);
+
+        return redirect()->route('vendor.sale-report.index')->with(
+            'success',
+            number_format($kg, 2) . ' kg across ' . count($made) . ' '
+            . Str::plural('line', count($made)) . ' submitted for '
+            . $carryDate->format('M j, Y') . '. Awaiting staff confirmation on that day.'
+        );
     }
 }

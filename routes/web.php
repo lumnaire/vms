@@ -102,10 +102,23 @@ Route::middleware(['auth', 'role:vendor'])
         Route::post('/inventory',    [\App\Http\Controllers\Vendor\InventoryController::class, 'store'])->name('inventory.store');
         Route::delete('/inventory/{inventory}', [\App\Http\Controllers\Vendor\InventoryController::class, 'destroy'])->name('inventory.destroy');
 
+        // ── My Stock ──────────────────────────────────────────────────
+        // Unsold fish from an earlier day cannot be declared on today's sale report,
+        // because that only reports on today's entries. These are the two ways out:
+        // resubmit the leftover so it is sellable again, or write it off once it is
+        // too old to sell. Both act on the entry, and both go back to the vendor.
+        Route::get('/my-stock', [\App\Http\Controllers\Vendor\MyStockController::class, 'index'])->name('my-stock.index');
+        Route::post('/my-stock/{inventory}/carry',   [\App\Http\Controllers\Vendor\MyStockController::class, 'carry'])->name('my-stock.carry');
+        Route::post('/my-stock/{inventory}/dispose', [\App\Http\Controllers\Vendor\MyStockController::class, 'dispose'])->name('my-stock.dispose');
+
         // ── Sale Report ───────────────────────────────────────────────
         // The vendor declares the day's sales against the entries staff
         // confirmed. Closes at 11:59 PM on the report date; `sold_kg` is no
         // longer edited entry-by-entry.
         Route::get('/sale-report',  [\App\Http\Controllers\Vendor\SaleReportController::class, 'index'])->name('sale-report.index');
         Route::post('/sale-report', [\App\Http\Controllers\Vendor\SaleReportController::class, 'store'])->name('sale-report.store');
+
+        // What the declaration left over, loaded onto a later trading day so the
+        // fish is sellable again instead of stranded on a closed day.
+        Route::post('/sale-report/restock', [\App\Http\Controllers\Vendor\SaleReportController::class, 'restock'])->name('sale-report.restock');
     });

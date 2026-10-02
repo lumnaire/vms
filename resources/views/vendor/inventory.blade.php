@@ -282,18 +282,25 @@
         <div class="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-card"
             >
 
-            <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
                 <div>
                     <h2 class="text-slate-700 font-bold text-[13.5px]">Today's Entries</h2>
                     <p class="text-slate-400 text-[11px] mt-px">
                         {{ now()->format('F j, Y') }} · {{ $todayEntries->count() }} {{ Str::plural('entry', $todayEntries->count()) }}
                     </p>
                 </div>
-                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-semibold text-[11px] bg-brand-50 text-brand-600 border border-brand-200"
-                     >
-                    <x-icon name="bi-calendar-day" size="2xs" />
-                    Today
-                </span>
+                <div class="flex items-center gap-2">
+                    <a href="{{ route('vendor.my-stock.index') }}"
+                       class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11.5px] font-semibold text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors"
+                       style="text-decoration:none">
+                        <x-icon name="bi-boxes" size="2xs" /> My Stock
+                    </a>
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-semibold text-[11px] bg-brand-50 text-brand-600 border border-brand-200"
+                         >
+                        <x-icon name="bi-calendar-day" size="2xs" />
+                        Today
+                    </span>
+                </div>
             </div>
 
             @if($todayEntries->isEmpty())
@@ -428,7 +435,9 @@
             <div class="px-5 py-4 border-b border-slate-100">
                 <h2 class="text-slate-700 font-bold text-[13.5px]">Past 7 Days</h2>
                 <p class="text-slate-400 text-[11px] mt-px">
-                    Read-only historical entries — locked after submission day
+                    Read-only historical entries &mdash; locked after submission day.
+                    Leftover fish is resubmitted from
+                    <a href="{{ route('vendor.my-stock.index') }}" class="text-brand-600 font-semibold hover:underline">My Stock</a>.
                 </p>
             </div>
 

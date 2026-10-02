@@ -130,7 +130,8 @@
             <p class="text-[11.5px] text-danger-700 mt-0.5">
                 {{ number_format((float) $staleEntries->sum(fn($e) => $e->getRemainingStock()), 1) }} kg unsold,
                 ₱{{ number_format((float) $staleTotalValue, 2) }} at risk.
-                Discount it or return it rather than leaving it on the stall.
+                Open <a href="{{ route('vendor.my-stock.index') }}" class="underline font-semibold hover:text-danger-900">My Stock</a>
+                to resubmit what is still fresh, or report the rest as written off.
             </p>
         </div>
     </div>
@@ -177,10 +178,10 @@
     @if($staleHiddenCount > 0)
     <div class="px-4 py-2.5 text-[11px] text-danger-700" style="border-top:1px solid #fecaca">
         Showing the {{ $staleShownEntries->count() }} oldest of {{ $staleTotal }} —
-        <a href="{{ route('vendor.inventory.index') }}" class="underline font-semibold hover:text-danger-900">
+        <a href="{{ route('vendor.my-stock.index') }}" class="underline font-semibold hover:text-danger-900">
             {{ $staleHiddenCount }} more
         </a>
-        in the inventory history.
+        on My Stock.
     </div>
     @endif
 </div>

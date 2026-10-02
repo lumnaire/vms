@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\FishType;
 use App\Models\PriceGuide;
 use App\Models\VendorInventory;
+use App\Services\CarryForwardStock;
 use Illuminate\Http\Request;
 use App\Models\ActivityLog;
 use Illuminate\Support\Facades\Auth;
@@ -139,7 +140,7 @@ class InventoryController extends Controller
     }
 
     // ─── Cancel a pending inventory entry ───────────────────────────
-    public function destroy(VendorInventory $inventory)
+    public function destroy(VendorInventory $inventory, CarryForwardStock $carry)
     {
         if ($inventory->vendor_id !== Auth::id()) {
             abort(403);
@@ -149,7 +150,16 @@ class InventoryController extends Controller
             return back()->withErrors(['cancel' => 'Only pending entries can be cancelled.']);
         }
 
+        // Cancelling a resubmission returns the unsold stock to the entry it was
+        // carried from. The source stopped counting those kilograms the moment the
+        // replacement was created, so the handover has to be undone with it.
+        $wasCarried = $inventory->carried_from_id !== null;
+
         $inventory->delete();
+
+        if ($wasCarried) {
+            $carry->release($inventory);
+        }
 
         ActivityLog::create([
             'user_id'     => Auth::id(),
@@ -157,8 +167,10 @@ class InventoryController extends Controller
             'description' => 'Cancelled inventory entry ID ' . $inventory->id . '.',
         ]);
 
-        return redirect()->route('vendor.inventory.index')
-            ->with('success', 'Inventory entry cancelled successfully.');
+        return redirect()->route($wasCarried ? 'vendor.my-stock.index' : 'vendor.inventory.index')
+            ->with('success', $wasCarried
+                ? 'Resubmission cancelled. The unsold stock is back on your original entry.'
+                : 'Inventory entry cancelled successfully.');
     }
 
     // ─── Update sold quantity for a confirmed entry ───────────────

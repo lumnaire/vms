@@ -271,6 +271,160 @@
     @endif
 </div>
 
+{{-- ── Restock: load a later day with what today did not sell ────
+     The declaration is what finally says how much of each fish really moved, so
+     it is also the only moment the leftover is a fact rather than a guess. That is
+     why this waits for the day to be filed instead of sitting beside the form.
+
+     A line the declaration sold through has nothing left to carry, and says so
+     rather than showing an empty checkbox. --}}
+@if($entries->isNotEmpty())
+<div class="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-card mt-4">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+        <div>
+            <h2 class="text-slate-700 font-bold text-[13.5px]">
+                <x-icon name="bi-arrow-repeat" size="sm" class="text-brand-600" />
+                Restock a Trading Day
+            </h2>
+            <p class="text-slate-400 text-[11px] mt-px">
+                Put what today did not sell back on the stall on a later day
+            </p>
+        </div>
+        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-brand-50 text-brand-700"
+              style="border:1px solid #bfdbfe">
+            <x-icon name="bi-calendar-plus" size="xs" /> Tomorrow or later
+        </span>
+    </div>
+
+    @if(! $submitted)
+        <div class="px-5 py-4">
+            <p class="text-[12px] text-slate-500 flex items-start gap-2">
+                <i class="bi bi-info-circle text-slate-400 mt-0.5" aria-hidden="true"></i>
+                <span>
+                    Submit today's sale report first. What you have left is only a fact
+                    once you have declared what actually sold.
+                </span>
+            </p>
+        </div>
+    @else
+        @php
+            // Only lines that can legally move are tickable. Anything else is listed
+            // greyed with the reason, so the vendor can see the whole day accounted
+            // for rather than watching options silently vanish.
+            //
+            // Whether a line can move depends on the day it would land on, so this
+            // asks about the earliest day the picker offers rather than today. Every
+            // line on this page is today's stock; asking about today would block all
+            // of them, since today's stock is already on today.
+            $earliest = \Illuminate\Support\Carbon::parse($restockMinDate)->startOfDay();
+
+            $carryable = $entries->filter(fn ($e) => $e->canResubmit($earliest))->values();
+        @endphp
+
+        @if($carryable->isEmpty())
+            <div class="px-5 py-4">
+                <p class="text-[12px] text-slate-500 flex items-start gap-2">
+                    <i class="bi bi-check-circle-fill text-success-500 mt-0.5" aria-hidden="true"></i>
+                    <span>
+                        Nothing left to carry. Every line on today's report was either
+                        bought completely or has already been moved on.
+                    </span>
+                </p>
+            </div>
+        @else
+        <form method="POST" action="{{ route('vendor.sale-report.restock') }}">
+            @csrf
+            <div class="overflow-x-auto">
+            <table style="width:100%; border-collapse:collapse; min-width:680px;">
+                <thead>
+                    <tr class="bg-surface-subtle" style="border-bottom:1px solid #f1f5f9">
+                        <th class="w-10 px-4 py-3"></th>
+                        <th class="text-left text-slate-400 font-semibold px-2 py-3 text-[11px] uppercase tracking-[0.07em]">Fish</th>
+                        <th class="text-right text-slate-400 font-semibold px-4 py-3 text-[11px] uppercase tracking-[0.07em]">Released</th>
+                        <th class="text-right text-slate-400 font-semibold px-4 py-3 text-[11px] uppercase tracking-[0.07em]">Sold</th>
+                        <th class="text-right text-slate-400 font-semibold px-5 py-3 text-[11px] uppercase tracking-[0.07em]">Left to carry</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($entries as $entry)
+                        @php
+                            $canCarry = $entry->canResubmit($earliest);
+                            $left     = $entry->getRemainingStock();
+                        @endphp
+                        <tr class="hover:bg-slate-50 transition-colors" style="border-bottom:1px solid #f1f5f9">
+                            <td class="px-4 py-3 text-center">
+                                @if($canCarry)
+                                    <input type="checkbox" name="entries[]" value="{{ $entry->id }}"
+                                           class="sr-restock accent-brand-600 w-4 h-4 cursor-pointer"
+                                           aria-label="Carry the leftover {{ $entry->fishType?->name }} forward"
+                                           checked>
+                                @else
+                                    <span class="text-slate-300" title="{{ $entry->resubmitBlocker($earliest) }}">
+                                        <i class="bi bi-dash" aria-hidden="true"></i>
+                                    </span>
+                                @endif
+                            </td>
+                            <td class="px-2 py-3">
+                                <p class="text-[13px] font-semibold text-slate-700">
+                                    {{ $entry->fishType?->name ?? 'Unknown' }}
+                                </p>
+                                <p class="text-[11px] text-slate-400">{{ $entry->quality_class }}</p>
+                            </td>
+                            <td class="px-4 py-3 text-right text-[12.5px] text-slate-500">
+                                {{ number_format((float) $entry->released_kg, 2) }} kg
+                            </td>
+                            <td class="px-4 py-3 text-right text-[12.5px] text-slate-500">
+                                {{ number_format((float) $entry->sold_kg, 2) }} kg
+                            </td>
+                            <td class="px-5 py-3 text-right">
+                                @if($left <= 0)
+                                    {{-- 5 kg released, 5 kg sold: the line is done and its
+                                         total stock is 0 with nothing to carry. --}}
+                                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold text-success-700 bg-success-50">
+                                        <i class="bi bi-bag-check" aria-hidden="true"></i> Sold out
+                                    </span>
+                                @elseif($canCarry)
+                                    <span class="text-[13.5px] font-bold text-slate-800">
+                                        {{ number_format($left, 2) }} <span class="text-[11px] text-slate-400">kg</span>
+                                    </span>
+                                @else
+                                    <span class="text-[11px] italic text-slate-400">{{ $entry->resubmitBlocker($earliest) }}</span>
+                                @endif
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+            </div>
+
+            <div class="px-5 py-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-end gap-3 justify-between">
+                <div>
+                    <label for="carryDate" class="vpm-label-text">Trading day</label>
+                    <input type="date" id="carryDate" name="carry_date"
+                           value="{{ old('carry_date', $restockMinDate) }}"
+                           min="{{ $restockMinDate }}"
+                           max="{{ $restockMaxDate }}"
+                           required
+                           style="width:auto"
+                           class="vpm-input">
+                    @error('carry_date')
+                        <p class="text-[11px] text-danger-600 mt-1">{{ $message }}</p>
+                    @enderror
+                    <p class="text-[11px] text-slate-400 mt-1">
+                        Staff confirm the entries on that day, so pick when you will actually
+                        be at the market &mdash; up to {{ $restockMaxDays }} {{ Str::plural('day', $restockMaxDays) }} ahead.
+                    </p>
+                </div>
+                <x-btn type="submit" variant="primary" icon="bi-arrow-repeat" class="flex-shrink-0">
+                    Submit for restock
+                </x-btn>
+            </div>
+        </form>
+        @endif
+    @endif
+</div>
+@endif
+
 {{-- ── Previous Reports ──────────────────────────────────────────── --}}
 @if($history->isNotEmpty())
 <div class="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-card mt-4">

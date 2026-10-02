@@ -718,7 +718,7 @@ class SaleReportTest extends TestCase
         $html = $this->actingAs($vendor)->get('/vendor/dashboard')->assertOk()->getContent();
 
         $this->assertStringContainsString('13 items of unsold stock', $html);
-        $this->assertStringContainsString('in the inventory history', $html);
+        $this->assertStringContainsString('on My Stock', $html);
     }
 
     public function test_the_inventory_history_flags_each_stale_line(): void

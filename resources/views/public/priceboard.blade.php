@@ -377,7 +377,6 @@
         .pb-cardmeta {
             display: flex;
             align-items: center;
-            justify-content: space-between;
             font-size: 0.8rem;
         }
         .pb-cardstock { display: flex; align-items: center; gap: 5px; color: var(--color-slate-600); }
@@ -427,7 +426,7 @@
         }
         .pb-vendor-item {
             display: grid;
-            grid-template-columns: 1fr auto auto auto;
+            grid-template-columns: 1fr auto auto;
             align-items: center;
             gap: 1rem;
             padding: 0.75rem 1.25rem;
@@ -785,9 +784,6 @@
                                 <span :class="row.stock_kg < 20 ? 'pb-stock-low' : ''"
                                       x-text="parseFloat(row.stock_kg).toFixed(1) + ' kg available'"></span>
                             </div>
-                            <span class="vpm-badge vpm-badge-success">
-                                <x-icon name="bi-check-circle-fill" /> Confirmed
-                            </span>
                         </div>
                     </div>
                 </div>
@@ -838,9 +834,6 @@
                                 <div class="text-[17px] font-bold text-slate-900">
                                     ₱<span x-text="parseFloat(row.price_per_kg).toFixed(2)"></span>
                                 </div>
-                            </div>
-                            <div>
-                                <i class="bi bi-check-circle-fill text-[16px] text-success-500" title="Confirmed"></i>
                             </div>
                         </div>
                     </template>
