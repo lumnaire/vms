@@ -42,10 +42,41 @@
     .status-pending   { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
     .status-confirmed { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
     .status-rejected  { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+
+    /* AM / PM picker: two large tap targets rather than a dropdown, because
+       vendors log entries on a phone at the stall. */
+    .session-option { position: relative; cursor: pointer; }
+    .session-option input { position: absolute; opacity: 0; pointer-events: none; }
+    .session-option span {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 9px 10px;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 700;
+        color: #475569;
+        background: white;
+        transition: border-color 0.15s, background 0.15s, color 0.15s;
+    }
+    .session-option small { font-size: 11px; font-weight: 500; color: #94a3b8; }
+    .session-option:hover span { border-color: #93c5fd; }
+    .session-option input:focus-visible + span { box-shadow: 0 0 0 3px rgba(96,165,250,0.25); }
+    .session-option input:checked + span { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; }
+    .session-option input:checked + span small { color: #3b82f6; }
 </style>
 @endpush
 
 @section('content')
+
+@php
+    // The Add Stock dialog posts stock_kg / released_kg too. When it is the one
+    // that bounced, those old values belong to the dialog, not to this form.
+    $addStockFailed = (bool) old('add_stock_entry');
+    $formOld = fn (string $key) => $addStockFailed ? null : old($key);
+@endphp
 
 {{-- ── Flash Messages ───────────────────────────────────────────── --}}
 @if(session('success'))
@@ -166,8 +197,33 @@
                                 </option>
                             @endforeach
                         </select>
+                    </div>
+
+                    {{-- Trading Session. Defaults to the half of the day it is now,
+                         so a vendor logging at dawn does not have to think about it. --}}
+                    @php
+                        $formSession = $addStockFailed ? null : old('market_session');
+                        $formSession ??= now()->hour < 12 ? 'AM' : 'PM';
+                    @endphp
+                    <div>
+                        <label class="form-label">
+                            Trading Session <span class="text-danger-500">*</span>
+                        </label>
+                        <div class="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Trading session">
+                            @foreach(\App\Models\VendorInventory::SESSIONS as $session)
+                                <label class="session-option">
+                                    <input type="radio" name="market_session" value="{{ $session }}"
+                                           @checked($formSession === $session) required>
+                                    <span>
+                                        <x-icon name="{{ $session === 'AM' ? 'bi-sunrise-fill' : 'bi-sunset-fill' }}" size="sm" />
+                                        {{ $session }}
+                                        <small>{{ $session === 'AM' ? 'Morning' : 'Afternoon' }}</small>
+                                    </span>
+                                </label>
+                            @endforeach
+                        </div>
                         <p class="mt-1 text-slate-400 text-[11px]">
-                            One entry per fish type + quality class per day.
+                            You can log the same fish and class more than once today &mdash; each delivery is its own line.
                         </p>
                     </div>
 
@@ -196,7 +252,7 @@
                         <div class="relative">
                             <span class="absolute text-[13px] font-semibold left-3 top-1/2 -translate-y-1/2 text-slate-400">₱</span>
                             <input type="number" name="price_per_kg" id="pricePerKgInput"
-                                   value="{{ old('price_per_kg') }}"
+                                   value="{{ $formOld('price_per_kg') }}"
                                    step="0.01" min="0.01" max="99999.99"
                                    placeholder="0.00"
                                    oninput="checkPriceGuide()"
@@ -228,7 +284,7 @@
                         </label>
                         <div class="relative">
                             <input type="number" name="stock_kg" id="stockKgInput"
-                                   value="{{ old('stock_kg') }}"
+                                   value="{{ $formOld('stock_kg') }}"
                                    step="0.1" min="0.1"
                                    placeholder="0.0"
                                    required class="form-input"
@@ -245,7 +301,7 @@
                         </label>
                         <div class="relative">
                             <input type="number" name="released_kg" id="releasedKgInput"
-                                   value="{{ old('released_kg') }}"
+                                   value="{{ $formOld('released_kg') }}"
                                    step="0.1" min="0.1"
                                    placeholder="0.0"
                                    required class="form-input">
@@ -268,9 +324,10 @@
                 {{-- Note about locking --}}
                 <div class="mt-3 rounded-lg px-3 py-2.5 bg-surface-subtle border border-slate-200">
                     <p class="text-[11px] leading-[1.5] text-slate-500">
-                        <x-icon name="bi-lock-fill" class="mr-1 text-slate-400" />
-                        Entries are <strong>locked after submission</strong> and cannot be deleted.
-                        Rejected entries may be resubmitted if the fish type + quality class is different.
+                        <x-icon name="bi-info-circle-fill" class="mr-1 text-slate-400" />
+                        New entries wait for <strong>staff confirmation</strong>; you can cancel one while it is pending.
+                        Once confirmed, use <strong>Add Stock</strong> on the line for more of the same fish &mdash;
+                        it goes live without another review.
                     </p>
                 </div>
             </form>
@@ -316,13 +373,15 @@
             </div>
             @else
             <div class="overflow-x-auto">
-                <table class="w-full" style="border-collapse: collapse; min-width: 560px;">
+                <table class="w-full" style="border-collapse: collapse; min-width: 680px;">
                     <thead>
                         <tr class="bg-surface-subtle" style="border-bottom: 1px solid #f1f5f9">
                             <th class="text-left px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
                                >Fish Type</th>
                             <th class="text-left px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
                                >Class</th>
+                            <th class="text-center px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
+                               >Session</th>
                             <th class="text-right px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
                                >Price/kg</th>
                             <th class="text-right px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
@@ -357,6 +416,10 @@
                                  <span class="text-[12px] text-slate-500" style="font-weight: 500">
                                      {{ $entry->quality_class }}
                                  </span>
+                             </td>
+
+                             <td class="px-4 py-3 text-center">
+                                 <x-session-badge :session="$entry->session()" />
                              </td>
 
                              <td class="px-4 py-3 text-right">
@@ -410,11 +473,10 @@
                                          <x-icon name="bi-x-lg" size="2xs" /> Cancel
                                      </button>
                                  </form>
+                                 @elseif($entry->canAddStock())
+                                     @include('vendor.partials.add-stock-button', ['entry' => $entry])
                                  @else
-                                 <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-semibold text-[10.5px] bg-success-50"
-                                       style="color: #166534; border: 1px solid #bbf7d0">
-                                     <x-icon name="bi-check-lg" size="2xs" /> No action required
-                                 </span>
+                                 <span class="text-slate-300 text-[11px]" title="{{ $entry->addStockBlocker() }}">&mdash;</span>
                                  @endif
                              </td>
 
@@ -442,7 +504,7 @@
             </div>
 
             <div class="overflow-x-auto">
-                <table class="w-full" style="border-collapse: collapse; min-width: 560px;">
+                <table class="w-full" style="border-collapse: collapse; min-width: 680px;">
                     <thead>
                         <tr class="bg-surface-subtle" style="border-bottom: 1px solid #f1f5f9">
                             <th class="text-left px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
@@ -451,6 +513,8 @@
                                >Fish Type</th>
                             <th class="text-left px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
                                >Class</th>
+                            <th class="text-center px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
+                               >Session</th>
                             <th class="text-right px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
                                >Price/kg</th>
                             <th class="text-right px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
@@ -481,6 +545,10 @@
 
                             <td class="px-4 py-3">
                                 <span class="text-slate-500 text-[12px]">{{ $entry->quality_class }}</span>
+                            </td>
+
+                            <td class="px-4 py-3 text-center">
+                                <x-session-badge :session="$entry->session()" />
                             </td>
 
                             <td class="px-4 py-3 text-right">
@@ -553,6 +621,8 @@
 
     </div>
 </div>
+
+@include('vendor.partials.add-stock-modal')
 
 @endsection
 

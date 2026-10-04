@@ -15,8 +15,8 @@ class VendorController extends Controller
     // ─── List all vendor accounts ─────────────────────────────────
     public function index(Request $request)
     {
-        $totalVendors    = User::where('role', 'vendor')->count();
-        $activeVendors   = User::where('role', 'vendor')->where('status', 'active')->count();
+        $totalVendors = User::where('role', 'vendor')->count();
+        $activeVendors = User::where('role', 'vendor')->where('status', 'active')->count();
         $inactiveVendors = User::where('role', 'vendor')->where('status', 'inactive')->count();
 
         // Build query with search and filter
@@ -26,10 +26,10 @@ class VendorController extends Controller
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('username', 'like', "%{$search}%")
-                  ->orWhereHas('vendorProfile', function ($subQ) use ($search) {
-                      $subQ->where('stall_number', 'like', "%{$search}%");
-                  });
+                    ->orWhere('username', 'like', "%{$search}%")
+                    ->orWhereHas('vendorProfile', function ($subQ) use ($search) {
+                        $subQ->where('stall_number', 'like', "%{$search}%");
+                    });
             });
         }
 
@@ -54,23 +54,23 @@ class VendorController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name'         => ['required', 'string', 'max:100'],
-            'username'     => ['required', 'string', 'max:50', 'alpha_dash', 'unique:users,username'],
+            'name' => ['required', 'string', 'max:100'],
+            'username' => ['required', 'string', 'max:50', 'alpha_dash', 'unique:users,username'],
             'stall_number' => ['required', 'string', 'max:20', 'unique:vendor_profiles,stall_number'],
-            'password'     => ['required', 'string', 'min:8', 'confirmed'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
         ], [
             'username.alpha_dash' => 'Username may only contain letters, numbers, dashes, and underscores.',
-            'username.unique'     => 'That username is already taken.',
+            'username.unique' => 'That username is already taken.',
             'stall_number.unique' => 'That stall number is already assigned to another vendor.',
-            'password.confirmed'  => 'Password confirmation does not match.',
+            'password.confirmed' => 'Password confirmation does not match.',
         ]);
 
         $vendor = User::create([
-            'name'       => $request->name,
-            'username'   => $request->username,
-            'password'   => Hash::make($request->password),
-            'role'       => 'vendor',
-            'status'     => 'active',
+            'name' => $request->name,
+            'username' => $request->username,
+            'password' => Hash::make($request->password),
+            'role' => 'vendor',
+            'status' => 'active',
             'created_by' => Auth::id(),
         ]);
 
@@ -88,20 +88,20 @@ class VendorController extends Controller
         abort_if($user->role !== 'vendor', 403, 'You can only edit vendor accounts.');
 
         $request->validate([
-            'name'         => ['required', 'string', 'max:100'],
-            'username'     => ['required', 'string', 'max:50', 'alpha_dash', Rule::unique('users')->ignore($user->id)],
+            'name' => ['required', 'string', 'max:100'],
+            'username' => ['required', 'string', 'max:50', 'alpha_dash', Rule::unique('users')->ignore($user->id)],
             'stall_number' => ['required', 'string', 'max:20',
-                                Rule::unique('vendor_profiles', 'stall_number')
-                                    ->ignore($user->vendorProfile?->id)],
-            'password'     => ['nullable', 'string', 'min:8', 'confirmed'],
+                Rule::unique('vendor_profiles', 'stall_number')
+                    ->ignore($user->vendorProfile?->id)],
+            'password' => ['nullable', 'string', 'min:8', 'confirmed'],
         ], [
             'username.alpha_dash' => 'Username may only contain letters, numbers, dashes, and underscores.',
-            'username.unique'     => 'That username is already taken.',
+            'username.unique' => 'That username is already taken.',
             'stall_number.unique' => 'That stall number is already assigned to another vendor.',
-            'password.confirmed'  => 'Password confirmation does not match.',
+            'password.confirmed' => 'Password confirmation does not match.',
         ]);
 
-        $user->name     = $request->name;
+        $user->name = $request->name;
         $user->username = $request->username;
 
         if ($request->filled('password')) {
@@ -135,6 +135,7 @@ class VendorController extends Controller
         return redirect()->route('supervisor.vendors.index')
             ->with('success', "\"{$user->name}\" has been {$action}.");
     }
+
     // ─── Delete a vendor account (only inactive accounts) ─────────
     public function destroy(User $user)
     {
@@ -152,4 +153,5 @@ class VendorController extends Controller
 
         return redirect()->route('supervisor.vendors.index')
             ->with('success', "Vendor account for \"$name\" and all of its market records have been permanently deleted.");
-    }}
+    }
+}

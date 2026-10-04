@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Forecast;
 use App\Models\VendorInventory;
+use Illuminate\Support\Collection;
 
 /**
  * ArimaService
@@ -49,21 +50,21 @@ class ArimaService
         }
 
         $generatedAt = now();
-        $startDate   = today()->addDay();
+        $startDate = today()->addDay();
 
         $rows = [];
         foreach ($projections as $i => $point) {
             $rows[] = [
-                'fish_type_id'    => $fishTypeId,
-                'quality_class'   => $quality,
-                'metric'          => $metric,
-                'forecast_date'   => $startDate->copy()->addDays($i),
+                'fish_type_id' => $fishTypeId,
+                'quality_class' => $quality,
+                'metric' => $metric,
+                'forecast_date' => $startDate->copy()->addDays($i),
                 'predicted_value' => $point['value'],
-                'predicted_min'   => $point['min'],
-                'predicted_max'   => $point['max'],
-                'trend'           => $point['trend'],
-                'arima_params'    => $point['params'],
-                'generated_at'    => $generatedAt,
+                'predicted_min' => $point['min'],
+                'predicted_max' => $point['max'],
+                'trend' => $point['trend'],
+                'arima_params' => $point['params'],
+                'generated_at' => $generatedAt,
             ];
         }
 
@@ -95,12 +96,12 @@ class ArimaService
             return [];
         }
 
-        return $raw->groupBy(fn($e) => $e->entry_date->toDateString())
+        return $raw->groupBy(fn ($e) => $e->entry_date->toDateString())
             ->map(function ($entries) use ($metric) {
                 return match ($metric) {
-                    'price'  => (float) $entries->avg('price_per_kg'),
+                    'price' => (float) $entries->avg('price_per_kg'),
                     'supply' => (float) $entries->sum('stock_kg'),
-                    default  => 0.0,
+                    default => 0.0,
                 };
             })
             ->values()
@@ -111,9 +112,9 @@ class ArimaService
      * Aggregate the historical overlay shown behind the forecast on the chart.
      * Shares the same metric definitions as buildSeries().
      *
-     * @return \Illuminate\Support\Collection<string, float> date => value
+     * @return Collection<string, float> date => value
      */
-    public function historicalSeries(int $fishTypeId, string $quality, string $metric): \Illuminate\Support\Collection
+    public function historicalSeries(int $fishTypeId, string $quality, string $metric): Collection
     {
         $lookback = config('forecast.history_chart_days');
 
@@ -124,12 +125,12 @@ class ArimaService
             ->whereDate('entry_date', '>=', today()->subDays($lookback))
             ->orderBy('entry_date')
             ->get()
-            ->groupBy(fn($e) => $e->entry_date->toDateString())
+            ->groupBy(fn ($e) => $e->entry_date->toDateString())
             ->map(function ($entries) use ($metric) {
                 $value = match ($metric) {
-                    'price'  => (float) $entries->avg('price_per_kg'),
+                    'price' => (float) $entries->avg('price_per_kg'),
                     'supply' => (float) $entries->sum('stock_kg'),
-                    default  => 0.0,
+                    default => 0.0,
                 };
 
                 return round($value, 2);
@@ -141,7 +142,7 @@ class ArimaService
      * Fit ARIMA(1,1,1) on a chronological series and roll the model forward
      * for the configured horizon.
      *
-     * @param  array<int, float> $series
+     * @param  array<int, float>  $series
      * @return array<int, array{value: float, min: float, max: float, trend: string, params: array}>
      */
     public function project(array $series): array
@@ -168,49 +169,49 @@ class ArimaService
         // since ar1Coefficient() is a scale-invariant ratio the estimator would
         // return phi for theta as well, collapsing the model to a single term.
         $residuals = [];
-        $prevD     = $meanD;
+        $prevD = $meanD;
         foreach ($diff as $d) {
             $residuals[] = ($d - $meanD) - $phi * ($prevD - $meanD);
-            $prevD       = $d;
+            $prevD = $d;
         }
         $theta = $this->ar1Coefficient($residuals);
 
         $sigma = sqrt($this->variance($residuals));
-        $z     = config('forecast.z');
+        $z = config('forecast.z');
 
         $currentVal = end($series);
-        $prevDiff   = end($diff);
-        $prevRes    = end($residuals) ?: 0.0;
+        $prevDiff = end($diff);
+        $prevRes = end($residuals) ?: 0.0;
 
         // ── Step D — roll forward the horizon ──
         $projections = [];
         for ($h = 1; $h <= config('forecast.horizon'); $h++) {
             // ARIMA(1,1,1) step: Δŷ[t+h] = μ + φ·Δy[t] + θ·ε[t]
             $forecastDiff = $meanD + $phi * ($prevDiff - $meanD) + $theta * $prevRes;
-            $nextVal      = max(0.0, $currentVal + $forecastDiff);
+            $nextVal = max(0.0, $currentVal + $forecastDiff);
 
             // Multi-step uncertainty widens with the square root of the horizon
             $ci = $z * $sigma * sqrt($h);
 
             $projections[] = [
-                'value'  => round($nextVal, 2),
-                'min'    => round(max(0.0, $nextVal - $ci), 2),
-                'max'    => round($nextVal + $ci, 2),
-                'trend'  => null,
+                'value' => round($nextVal, 2),
+                'min' => round(max(0.0, $nextVal - $ci), 2),
+                'max' => round($nextVal + $ci, 2),
+                'trend' => null,
                 'params' => [
-                    'p'         => config('forecast.order.p'),
-                    'd'         => config('forecast.order.d'),
-                    'q'         => config('forecast.order.q'),
-                    'phi'       => round($phi, 4),
-                    'theta'     => round($theta, 4),
+                    'p' => config('forecast.order.p'),
+                    'd' => config('forecast.order.d'),
+                    'q' => config('forecast.order.q'),
+                    'phi' => round($phi, 4),
+                    'theta' => round($theta, 4),
                     'mean_diff' => round($meanD, 4),
-                    'sigma'     => round($sigma, 4),
-                    'horizon'   => config('forecast.horizon'),
+                    'sigma' => round($sigma, 4),
+                    'horizon' => config('forecast.horizon'),
                 ],
             ];
 
-            $prevDiff   = $forecastDiff;
-            $prevRes    = 0.0;
+            $prevDiff = $forecastDiff;
+            $prevRes = 0.0;
             $currentVal = $nextVal;
         }
 
@@ -257,7 +258,7 @@ class ArimaService
         return match (true) {
             $last > $first * (1 + $threshold) => 'upward',
             $last < $first * (1 - $threshold) => 'downward',
-            default                          => 'stable',
+            default => 'stable',
         };
     }
 
@@ -270,8 +271,8 @@ class ArimaService
         }
 
         $mean = array_sum($series) / $n;
-        $num  = 0.0;
-        $den  = 0.0;
+        $num = 0.0;
+        $den = 0.0;
 
         for ($i = 0; $i < $n - 1; $i++) {
             $num += ($series[$i] - $mean) * ($series[$i + 1] - $mean);
@@ -292,7 +293,7 @@ class ArimaService
         }
 
         $mean = array_sum($series) / $n;
-        $sum  = 0.0;
+        $sum = 0.0;
         foreach ($series as $v) {
             $sum += ($v - $mean) ** 2;
         }

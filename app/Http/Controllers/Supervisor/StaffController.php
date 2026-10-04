@@ -15,8 +15,8 @@ class StaffController extends Controller
     // ─── List all staff accounts ─────────────────────────────────
     public function index(Request $request)
     {
-        $totalStaff    = User::where('role', 'staff')->count();
-        $activeStaff   = User::where('role', 'staff')->where('status', 'active')->count();
+        $totalStaff = User::where('role', 'staff')->count();
+        $activeStaff = User::where('role', 'staff')->where('status', 'active')->count();
         $inactiveStaff = User::where('role', 'staff')->where('status', 'inactive')->count();
 
         // Build query with search and filter
@@ -26,7 +26,7 @@ class StaffController extends Controller
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('username', 'like', "%{$search}%");
+                    ->orWhere('username', 'like', "%{$search}%");
             });
         }
 
@@ -51,21 +51,21 @@ class StaffController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name'     => ['required', 'string', 'max:100'],
+            'name' => ['required', 'string', 'max:100'],
             'username' => ['required', 'string', 'max:50', 'alpha_dash', 'unique:users,username'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ], [
             'username.alpha_dash' => 'Username may only contain letters, numbers, dashes, and underscores.',
-            'username.unique'     => 'That username is already taken.',
-            'password.confirmed'  => 'Password confirmation does not match.',
+            'username.unique' => 'That username is already taken.',
+            'password.confirmed' => 'Password confirmation does not match.',
         ]);
 
         User::create([
-            'name'       => $request->name,
-            'username'   => $request->username,
-            'password'   => Hash::make($request->password),
-            'role'       => 'staff',
-            'status'     => 'active',
+            'name' => $request->name,
+            'username' => $request->username,
+            'password' => Hash::make($request->password),
+            'role' => 'staff',
+            'status' => 'active',
             'created_by' => Auth::id(),
         ]);
 
@@ -79,16 +79,16 @@ class StaffController extends Controller
         abort_if($user->role !== 'staff', 403, 'You can only edit staff accounts.');
 
         $request->validate([
-            'name'     => ['required', 'string', 'max:100'],
+            'name' => ['required', 'string', 'max:100'],
             'username' => ['required', 'string', 'max:50', 'alpha_dash', Rule::unique('users')->ignore($user->id)],
             'password' => ['nullable', 'string', 'min:8', 'confirmed'],
         ], [
             'username.alpha_dash' => 'Username may only contain letters, numbers, dashes, and underscores.',
-            'username.unique'     => 'That username is already taken.',
-            'password.confirmed'  => 'Password confirmation does not match.',
+            'username.unique' => 'That username is already taken.',
+            'password.confirmed' => 'Password confirmation does not match.',
         ]);
 
-        $user->name     = $request->name;
+        $user->name = $request->name;
         $user->username = $request->username;
 
         if ($request->filled('password')) {
@@ -114,6 +114,7 @@ class StaffController extends Controller
         return redirect()->route('supervisor.staff.index')
             ->with('success', "\"{$user->name}\" has been {$action}.");
     }
+
     // ─── Delete a staff account (only inactive accounts) ────────
     public function destroy(User $user)
     {
@@ -131,4 +132,5 @@ class StaffController extends Controller
 
         return redirect()->route('supervisor.staff.index')
             ->with('success', "Staff account for \"$name\" and all of its market records have been permanently deleted.");
-    }}
+    }
+}

@@ -13,9 +13,8 @@
  *
  * Usage: php tools/check-blade-comments.php
  */
-
 $root = dirname(__DIR__);
-$views = $root . '/resources/views';
+$views = $root.'/resources/views';
 
 $problems = [];
 $files = 0;
@@ -38,10 +37,11 @@ foreach ($it as $file) {
     // (which nested comments cause) or was written with raw @php-style syntax.
     if (preg_match_all('/\{\{--/', $stripped, $m)) {
         $problems[] = [
-            'file'  => str_replace($root . '/', '', $path),
+            'file' => str_replace($root.'/', '', $path),
             'count' => count($m[0]),
-            'why'   => 'unclosed {{-- comment (likely a nested {{-- --}})',
+            'why' => 'unclosed {{-- comment (likely a nested {{-- --}})',
         ];
+
         continue;
     }
 
@@ -53,9 +53,9 @@ foreach ($it as $file) {
                 // Only a problem if the body ALSO contains an inner comment.
                 if (str_contains($body, '{{--')) {
                     $problems[] = [
-                        'file'  => str_replace($root . '/', '', $path),
+                        'file' => str_replace($root.'/', '', $path),
                         'count' => 1,
-                        'why'   => 'component markup inside a docblock that also contains a comment',
+                        'why' => 'component markup inside a docblock that also contains a comment',
                     ];
                 }
             }

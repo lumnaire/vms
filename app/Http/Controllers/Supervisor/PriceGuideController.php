@@ -14,7 +14,7 @@ class PriceGuideController extends Controller
     public function index(Request $request)
     {
         $allFishTypes = FishType::where('is_active', true)
-            ->with(['priceGuides' => fn($q) => $q->where('is_active', true)->orderBy('quality_class')])
+            ->with(['priceGuides' => fn ($q) => $q->where('is_active', true)->orderBy('quality_class')])
             ->orderBy('name')
             ->get();
 
@@ -22,16 +22,16 @@ class PriceGuideController extends Controller
 
         // ── Filters: category (quality class) → fish type ────────
         $selectedCategory = $request->input('quality_class');
-        if ($selectedCategory && !in_array($selectedCategory, $qualityClasses, true)) {
+        if ($selectedCategory && ! in_array($selectedCategory, $qualityClasses, true)) {
             $selectedCategory = null;
         }
 
         $requestedFishType = $request->input('fish_type_id');
-        $matchedFishType   = $requestedFishType
+        $matchedFishType = $requestedFishType
             ? $allFishTypes->firstWhere('id', (int) $requestedFishType)
             : null;
         $selectedFishType = $matchedFishType
-            && (!$selectedCategory || $matchedFishType->quality_class === $selectedCategory)
+            && (! $selectedCategory || $matchedFishType->quality_class === $selectedCategory)
                 ? $matchedFishType->id
                 : null;
 
@@ -45,9 +45,9 @@ class PriceGuideController extends Controller
             ? $categoryFishTypes->where('id', (int) $selectedFishType)->values()
             : $categoryFishTypes;
 
-        $totalGuides     = $fishTypes->sum(fn($f) => $f->priceGuides->count());
-        $totalConfigured = $fishTypes->filter(fn($f) => $f->priceGuides->isNotEmpty())->count();
-        $totalMissing    = $fishTypes->filter(fn($f) => $f->priceGuides->isEmpty())->count();
+        $totalGuides = $fishTypes->sum(fn ($f) => $f->priceGuides->count());
+        $totalConfigured = $fishTypes->filter(fn ($f) => $f->priceGuides->isNotEmpty())->count();
+        $totalMissing = $fishTypes->filter(fn ($f) => $f->priceGuides->isEmpty())->count();
 
         return view('supervisor.price-guides', compact(
             'allFishTypes', 'fishTypes', 'totalGuides', 'totalConfigured', 'totalMissing',
@@ -59,10 +59,10 @@ class PriceGuideController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'fish_type_id'   => ['required', 'exists:fish_types,id'],
-            'quality_class'  => [
+            'fish_type_id' => ['required', 'exists:fish_types,id'],
+            'quality_class' => [
                 'required',
-                'in:' . implode(',', FishType::QUALITY_CLASSES),
+                'in:'.implode(',', FishType::QUALITY_CLASSES),
                 function ($attribute, $value, $fail) use ($request) {
                     $fish = FishType::find($request->fish_type_id);
                     if ($fish && $fish->quality_class !== $value) {
@@ -70,8 +70,8 @@ class PriceGuideController extends Controller
                     }
                 },
             ],
-            'cheap_max'      => ['required', 'numeric', 'min:0.01'],
-            'moderate_max'   => ['required', 'numeric', 'gt:cheap_max'],
+            'cheap_max' => ['required', 'numeric', 'min:0.01'],
+            'moderate_max' => ['required', 'numeric', 'gt:cheap_max'],
             'effective_date' => ['required', 'date'],
         ], [
             'moderate_max.gt' => 'Moderate max must be greater than the cheap max.',
@@ -91,12 +91,12 @@ class PriceGuideController extends Controller
         }
 
         PriceGuide::create([
-            'fish_type_id'   => $request->fish_type_id,
-            'quality_class'  => $request->quality_class,
-            'cheap_max'      => $request->cheap_max,
-            'moderate_max'   => $request->moderate_max,
+            'fish_type_id' => $request->fish_type_id,
+            'quality_class' => $request->quality_class,
+            'cheap_max' => $request->cheap_max,
+            'moderate_max' => $request->moderate_max,
             'effective_date' => $request->effective_date,
-            'is_active'      => true,
+            'is_active' => true,
         ]);
 
         return redirect()->route('supervisor.price-guides.index')
@@ -107,8 +107,8 @@ class PriceGuideController extends Controller
     public function update(Request $request, PriceGuide $priceGuide)
     {
         $validator = Validator::make($request->all(), [
-            'cheap_max'      => ['required', 'numeric', 'min:0.01'],
-            'moderate_max'   => ['required', 'numeric', 'gt:cheap_max'],
+            'cheap_max' => ['required', 'numeric', 'min:0.01'],
+            'moderate_max' => ['required', 'numeric', 'gt:cheap_max'],
             'effective_date' => ['required', 'date'],
         ], [
             'moderate_max.gt' => 'Moderate max must be greater than the cheap max.',
@@ -123,16 +123,16 @@ class PriceGuideController extends Controller
                 ->withInput()
                 ->withErrors($validator)
                 ->with('open_edit_modal', [
-                    'id'            => $priceGuide->id,
-                    'fish'          => $priceGuide->fishType?->name ?? '',
+                    'id' => $priceGuide->id,
+                    'fish' => $priceGuide->fishType?->name ?? '',
                     'quality_class' => $priceGuide->quality_class,
-                    'action'        => route('supervisor.price-guides.update', $priceGuide),
+                    'action' => route('supervisor.price-guides.update', $priceGuide),
                 ]);
         }
 
         $priceGuide->update([
-            'cheap_max'      => $request->cheap_max,
-            'moderate_max'   => $request->moderate_max,
+            'cheap_max' => $request->cheap_max,
+            'moderate_max' => $request->moderate_max,
             'effective_date' => $request->effective_date,
         ]);
 

@@ -88,11 +88,11 @@ class MyStockController extends Controller
         $remainingStockKg = round((float) $liveLines->sum(fn ($e) => $e->getRemainingStock()), 2);
 
         $soldOutEntries = $entries->filter(fn (VendorInventory $entry) => $entry->isSoldThrough());
-        $soldOutKg      = round((float) $soldOutEntries->sum(fn ($e) => (float) $e->sold_kg), 2);
-        $soldOutLines   = $soldOutEntries->count();
+        $soldOutKg = round((float) $soldOutEntries->sum(fn ($e) => (float) $e->sold_kg), 2);
+        $soldOutLines = $soldOutEntries->count();
 
-        $staleEntries   = $openStock->filter(fn (VendorInventory $entry) => $entry->isStale())->values();
-        $disposableKg   = round((float) $staleEntries->sum(fn ($e) => $e->getRemainingStock()), 2);
+        $staleEntries = $openStock->filter(fn (VendorInventory $entry) => $entry->isStale())->values();
+        $disposableKg = round((float) $staleEntries->sum(fn ($e) => $e->getRemainingStock()), 2);
         $disposableLoss = round((float) $staleEntries->sum(fn ($e) => $e->getRemainingStockValue()), 2);
 
         // Handovers staff have not answered yet.
@@ -107,17 +107,17 @@ class MyStockController extends Controller
             ->values();
 
         return view('vendor.my-stock', [
-            'openStock'           => $openStock,
-            'settled'             => $settled,
-            'settledHistoryDays'  => self::SETTLED_HISTORY_DAYS,
-            'totalStockKg'        => $totalStockKg,
-            'confirmedStockKg'    => $confirmedStockKg,
-            'remainingStockKg'    => $remainingStockKg,
-            'soldOutKg'           => $soldOutKg,
-            'soldOutLines'        => $soldOutLines,
-            'staleEntries'        => $staleEntries,
-            'disposableKg'        => $disposableKg,
-            'disposableLoss'      => $disposableLoss,
+            'openStock' => $openStock,
+            'settled' => $settled,
+            'settledHistoryDays' => self::SETTLED_HISTORY_DAYS,
+            'totalStockKg' => $totalStockKg,
+            'confirmedStockKg' => $confirmedStockKg,
+            'remainingStockKg' => $remainingStockKg,
+            'soldOutKg' => $soldOutKg,
+            'soldOutLines' => $soldOutLines,
+            'staleEntries' => $staleEntries,
+            'disposableKg' => $disposableKg,
+            'disposableLoss' => $disposableLoss,
             'awaitingConfirmation' => $awaitingConfirmation,
         ]);
     }
@@ -134,13 +134,13 @@ class MyStockController extends Controller
     {
         $this->authorizeEntry($inventory);
 
-        $name    = $inventory->fishType?->name ?? 'fish';
+        $name = $inventory->fishType?->name ?? 'fish';
         $carried = $carry->carry($inventory, today());
 
         return redirect()->route('vendor.my-stock.index')->with(
             'success',
-            number_format((float) $carried->released_kg, 2) . ' kg of ' . $name
-            . ' submitted for today. Awaiting staff confirmation — the freshness countdown has restarted.'
+            number_format((float) $carried->released_kg, 2).' kg of '.$name
+            .' submitted for today. Awaiting staff confirmation — the freshness countdown has restarted.'
         );
     }
 
@@ -157,16 +157,16 @@ class MyStockController extends Controller
 
         // Read the figure before the write-off, not after: reporting the stock is
         // exactly what takes it out of the remaining total.
-        $kg    = $inventory->getRemainingStock();
+        $kg = $inventory->getRemainingStock();
         $value = $inventory->getRemainingStockValue();
 
         $carry->dispose($inventory, $request->input('reason'));
 
         return redirect()->route('vendor.my-stock.index')->with(
             'success',
-            number_format($kg, 2) . ' kg of ' . ($inventory->fishType?->name ?? 'fish')
-            . ' reported as written off — ' . number_format($value, 2)
-            . ' taken off your remaining stock.'
+            number_format($kg, 2).' kg of '.($inventory->fishType?->name ?? 'fish')
+            .' reported as written off — '.number_format($value, 2)
+            .' taken off your remaining stock.'
         );
     }
 

@@ -29,24 +29,24 @@ class AccountController extends Controller
         $user = Auth::user();
 
         $request->validate([
-            'name'             => ['required', 'string', 'max:100'],
-            'username'         => ['required', 'string', 'max:50', 'alpha_dash', Rule::unique('users')->ignore($user->id)],
+            'name' => ['required', 'string', 'max:100'],
+            'username' => ['required', 'string', 'max:50', 'alpha_dash', Rule::unique('users')->ignore($user->id)],
             'current_password' => ['required', 'current_password'],
         ], [
-            'username.alpha_dash'      => 'Username may only contain letters, numbers, dashes, and underscores.',
-            'username.unique'          => 'That username is already taken.',
+            'username.alpha_dash' => 'Username may only contain letters, numbers, dashes, and underscores.',
+            'username.unique' => 'That username is already taken.',
             'current_password.current_password' => 'The password you entered is incorrect.',
         ]);
 
         $oldUsername = $user->username;
 
-        $user->name     = $request->name;
+        $user->name = $request->name;
         $user->username = $request->username;
         $user->save();
 
         ActivityLog::create([
-            'user_id'     => $user->id,
-            'action'      => 'update',
+            'user_id' => $user->id,
+            'action' => 'update',
             'description' => $oldUsername === $user->username
                 ? "{$user->name} (supervisor) updated their account details."
                 : "{$user->name} (supervisor) changed their username from \"{$oldUsername}\" to \"{$user->username}\".",
@@ -63,7 +63,7 @@ class AccountController extends Controller
 
         $request->validate([
             'current_password' => ['required', 'current_password'],
-            'password'         => ['required', 'string', 'min:8', 'confirmed', 'different:current_password'],
+            'password' => ['required', 'string', 'min:8', 'confirmed', 'different:current_password'],
         ], [
             'current_password.current_password' => 'The password you entered is incorrect.',
             'password.confirmed' => 'Password confirmation does not match.',
@@ -77,8 +77,8 @@ class AccountController extends Controller
         $request->session()->regenerate();
 
         ActivityLog::create([
-            'user_id'     => $user->id,
-            'action'      => 'update',
+            'user_id' => $user->id,
+            'action' => 'update',
             'description' => "{$user->name} (supervisor) changed their password.",
         ]);
 

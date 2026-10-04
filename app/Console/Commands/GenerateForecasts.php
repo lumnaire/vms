@@ -32,28 +32,29 @@ class GenerateForecasts extends Command
 
     public function handle(ArimaService $arima): int
     {
-        $horizon   = config('forecast.horizon');
-        $this->info('[VPM] Starting forecast generation — ' . now()->toDateTimeString());
-        $this->info("[VPM] Horizon: {$horizon} day(s) · Metrics: " . implode(', ', config('forecast.metrics')));
+        $horizon = config('forecast.horizon');
+        $this->info('[VPM] Starting forecast generation — '.now()->toDateTimeString());
+        $this->info("[VPM] Horizon: {$horizon} day(s) · Metrics: ".implode(', ', config('forecast.metrics')));
 
         $fishTypes = FishType::where('is_active', true)
-            ->when($this->option('fish_type_id'), fn($q) => $q->where('id', $this->option('fish_type_id')))
+            ->when($this->option('fish_type_id'), fn ($q) => $q->where('id', $this->option('fish_type_id')))
             ->orderBy('name')
             ->get();
 
         if ($fishTypes->isEmpty()) {
             $this->warn('No active fish types found.');
+
             return self::SUCCESS;
         }
 
         $qualityFilter = $this->option('quality_class');
-        $qualities     = $qualityFilter ? [$qualityFilter] : FishType::QUALITY_CLASSES;
+        $qualities = $qualityFilter ? [$qualityFilter] : FishType::QUALITY_CLASSES;
 
         $metricFilter = $this->option('metric');
-        $metrics      = $metricFilter ? [$metricFilter] : config('forecast.metrics');
+        $metrics = $metricFilter ? [$metricFilter] : config('forecast.metrics');
 
         $generated = 0;
-        $skipped   = 0;
+        $skipped = 0;
 
         foreach ($fishTypes as $fishType) {
             foreach ($qualities as $quality) {
@@ -71,6 +72,7 @@ class GenerateForecasts extends Command
         }
 
         $this->info("[VPM] Done. Generated: {$generated} series | Skipped (insufficient data): {$skipped} series.");
+
         return self::SUCCESS;
     }
 }

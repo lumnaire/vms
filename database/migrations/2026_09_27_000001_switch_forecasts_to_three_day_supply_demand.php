@@ -24,8 +24,8 @@ return new class extends Migration
         //    that still carry the legacy `volume` value.
         Schema::table('forecasts', function (Blueprint $table) {
             $table->enum('metric', ['price', 'volume', 'supply', 'demand'])
-                  ->default('price')
-                  ->change();
+                ->default('price')
+                ->change();
         });
 
         // 2. Every row is derived state that `forecast:generate` rebuilds from
@@ -37,8 +37,8 @@ return new class extends Migration
         // 3. Drop `volume` now that no row references it.
         Schema::table('forecasts', function (Blueprint $table) {
             $table->enum('metric', ['price', 'supply', 'demand'])
-                  ->default('price')
-                  ->change();
+                ->default('price')
+                ->change();
         });
     }
 
@@ -46,16 +46,16 @@ return new class extends Migration
     {
         Schema::table('forecasts', function (Blueprint $table) {
             $table->enum('metric', ['price', 'supply', 'demand', 'volume'])
-                  ->default('price')
-                  ->change();
+                ->default('price')
+                ->change();
         });
 
         Forecast::truncate();
 
         Schema::table('forecasts', function (Blueprint $table) {
             $table->enum('metric', ['price', 'volume'])
-                  ->default('price')
-                  ->change();
+                ->default('price')
+                ->change();
         });
     }
 };

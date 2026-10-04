@@ -54,13 +54,13 @@ class FishTypeController extends Controller
      */
     private function classOrderSql(): string
     {
-        return "CASE quality_class "
-            . implode(' ', array_map(
-                fn($i, $class) => "WHEN '{$class}' THEN {$i}",
+        return 'CASE quality_class '
+            .implode(' ', array_map(
+                fn ($i, $class) => "WHEN '{$class}' THEN {$i}",
                 array_keys($cheapestFirst = ['Fourth Class', 'Third Class', 'Second Class', 'First Class', 'Special Class']),
                 $cheapestFirst
             ))
-            . ' ELSE 99 END';
+            .' ELSE 99 END';
     }
 
     // ─── Store a new fish type ────────────────────────────────────
@@ -72,11 +72,11 @@ class FishTypeController extends Controller
         $request->merge(['name' => $this->normaliseName($request->name)]);
 
         $request->validate([
-            'name'          => ['required', 'string', 'max:100', 'unique:fish_types,name'],
-            'quality_class' => ['required', 'in:' . implode(',', FishType::QUALITY_CLASSES)],
-            'image'         => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'name' => ['required', 'string', 'max:100', 'unique:fish_types,name'],
+            'quality_class' => ['required', 'in:'.implode(',', FishType::QUALITY_CLASSES)],
+            'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
         ], [
-            'name.unique'          => 'A fish type with that name already exists.',
+            'name.unique' => 'A fish type with that name already exists.',
             'quality_class.required' => 'Please select a quality class.',
         ]);
 
@@ -86,14 +86,14 @@ class FishTypeController extends Controller
         }
 
         FishType::create([
-            'name'          => $this->normaliseName($request->name),
+            'name' => $this->normaliseName($request->name),
             'quality_class' => $request->quality_class,
-            'is_active'     => true,
-            'image_path'    => $imagePath,
+            'is_active' => true,
+            'image_path' => $imagePath,
         ]);
 
         return redirect()->route('supervisor.fish-types.index')
-            ->with('success', 'Fish type "' . $this->normaliseName($request->name) . '" added successfully.');
+            ->with('success', 'Fish type "'.$this->normaliseName($request->name).'" added successfully.');
     }
 
     // ─── Update a fish type name ──────────────────────────────────
@@ -102,12 +102,12 @@ class FishTypeController extends Controller
         $request->merge(['name' => $this->normaliseName($request->name)]);
 
         $validator = Validator::make($request->all(), [
-            'name'          => ['required', 'string', 'max:100', 'unique:fish_types,name,' . $fishType->id],
-            'quality_class' => ['required', 'in:' . implode(',', FishType::QUALITY_CLASSES)],
-            'image'         => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
-            'remove_image'  => ['nullable', 'boolean'],
+            'name' => ['required', 'string', 'max:100', 'unique:fish_types,name,'.$fishType->id],
+            'quality_class' => ['required', 'in:'.implode(',', FishType::QUALITY_CLASSES)],
+            'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'remove_image' => ['nullable', 'boolean'],
         ], [
-            'name.unique'          => 'A fish type with that name already exists.',
+            'name.unique' => 'A fish type with that name already exists.',
             'quality_class.required' => 'Please select a quality class.',
         ]);
 
@@ -140,9 +140,9 @@ class FishTypeController extends Controller
         $previousClass = $fishType->quality_class;
 
         $fishType->update([
-            'name'          => $this->normaliseName($request->name),
+            'name' => $this->normaliseName($request->name),
             'quality_class' => $request->quality_class,
-            'image_path'    => $imagePath,
+            'image_path' => $imagePath,
         ]);
 
         // A fish type owns its price brackets and its quality class is stored

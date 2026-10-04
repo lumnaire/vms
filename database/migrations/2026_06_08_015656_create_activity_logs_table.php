@@ -11,9 +11,9 @@ return new class extends Migration
         Schema::create('activity_logs', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')
-                  ->nullable()
-                  ->constrained('users')
-                  ->nullOnDelete(); // keep logs even if user is deleted
+                ->nullable()
+                ->constrained('users')
+                ->nullOnDelete(); // keep logs even if user is deleted
             $table->string('action', 100); // e.g. 'login', 'confirm_price', 'submit_inventory'
             $table->text('description')->nullable();
             $table->timestamps();

@@ -1,7 +1,9 @@
 <?php
+
 // ─────────────────────────────────────────────────────────────────
 // Staff/PriceGuideController.php
 // ─────────────────────────────────────────────────────────────────
+
 namespace App\Http\Controllers\Staff;
 
 use App\Http\Controllers\Controller;
@@ -13,7 +15,7 @@ class PriceGuideController extends Controller
     public function index(Request $request)
     {
         $allFishTypes = FishType::where('is_active', true)
-            ->with(['priceGuides' => fn($q) => $q->where('is_active', true)->orderBy('quality_class')])
+            ->with(['priceGuides' => fn ($q) => $q->where('is_active', true)->orderBy('quality_class')])
             ->orderBy('name')
             ->get();
 
@@ -21,16 +23,16 @@ class PriceGuideController extends Controller
 
         // ── Filters: category (quality class) → fish type ────────
         $selectedCategory = $request->input('quality_class');
-        if ($selectedCategory && !in_array($selectedCategory, $qualityClasses, true)) {
+        if ($selectedCategory && ! in_array($selectedCategory, $qualityClasses, true)) {
             $selectedCategory = null;
         }
 
         $requestedFishType = $request->input('fish_type_id');
-        $matchedFishType   = $requestedFishType
+        $matchedFishType = $requestedFishType
             ? $allFishTypes->firstWhere('id', (int) $requestedFishType)
             : null;
         $selectedFishType = $matchedFishType
-            && (!$selectedCategory || $matchedFishType->quality_class === $selectedCategory)
+            && (! $selectedCategory || $matchedFishType->quality_class === $selectedCategory)
                 ? $matchedFishType->id
                 : null;
 
@@ -44,7 +46,7 @@ class PriceGuideController extends Controller
             ? $categoryFishTypes->where('id', (int) $selectedFishType)->values()
             : $categoryFishTypes;
 
-        $totalGuides  = $fishTypes->sum(fn($f) => $f->priceGuides->count());
+        $totalGuides = $fishTypes->sum(fn ($f) => $f->priceGuides->count());
         $totalSpecies = $fishTypes->count();
 
         return view('staff.price-guides', compact(

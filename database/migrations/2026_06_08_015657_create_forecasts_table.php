@@ -11,14 +11,14 @@ return new class extends Migration
         Schema::create('forecasts', function (Blueprint $table) {
             $table->id();
             $table->foreignId('fish_type_id')
-                  ->constrained('fish_types')
-                  ->cascadeOnDelete();
+                ->constrained('fish_types')
+                ->cascadeOnDelete();
             $table->enum('quality_class', [
                 'First Class',
                 'Second Class',
                 'Third Class',
                 'Fourth Class',
-                'Special Class'
+                'Special Class',
             ])->nullable();
             $table->enum('metric', ['price', 'volume']); // forecasting price or supply volume
             $table->date('forecast_date');

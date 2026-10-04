@@ -2,13 +2,14 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use App\Models\User;
 use App\Models\FishType;
+use App\Models\User;
 use App\Models\VendorInventory;
 use App\Models\VendorSaleReport;
 use App\Models\VendorSaleReportItem;
 use Carbon\Carbon;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -44,15 +45,16 @@ class VendorInventorySeeder extends Seeder
         VendorInventory::truncate();
         Schema::enableForeignKeyConstraints();
 
-        $staff   = User::where('role', 'staff')->first();
+        $staff = User::where('role', 'staff')->first();
         $vendors = User::where('role', 'vendor')->orderBy('id')->get();
 
-        if ($vendors->isEmpty() || !$staff) {
+        if ($vendors->isEmpty() || ! $staff) {
             $this->command->error('Run UserSeeder first!');
+
             return;
         }
 
-        /** @var \Illuminate\Support\Collection<int, FishType> $fishTypes */
+        /** @var Collection<int, FishType> $fishTypes */
         $fishTypes = FishType::where('is_active', true)
             ->whereNotNull('quality_class')
             ->get()
@@ -62,10 +64,10 @@ class VendorInventorySeeder extends Seeder
         // Mirrors the PriceGuideSeeder brackets so prices fall into bracket bands.
         $classBasis = [
             'Special Class' => ['cheap_max' => 360, 'moderate_max' => 640, 'stock' => [2,  10]],
-            'First Class'   => ['cheap_max' => 240, 'moderate_max' => 460, 'stock' => [8,  22]],
-            'Second Class'  => ['cheap_max' => 150, 'moderate_max' => 300, 'stock' => [12, 34]],
-            'Third Class'   => ['cheap_max' =>  90, 'moderate_max' => 190, 'stock' => [12, 42]],
-            'Fourth Class'  => ['cheap_max' =>  55, 'moderate_max' => 130, 'stock' => [8,  30]],
+            'First Class' => ['cheap_max' => 240, 'moderate_max' => 460, 'stock' => [8,  22]],
+            'Second Class' => ['cheap_max' => 150, 'moderate_max' => 300, 'stock' => [12, 34]],
+            'Third Class' => ['cheap_max' => 90, 'moderate_max' => 190, 'stock' => [12, 42]],
+            'Fourth Class' => ['cheap_max' => 55, 'moderate_max' => 130, 'stock' => [8,  30]],
         ];
 
         // ── Per-vendor fish specialisations (12 vendors = indices 0-11) ────
@@ -112,20 +114,20 @@ class VendorInventorySeeder extends Seeder
 
         // ── Date range: May 1, 2026 → TODAY (dynamic — always fresh) ───────
         $startDate = Carbon::create(2026, 5, 1);
-        $endDate   = Carbon::today();
+        $endDate = Carbon::today();
 
         // Days on or before this are "old" for freshness purposes.
         $staleCutoff = Carbon::today()->subDays(config('inventory.stale_after_days'));
 
-        $inserted  = 0;
+        $inserted = 0;
         $confirmed = 0;
-        $pending   = 0;
+        $pending = 0;
 
         for ($date = $startDate->copy(); $date->lte($endDate); $date->addDay()) {
 
-            $dateStr   = $date->toDateString();
+            $dateStr = $date->toDateString();
             $dayOfYear = $date->dayOfYear;
-            $isToday   = $date->isToday();
+            $isToday = $date->isToday();
 
             // Past dates are locked; today is editable until day ends
             $isLocked = $date->lt(Carbon::today());
@@ -141,15 +143,19 @@ class VendorInventorySeeder extends Seeder
 
                 // ~88% attendance per day using deterministic pseudo-random
                 $attendance = (($dayOfYear * 7 + $vIndex * 13) % 100);
-                if ($attendance < 12) continue; // 12% skip rate
+                if ($attendance < 12) {
+                    continue;
+                } // 12% skip rate
 
                 $fishList = $vendorFish[$vIndex] ?? [];
-                if (empty($fishList)) continue;
+                if (empty($fishList)) {
+                    continue;
+                }
 
                 // Each vendor brings 3-5 items (rotates daily)
                 $itemsToday = min(count($fishList), 3 + (($dayOfYear + $vIndex) % 3));
-                $offset     = ($dayOfYear + $vIndex * 3) % count($fishList);
-                $selected   = [];
+                $offset = ($dayOfYear + $vIndex * 3) % count($fishList);
+                $selected = [];
                 for ($i = 0; $i < $itemsToday; $i++) {
                     $selected[] = $fishList[($offset + $i) % count($fishList)];
                 }
@@ -159,32 +165,36 @@ class VendorInventorySeeder extends Seeder
                 foreach ($selected as $fishName) {
 
                     $fishType = $fishTypes[$fishName] ?? null;
-                    if (!$fishType) continue;
-                    if (!isset($classBasis[$fishType->quality_class])) continue;
+                    if (! $fishType) {
+                        continue;
+                    }
+                    if (! isset($classBasis[$fishType->quality_class])) {
+                        continue;
+                    }
 
                     $qualClass = $fishType->quality_class;
-                    $basis     = $classBasis[$qualClass];
+                    $basis = $classBasis[$qualClass];
                     [$priceMin, $priceMax] = [$basis['cheap_max'], $basis['moderate_max']];
                     [$stockMin, $stockMax] = $basis['stock'];
 
                     // Deterministic daily price variation (avoids randomness between seeds)
                     $priceShift = (($dayOfYear + $vIndex + strlen($fishName)) % 20) - 10;
-                    $rawPrice   = $priceMin + (($priceMax - $priceMin) * (($dayOfYear * 3 + $vIndex * 7) % 100) / 100);
-                    $rawPrice  += $priceShift;
+                    $rawPrice = $priceMin + (($priceMax - $priceMin) * (($dayOfYear * 3 + $vIndex * 7) % 100) / 100);
+                    $rawPrice += $priceShift;
                     $finalPrice = round($rawPrice * $oilFactor, 2);
                     $finalPrice = max($priceMin * 0.85, min($priceMax * 1.10, $finalPrice));
 
                     // Stock quantity
                     $stockSeed = ($dayOfYear * 11 + $vIndex * 5 + strlen($fishName)) % 100;
-                    $stockKg   = round($stockMin + (($stockMax - $stockMin) * $stockSeed / 100), 1);
+                    $stockKg = round($stockMin + (($stockMax - $stockMin) * $stockSeed / 100), 1);
 
                     // Released kg (portion put on display)
-                    $relPct     = 0.6 + (($dayOfYear + $vIndex * 3) % 41) / 100; // 60-100%
+                    $relPct = 0.6 + (($dayOfYear + $vIndex * 3) % 41) / 100; // 60-100%
                     $releasedKg = max(0.5, round($stockKg * $relPct, 1));
 
                     // Sold kg (70-95% of released)
                     $soldPct = 0.70 + ((($dayOfYear * 3 + $vIndex * 7 + strlen($fishName)) % 26) / 100);
-                    $soldKg  = min(round($releasedKg * $soldPct, 1), $releasedKg);
+                    $soldKg = min(round($releasedKg * $soldPct, 1), $releasedKg);
 
                     // ── Freshness ────────────────────────────────────────────
                     // Fish does not sit. Once a trading day is past the freshness
@@ -203,42 +213,42 @@ class VendorInventorySeeder extends Seeder
                     // ── Status logic ───────────────────────────────────────────
                     // Historical dates → always confirmed
                     // Today     → depends on vendor index (0-6 confirmed, 7-8 mixed, 9-11 pending)
-                    if (!$isToday) {
-                        $entryStatus     = 'confirmed';
-                        $confirmedById   = $staff->id;
+                    if (! $isToday) {
+                        $entryStatus = 'confirmed';
+                        $confirmedById = $staff->id;
                         $confirmedAtTime = Carbon::parse($dateStr)->setTime(8, 30, 0);
-                        $soldKgFinal     = $soldKg;
+                        $soldKgFinal = $soldKg;
                     } elseif ($vIndex <= 6) {
-                        $entryStatus     = 'confirmed';
-                        $confirmedById   = $staff->id;
+                        $entryStatus = 'confirmed';
+                        $confirmedById = $staff->id;
                         $confirmedAtTime = Carbon::today()->setTime(8, 30, 0);
-                        $soldKgFinal     = round($releasedKg * 0.35, 1); // partial sales (morning only)
+                        $soldKgFinal = round($releasedKg * 0.35, 1); // partial sales (morning only)
                     } elseif ($vIndex <= 8) {
                         $isConfirmedItem = ($itemIdx % 2 === 0);
-                        $entryStatus     = $isConfirmedItem ? 'confirmed' : 'pending';
-                        $confirmedById   = $isConfirmedItem ? $staff->id : null;
+                        $entryStatus = $isConfirmedItem ? 'confirmed' : 'pending';
+                        $confirmedById = $isConfirmedItem ? $staff->id : null;
                         $confirmedAtTime = $isConfirmedItem ? Carbon::today()->setTime(9, 0, 0) : null;
-                        $soldKgFinal     = $isConfirmedItem ? round($releasedKg * 0.25, 1) : 0;
+                        $soldKgFinal = $isConfirmedItem ? round($releasedKg * 0.25, 1) : 0;
                     } else {
-                        $entryStatus     = 'pending';
-                        $confirmedById   = null;
+                        $entryStatus = 'pending';
+                        $confirmedById = null;
                         $confirmedAtTime = null;
-                        $soldKgFinal     = 0;
+                        $soldKgFinal = 0;
                     }
 
                     VendorInventory::create([
-                        'vendor_id'    => $vendor->id,
+                        'vendor_id' => $vendor->id,
                         'fish_type_id' => $fishType->id,
-                        'quality_class'=> $qualClass,
+                        'quality_class' => $qualClass,
                         'price_per_kg' => $finalPrice,
-                        'stock_kg'     => $stockKg,
-                        'released_kg'  => $releasedKg,
-                        'sold_kg'      => $soldKgFinal,
-                        'status'       => $entryStatus,
+                        'stock_kg' => $stockKg,
+                        'released_kg' => $releasedKg,
+                        'sold_kg' => $soldKgFinal,
+                        'status' => $entryStatus,
                         'confirmed_by' => $confirmedById,
                         'confirmed_at' => $confirmedAtTime,
-                        'entry_date'   => $dateStr,
-                        'is_locked'    => $isLocked,
+                        'entry_date' => $dateStr,
+                        'is_locked' => $isLocked,
                     ]);
 
                     ($entryStatus === 'confirmed') ? $confirmed++ : $pending++;
@@ -273,7 +283,7 @@ class VendorInventorySeeder extends Seeder
     private function seedStaleStock(): void
     {
         $threshold = config('inventory.stale_after_days');
-        $touched    = 0;
+        $touched = 0;
 
         foreach (range(0, 7) as $offset) {
             $daysAgo = $threshold + $offset;
@@ -302,8 +312,8 @@ class VendorInventorySeeder extends Seeder
             ->count();
 
         $this->command->info(
-            "   ⚠️ Stale stock: {$touched} entr" . ($touched === 1 ? 'y' : 'ies')
-            . " forced unsold · {$staleCount} total flagged at {$threshold}+ days."
+            "   ⚠️ Stale stock: {$touched} entr".($touched === 1 ? 'y' : 'ies')
+            ." forced unsold · {$staleCount} total flagged at {$threshold}+ days."
         );
     }
 }

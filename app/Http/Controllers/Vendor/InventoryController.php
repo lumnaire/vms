@@ -3,12 +3,12 @@
 namespace App\Http\Controllers\Vendor;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\FishType;
 use App\Models\PriceGuide;
 use App\Models\VendorInventory;
 use App\Services\CarryForwardStock;
 use Illuminate\Http\Request;
-use App\Models\ActivityLog;
 use Illuminate\Support\Facades\Auth;
 
 class InventoryController extends Controller
@@ -16,13 +16,14 @@ class InventoryController extends Controller
     // ─── List inventory entries ───────────────────────────────────
     public function index()
     {
-        $vendorId  = Auth::id();
+        $vendorId = Auth::id();
         $fishTypes = FishType::where('is_active', true)->orderBy('name')->get();
 
-        // Today's entries
+        // Today's entries, AM before PM, newest first within a session
         $todayEntries = VendorInventory::with('fishType')
             ->where('vendor_id', $vendorId)
             ->whereDate('entry_date', today())
+            ->orderBy('market_session')
             ->latest()
             ->get();
 
@@ -36,22 +37,17 @@ class InventoryController extends Controller
 
         // Today's summary stats
         $totalStockToday = $todayEntries->sum('stock_kg');
-        $pendingCount    = $todayEntries->where('status', 'pending')->count();
-        $confirmedCount  = $todayEntries->where('status', 'confirmed')->count();
-        $rejectedCount   = $todayEntries->where('status', 'rejected')->count();
-
-        // Fish types already submitted today (to disable duplicates in the form)
-        $submittedCombos = $todayEntries
-            ->map(fn($e) => $e->fish_type_id . '_' . $e->quality_class)
-            ->toArray();
+        $pendingCount = $todayEntries->where('status', 'pending')->count();
+        $confirmedCount = $todayEntries->where('status', 'confirmed')->count();
+        $rejectedCount = $todayEntries->where('status', 'rejected')->count();
 
         // Active price guidelines keyed by fish type + quality class, used by the
         // live price check in the submit form
         $priceGuides = PriceGuide::where('is_active', true)
             ->get()
-            ->keyBy(fn($g) => $g->fish_type_id . '_' . $g->quality_class)
-            ->map(fn($g) => [
-                'cheap'    => (float) $g->cheap_max,
+            ->keyBy(fn ($g) => $g->fish_type_id.'_'.$g->quality_class)
+            ->map(fn ($g) => [
+                'cheap' => (float) $g->cheap_max,
                 'moderate' => (float) $g->moderate_max,
             ]);
 
@@ -63,7 +59,6 @@ class InventoryController extends Controller
             'pendingCount',
             'confirmedCount',
             'rejectedCount',
-            'submittedCombos',
             'priceGuides',
         ));
     }
@@ -72,10 +67,10 @@ class InventoryController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'fish_type_id'  => ['required', 'exists:fish_types,id'],
+            'fish_type_id' => ['required', 'exists:fish_types,id'],
             'quality_class' => [
                 'required',
-                'in:' . implode(',', FishType::QUALITY_CLASSES),
+                'in:'.implode(',', FishType::QUALITY_CLASSES),
                 function ($attribute, $value, $fail) use ($request) {
                     $fish = FishType::find($request->fish_type_id);
                     if ($fish && $fish->quality_class !== $value) {
@@ -83,60 +78,122 @@ class InventoryController extends Controller
                     }
                 },
             ],
-            'price_per_kg'  => ['required', 'numeric', 'min:0.01', 'max:99999.99'],
-            'stock_kg'      => ['required', 'numeric', 'min:0.1',  'max:99999.99'],
-            'released_kg'   => ['required', 'numeric', 'min:0.1',  'lte:stock_kg'],
+            'market_session' => ['required', 'in:'.implode(',', VendorInventory::SESSIONS)],
+            'price_per_kg' => ['required', 'numeric', 'min:0.01', 'max:99999.99'],
+            'stock_kg' => ['required', 'numeric', 'min:0.1',  'max:99999.99'],
+            'released_kg' => ['required', 'numeric', 'min:0.1',  'lte:stock_kg'],
         ], [
-            'fish_type_id.required'  => 'Please select a fish type.',
-            'fish_type_id.exists'    => 'Selected fish type is invalid.',
+            'fish_type_id.required' => 'Please select a fish type.',
+            'fish_type_id.exists' => 'Selected fish type is invalid.',
             'quality_class.required' => 'Please select a quality class.',
-            'quality_class.in'       => 'Invalid quality class selected.',
-            'price_per_kg.required'  => 'Price per kg is required.',
-            'price_per_kg.min'       => 'Price must be at least ₱0.01.',
-            'stock_kg.required'      => 'Stock quantity is required.',
-            'stock_kg.min'           => 'Stock must be at least 0.1 kg.',
-            'released_kg.required'   => 'Released quantity is required.',
-            'released_kg.min'        => 'Released kg must be at least 0.1.',
-            'released_kg.lte'        => 'Released quantity cannot exceed total stock.',
+            'quality_class.in' => 'Invalid quality class selected.',
+            'market_session.required' => 'Choose whether this is your morning or afternoon delivery.',
+            'market_session.in' => 'Invalid trading session selected.',
+            'price_per_kg.required' => 'Price per kg is required.',
+            'price_per_kg.min' => 'Price must be at least ₱0.01.',
+            'stock_kg.required' => 'Stock quantity is required.',
+            'stock_kg.min' => 'Stock must be at least 0.1 kg.',
+            'released_kg.required' => 'Released quantity is required.',
+            'released_kg.min' => 'Released kg must be at least 0.1.',
+            'released_kg.lte' => 'Released quantity cannot exceed total stock.',
         ]);
 
-        // Prevent duplicate: same fish type + quality class on the same day
-        $alreadyExists = VendorInventory::where('vendor_id', Auth::id())
-            ->where('fish_type_id',  $request->fish_type_id)
-            ->where('quality_class', $request->quality_class)
-            ->whereDate('entry_date', today())
-            ->exists();
-
-        if ($alreadyExists) {
-            return back()
-                ->withInput()
-                ->withErrors([
-                    'fish_type_id' => 'You already have an entry for this fish type and quality class today.',
-                ]);
-        }
+        // A vendor may log the same fish and quality class as often as it actually
+        // arrives — twice in one morning, or once at dawn and once after lunch.
+        // Every one of those is a real delivery, and merging them into a single
+        // number would misreport both the weight and the session each of them came
+        // in. The old one-entry-per-fish-per-day refusal made that unavoidable, so
+        // it is gone: the entry is the record, and more than one record is allowed.
+        //
+        // Price is not renegotiable here. Adding kilograms later is handled by
+        // addStock(), which never touches the agreed price — that is staff's figure.
 
         VendorInventory::create([
-            'vendor_id'     => Auth::id(),
-            'fish_type_id'  => $request->fish_type_id,
+            'vendor_id' => Auth::id(),
+            'fish_type_id' => $request->fish_type_id,
             'quality_class' => $request->quality_class,
-            'price_per_kg'  => $request->price_per_kg,
-            'stock_kg'      => $request->stock_kg,
-            'released_kg'   => $request->released_kg,
-            'sold_kg'       => 0,
-            'status'        => 'pending',
-            'entry_date'    => today(),
-            'is_locked'     => false,
+            'market_session' => $request->market_session,
+            'price_per_kg' => $request->price_per_kg,
+            'stock_kg' => $request->stock_kg,
+            'released_kg' => $request->released_kg,
+            'sold_kg' => 0,
+            'status' => 'pending',
+            'entry_date' => today(),
+            'is_locked' => false,
         ]);
 
         ActivityLog::create([
-            'user_id'     => Auth::id(),
-            'action'      => 'submit_inventory',
-            'description' => 'Submitted inventory: ' . ($fishType = \App\Models\FishType::find($request->fish_type_id)?->name ?? 'Unknown')
-                           . ' (' . $request->quality_class . ') — ₱' . number_format($request->price_per_kg, 2) . '/kg, ' . $request->stock_kg . ' kg.',
+            'user_id' => Auth::id(),
+            'action' => 'submit_inventory',
+            'description' => 'Submitted inventory: '.(FishType::find($request->fish_type_id)?->name ?? 'Unknown')
+                           .' ('.$request->quality_class.', '.$request->market_session.') — ₱'
+                           .number_format($request->price_per_kg, 2).'/kg, '.$request->stock_kg.' kg.',
         ]);
 
         return redirect()->route('vendor.inventory.index')
-            ->with('success', 'Inventory entry submitted successfully. Awaiting staff confirmation.');
+            ->with('success', $request->market_session.' entry submitted successfully. Awaiting staff confirmation.');
+    }
+
+    // ─── Add stock to an entry staff have already confirmed ────────
+    /**
+     * Top up a confirmed entry without going back through staff.
+     *
+     * A vendor who brings more of the same fish later in the day is describing a
+     * fact the market already witnessed, so making them wait for a second approval
+     * to see their own kilograms on the board only teaches them to sit on fish
+     * until the market closes. The price is left exactly as staff agreed it; only
+     * the weight moves, and the whole change is written to the activity log.
+     */
+    public function addStock(Request $request, VendorInventory $inventory)
+    {
+        if ($inventory->vendor_id !== Auth::id()) {
+            abort(403);
+        }
+
+        $request->validate([
+            'stock_kg' => ['required', 'numeric', 'min:0.1', 'max:99999.99'],
+            'released_kg' => ['required', 'numeric', 'min:0.1', 'max:99999.99'],
+            'market_session' => ['nullable', 'in:'.implode(',', VendorInventory::SESSIONS)],
+        ], [
+            'stock_kg.required' => 'Enter how many kilograms you are adding.',
+            'stock_kg.min' => 'Add at least 0.1 kg.',
+            'released_kg.required' => 'Enter how many of those kilograms are for sale.',
+            'released_kg.min' => 'Released kg must be at least 0.1.',
+            'market_session.in' => 'Invalid trading session selected.',
+        ]);
+
+        $stockKg = (float) $request->input('stock_kg');
+        $releasedKg = (float) $request->input('released_kg');
+
+        // Throws a ValidationException with the reason, which Laravel renders as a
+        // field error — so a locked or already-handed-over line explains itself
+        // instead of silently doing nothing.
+        $line = $inventory->addStock($stockKg, $releasedKg, $request->input('market_session'));
+
+        $fishName = $inventory->fishType?->name ?? 'fish';
+        $opened = $line->id !== $inventory->id;
+
+        ActivityLog::create([
+            'user_id' => Auth::id(),
+            'action' => 'add_stock',
+            'description' => $opened
+                ? 'Added '.number_format($stockKg, 2).' kg ('.number_format($releasedKg, 2).' kg for sale) of '
+                    .$fishName.' ('.$inventory->quality_class.') as a new '.$line->session()
+                    .' line #'.$line->id.' at the confirmed ₱'.number_format((float) $line->price_per_kg, 2)
+                    .'/kg from entry #'.$inventory->id.'.'
+                : 'Added '.number_format($stockKg, 2).' kg ('.number_format($releasedKg, 2).' kg for sale) to '
+                    .$fishName.' ('.$inventory->quality_class.', '.$line->session().') on entry #'.$line->id
+                    .' — now '.number_format((float) $line->stock_kg, 2).' kg, '
+                    .number_format((float) $line->released_kg, 2).' kg released.',
+        ]);
+
+        $message = $opened
+            ? number_format($stockKg, 2).' kg of '.$fishName.' added as a new '.$line->session()
+                .' line at ₱'.number_format((float) $line->price_per_kg, 2).'/kg. It is already on the price board.'
+            : number_format($stockKg, 2).' kg added to '.$fishName.' ('.$line->session().'). Your stock is now '
+                .number_format((float) $line->stock_kg, 2).' kg.';
+
+        return back()->with('success', $message);
     }
 
     // ─── Cancel a pending inventory entry ───────────────────────────
@@ -162,9 +219,9 @@ class InventoryController extends Controller
         }
 
         ActivityLog::create([
-            'user_id'     => Auth::id(),
-            'action'      => 'cancel_inventory',
-            'description' => 'Cancelled inventory entry ID ' . $inventory->id . '.',
+            'user_id' => Auth::id(),
+            'action' => 'cancel_inventory',
+            'description' => 'Cancelled inventory entry ID '.$inventory->id.'.',
         ]);
 
         return redirect()->route($wasCarried ? 'vendor.my-stock.index' : 'vendor.inventory.index')

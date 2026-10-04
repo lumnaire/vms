@@ -9,9 +9,8 @@
  *
  * Usage: php tools/check-design-tokens.php
  */
-
 $root = dirname(__DIR__);
-$cssFile = $root . '/resources/css/app.css';
+$cssFile = $root.'/resources/css/app.css';
 $css = file_get_contents($cssFile);
 
 // 1. Collect every custom property defined in app.css.
@@ -27,7 +26,7 @@ $tailwindPrefixes = ['--tw-', '--color-slate-', '--font-', '--spacing-', '--radi
 
 // 2. Scan all stylesheets and templates for references.
 $targets = [];
-$it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root . '/resources'));
+$it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root.'/resources'));
 foreach ($it as $file) {
     if ($file->isFile() && preg_match('/\.(css|blade\.php|js)$/', $file->getFilename())) {
         $targets[] = $file->getPathname();
@@ -37,7 +36,7 @@ foreach ($it as $file) {
 $used = [];
 foreach ($targets as $path) {
     $contents = file_get_contents($path);
-    if (!preg_match_all('/var\(\s*(--[a-z0-9-]+)/i', $contents, $m)) {
+    if (! preg_match_all('/var\(\s*(--[a-z0-9-]+)/i', $contents, $m)) {
         continue;
     }
     foreach ($m[1] as $name) {
@@ -71,7 +70,7 @@ printf("missing        : %d\n\n", count($missing));
 foreach ($missing as $name => $files) {
     echo "MISSING {$name}\n";
     foreach ($files as $f) {
-        echo '    ' . str_replace($root . '/', '', $f) . "\n";
+        echo '    '.str_replace($root.'/', '', $f)."\n";
     }
 }
 

@@ -4,16 +4,16 @@ namespace App\Http\Controllers\Supervisor;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Models\VendorProfile;
 use App\Models\VendorInventory;
+use App\Models\VendorProfile;
 
 class DashboardController extends Controller
 {
     public function index()
     {
         $totalVendors = User::where('role', 'vendor')->where('status', 'active')->count();
-        $totalStalls  = VendorProfile::count();
-        $activeStaff  = User::where('role', 'staff')->where('status', 'active')->count();
+        $totalStalls = VendorProfile::count();
+        $activeStaff = User::where('role', 'staff')->where('status', 'active')->count();
 
         // Today's confirmed stock total (kg)
         $totalStockKg = VendorInventory::where('status', 'confirmed')

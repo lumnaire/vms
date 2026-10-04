@@ -38,12 +38,12 @@ class SaleReportController extends Controller
     public function index()
     {
         $vendorId = Auth::id();
-        $today    = today();
+        $today = today();
 
         // The day being declared. Only today is open to the vendor; anything
         // earlier is already closed.
         $report = VendorSaleReport::firstOrNew([
-            'vendor_id'  => $vendorId,
+            'vendor_id' => $vendorId,
             'report_date' => $today,
         ]);
 
@@ -55,9 +55,12 @@ class SaleReportController extends Controller
             ->where('status', 'confirmed')
             ->get();
 
-        // Sort by fish name in PHP rather than SQL so this behaves identically
-        // on MySQL and on the SQLite test database.
-        $entries = $entries->sortBy(fn ($e) => $e->fishType?->name ?? '')->values();
+        // Sort by fish name, then AM before PM, in PHP rather than SQL so this
+        // behaves identically on MySQL and on the SQLite test database.
+        $entries = $entries->sortBy([
+            fn ($a, $b) => strcmp($a->fishType?->name ?? '', $b->fishType?->name ?? ''),
+            fn ($a, $b) => strcmp($a->session(), $b->session()),
+        ])->values();
 
         // Previous declarations, so the vendor can see their own history.
         $history = VendorSaleReport::where('vendor_id', $vendorId)
@@ -70,12 +73,12 @@ class SaleReportController extends Controller
         // vendor actually works — today is nearly over and its numbers are already
         // on the declaration.
         return view('vendor.sale-report', [
-            'report'             => $report,
-            'entries'            => $entries,
-            'history'            => $history,
-            'restockMinDate'     => $today->copy()->addDay()->toDateString(),
-            'restockMaxDate'     => $today->copy()->addDays(CarryForwardStock::MAX_DAYS_AHEAD)->toDateString(),
-            'restockMaxDays'     => CarryForwardStock::MAX_DAYS_AHEAD,
+            'report' => $report,
+            'entries' => $entries,
+            'history' => $history,
+            'restockMinDate' => $today->copy()->addDay()->toDateString(),
+            'restockMaxDate' => $today->copy()->addDays(CarryForwardStock::MAX_DAYS_AHEAD)->toDateString(),
+            'restockMaxDays' => CarryForwardStock::MAX_DAYS_AHEAD,
         ]);
     }
 
@@ -83,7 +86,7 @@ class SaleReportController extends Controller
     public function store(Request $request)
     {
         $vendorId = Auth::id();
-        $today    = today();
+        $today = today();
 
         // The report is for today, so it is open right now by definition. The
         // guard is kept explicit because it is the rule that matters most: after
@@ -101,7 +104,7 @@ class SaleReportController extends Controller
             ->keyBy('id');
 
         $request->validate([
-            'items'   => ['required', 'array'],
+            'items' => ['required', 'array'],
             'items.*' => ['required', 'array'],
             'items.*.total_kg' => [
                 'required',
@@ -111,9 +114,9 @@ class SaleReportController extends Controller
                 'max:99999.99',
             ],
         ], [
-            'items.required'        => 'Enter the quantity sold for at least one confirmed entry.',
+            'items.required' => 'Enter the quantity sold for at least one confirmed entry.',
             'items.*.total_kg.required' => 'Enter a quantity for every confirmed entry (use 0 if none sold).',
-            'items.*.total_kg.min'  => 'Quantity sold cannot be negative.',
+            'items.*.total_kg.min' => 'Quantity sold cannot be negative.',
             'items.*.total_kg.numeric' => 'Quantity sold must be a number.',
         ]);
 
@@ -121,7 +124,7 @@ class SaleReportController extends Controller
         // only up to what was released. Anything else is a stale or forged
         // client payload and must not reach the ledger.
         $errors = [];
-        $clean  = [];
+        $clean = [];
 
         foreach ($request->input('items', []) as $inventoryId => $payload) {
             $entry = $entries->get((int) $inventoryId);
@@ -129,6 +132,7 @@ class SaleReportController extends Controller
             if (! $entry) {
                 $errors["items.{$inventoryId}.total_kg"] =
                     'That entry is not a confirmed entry for today.';
+
                 continue;
             }
 
@@ -136,7 +140,8 @@ class SaleReportController extends Controller
 
             if ($kg > (float) $entry->released_kg) {
                 $errors["items.{$inventoryId}.total_kg"] =
-                    'You declared ' . $kg . ' kg but only ' . $entry->released_kg . ' kg was released for sale.';
+                    'You declared '.$kg.' kg but only '.$entry->released_kg.' kg was released for sale.';
+
                 continue;
             }
 
@@ -161,7 +166,7 @@ class SaleReportController extends Controller
 
         $report = DB::transaction(function () use ($vendorId, $today, $clean) {
             $report = VendorSaleReport::firstOrNew([
-                'vendor_id'   => $vendorId,
+                'vendor_id' => $vendorId,
                 'report_date' => $today,
             ]);
 
@@ -179,7 +184,7 @@ class SaleReportController extends Controller
                 ->delete();
 
             $totalStock = 0.0;
-            $totalSold  = 0.0;
+            $totalSold = 0.0;
             $totalValue = 0.0;
 
             foreach ($clean as $inventoryId => ['entry' => $entry, 'total_kg' => $kg]) {
@@ -190,13 +195,14 @@ class SaleReportController extends Controller
                     ['vendor_inventory_id' => $entry->id],
                     [
                         'vendor_sale_report_id' => $report->id,
-                        'fish_type_id'          => $entry->fish_type_id,
-                        'fish_type_name'        => $entry->fishType?->name ?? 'Unknown',
-                        'quality_class'         => $entry->quality_class,
-                        'price_per_kg'          => $price,
-                        'released_kg'           => $entry->released_kg,
-                        'total_kg'              => $kg,
-                        'total_price'           => $value,
+                        'fish_type_id' => $entry->fish_type_id,
+                        'fish_type_name' => $entry->fishType?->name ?? 'Unknown',
+                        'quality_class' => $entry->quality_class,
+                        'market_session' => $entry->session(),
+                        'price_per_kg' => $price,
+                        'released_kg' => $entry->released_kg,
+                        'total_kg' => $kg,
+                        'total_price' => $value,
                     ]
                 );
 
@@ -205,25 +211,25 @@ class SaleReportController extends Controller
                 $entry->update(['sold_kg' => $kg]);
 
                 $totalStock += (float) $entry->released_kg;
-                $totalSold  += $kg;
+                $totalSold += $kg;
                 $totalValue += $value;
             }
 
             $report->total_stock_kg = round($totalStock, 2);
-            $report->total_sold_kg  = round($totalSold, 2);
-            $report->total_value    = round($totalValue, 2);
-            $report->item_count     = count($clean);
+            $report->total_sold_kg = round($totalSold, 2);
+            $report->total_value = round($totalValue, 2);
+            $report->item_count = count($clean);
             $report->save();
 
             return $report;
         });
 
         ActivityLog::create([
-            'user_id'     => Auth::id(),
-            'action'      => 'submit_sale_report',
+            'user_id' => Auth::id(),
+            'action' => 'submit_sale_report',
             'description' => "Submitted sale report for {$today->format('M j, Y')}: "
-                . $report->item_count . ' item(s), ' . $report->total_sold_kg . ' kg sold, '
-                . '₱' . number_format((float) $report->total_value, 2) . '.',
+                .$report->item_count.' item(s), '.$report->total_sold_kg.' kg sold, '
+                .'₱'.number_format((float) $report->total_value, 2).'.',
         ]);
 
         return redirect()->route('vendor.sale-report.index')
@@ -246,7 +252,7 @@ class SaleReportController extends Controller
     public function restock(Request $request, CarryForwardStock $carry)
     {
         $vendorId = Auth::id();
-        $today    = today();
+        $today = today();
 
         $report = VendorSaleReport::where('vendor_id', $vendorId)
             ->whereDate('report_date', $today)
@@ -263,14 +269,14 @@ class SaleReportController extends Controller
 
         $request->validate([
             'carry_date' => ['required', 'date'],
-            'entries'    => ['required', 'array', 'min:1'],
-            'entries.*'  => ['integer'],
+            'entries' => ['required', 'array', 'min:1'],
+            'entries.*' => ['integer'],
         ], [
             'carry_date.required' => 'Choose the trading day to load.',
-            'carry_date.date'     => 'Choose a valid trading day.',
-            'entries.required'    => 'Tick at least one line to restock.',
-            'entries.min'         => 'Tick at least one line to restock.',
-            'entries.*.integer'   => 'Invalid line selected.',
+            'carry_date.date' => 'Choose a valid trading day.',
+            'entries.required' => 'Tick at least one line to restock.',
+            'entries.min' => 'Tick at least one line to restock.',
+            'entries.*.integer' => 'Invalid line selected.',
         ]);
 
         $carryDate = Carbon::parse($request->input('carry_date'))->startOfDay();
@@ -300,6 +306,7 @@ class SaleReportController extends Controller
 
             if (! $entry) {
                 $errors["entries.{$id}"] = 'That line is not a confirmed entry for today.';
+
                 continue;
             }
 
@@ -339,9 +346,9 @@ class SaleReportController extends Controller
 
         return redirect()->route('vendor.sale-report.index')->with(
             'success',
-            number_format($kg, 2) . ' kg across ' . count($made) . ' '
-            . Str::plural('line', count($made)) . ' submitted for '
-            . $carryDate->format('M j, Y') . '. Awaiting staff confirmation on that day.'
+            number_format($kg, 2).' kg across '.count($made).' '
+            .Str::plural('line', count($made)).' submitted for '
+            .$carryDate->format('M j, Y').'. Awaiting staff confirmation on that day.'
         );
     }
 }

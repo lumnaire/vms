@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\User;
 use App\Models\VendorInventory;
 use App\Models\VendorSaleReport;
 use App\Models\VendorSaleReportItem;
@@ -30,15 +31,16 @@ class VendorSaleReportSeeder extends Seeder
 
     public function run(): void
     {
-        $vendors = \App\Models\User::where('role', 'vendor')->orderBy('id')->get();
+        $vendors = User::where('role', 'vendor')->orderBy('id')->get();
 
         if ($vendors->isEmpty()) {
             $this->command->error('Run UserSeeder and VendorInventorySeeder first!');
+
             return;
         }
 
         $reports = 0;
-        $items   = 0;
+        $items = 0;
         $skippedDays = 0;
 
         for ($daysAgo = self::DAYS; $daysAgo >= 1; $daysAgo--) {
@@ -51,6 +53,7 @@ class VendorSaleReportSeeder extends Seeder
 
                 if ($misses) {
                     $skippedDays++;
+
                     continue;
                 }
 
@@ -71,42 +74,42 @@ class VendorSaleReportSeeder extends Seeder
                 );
 
                 $totalStock = 0.0;
-                $totalSold  = 0.0;
+                $totalSold = 0.0;
                 $totalValue = 0.0;
 
                 foreach ($entries as $entry) {
-                    $price    = (float) $entry->price_per_kg;
+                    $price = (float) $entry->price_per_kg;
                     $released = (float) $entry->released_kg;
                     // sold_kg is already set by the inventory seeder, so the
                     // report is a faithful record rather than a fresh guess.
-                    $kg       = round(min((float) $entry->sold_kg, $released), 2);
-                    $value    = round($kg * $price, 2);
+                    $kg = round(min((float) $entry->sold_kg, $released), 2);
+                    $value = round($kg * $price, 2);
 
                     VendorSaleReportItem::updateOrCreate(
                         ['vendor_inventory_id' => $entry->id],
                         [
                             'vendor_sale_report_id' => $report->id,
-                            'fish_type_id'          => $entry->fish_type_id,
-                            'fish_type_name'        => $entry->fishType?->name ?? 'Unknown',
-                            'quality_class'         => $entry->quality_class,
-                            'price_per_kg'          => $price,
-                            'released_kg'           => $released,
-                            'total_kg'              => $kg,
-                            'total_price'           => $value,
+                            'fish_type_id' => $entry->fish_type_id,
+                            'fish_type_name' => $entry->fishType?->name ?? 'Unknown',
+                            'quality_class' => $entry->quality_class,
+                            'price_per_kg' => $price,
+                            'released_kg' => $released,
+                            'total_kg' => $kg,
+                            'total_price' => $value,
                         ]
                     );
 
                     $totalStock += $released;
-                    $totalSold  += $kg;
+                    $totalSold += $kg;
                     $totalValue += $value;
                     $items++;
                 }
 
                 $report->update([
                     'total_stock_kg' => round($totalStock, 2),
-                    'total_sold_kg'  => round($totalSold, 2),
-                    'total_value'    => round($totalValue, 2),
-                    'item_count'     => $entries->count(),
+                    'total_sold_kg' => round($totalSold, 2),
+                    'total_value' => round($totalValue, 2),
+                    'item_count' => $entries->count(),
                 ]);
 
                 $reports++;

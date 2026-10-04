@@ -28,11 +28,11 @@ class VendorSaleReport extends Model
     ];
 
     protected $casts = [
-        'report_date'    => 'date',
+        'report_date' => 'date',
         'total_stock_kg' => 'decimal:2',
-        'total_sold_kg'  => 'decimal:2',
-        'total_value'    => 'decimal:2',
-        'submitted_at'   => 'datetime',
+        'total_sold_kg' => 'decimal:2',
+        'total_value' => 'decimal:2',
+        'submitted_at' => 'datetime',
     ];
 
     // ─── Relationships ───────────────────────────────────────────

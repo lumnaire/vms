@@ -23,6 +23,7 @@ class VendorSaleReportItem extends Model
         'fish_type_id',
         'fish_type_name',
         'quality_class',
+        'market_session',
         'price_per_kg',
         'released_kg',
         'total_kg',
@@ -31,9 +32,9 @@ class VendorSaleReportItem extends Model
 
     protected $casts = [
         'price_per_kg' => 'decimal:2',
-        'released_kg'  => 'decimal:2',
-        'total_kg'     => 'decimal:2',
-        'total_price'  => 'decimal:2',
+        'released_kg' => 'decimal:2',
+        'total_kg' => 'decimal:2',
+        'total_price' => 'decimal:2',
     ];
 
     // ─── Relationships ───────────────────────────────────────────

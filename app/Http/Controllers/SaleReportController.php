@@ -41,22 +41,22 @@ class SaleReportController extends Controller
 
         // Flatten to the table rows: one row per declared fish entry.
         $rows = $reports->flatMap(fn ($report) => $report->items->map(fn ($item) => [
-            'report'       => $report,
-            'item'         => $item,
-            'vendor'       => $report->vendor,
-            'stall'        => $report->vendor?->vendorProfile?->stall_number,
-            'unsold_kg'    => $item->getUnsoldKg(),
+            'report' => $report,
+            'item' => $item,
+            'vendor' => $report->vendor,
+            'stall' => $report->vendor?->vendorProfile?->stall_number,
+            'unsold_kg' => $item->getUnsoldKg(),
             'unsold_value' => $item->getUnsoldValue(),
         ]));
 
         // ── Totals ───────────────────────────────────────────────────
         $totals = [
-            'vendors'    => $reports->count(),
-            'rows'       => $rows->count(),
-            'stock_kg'   => round((float) $reports->sum('total_stock_kg'), 2),
-            'sold_kg'    => round((float) $reports->sum('total_sold_kg'), 2),
-            'value'      => round((float) $reports->sum('total_value'), 2),
-            'unsold_kg'  => round((float) $rows->sum('unsold_kg'), 2),
+            'vendors' => $reports->count(),
+            'rows' => $rows->count(),
+            'stock_kg' => round((float) $reports->sum('total_stock_kg'), 2),
+            'sold_kg' => round((float) $reports->sum('total_sold_kg'), 2),
+            'value' => round((float) $reports->sum('total_value'), 2),
+            'unsold_kg' => round((float) $rows->sum('unsold_kg'), 2),
         ];
         $totals['sell_through_pct'] = $totals['stock_kg'] > 0
             ? round(($totals['sold_kg'] / $totals['stock_kg']) * 100, 1)
@@ -68,8 +68,8 @@ class SaleReportController extends Controller
             ->orderBy('name')
             ->get()
             ->map(fn ($u) => [
-                'id'    => $u->id,
-                'name'  => $u->name,
+                'id' => $u->id,
+                'name' => $u->name,
                 'stall' => $u->vendorProfile?->stall_number,
             ]);
 
@@ -99,21 +99,21 @@ class SaleReportController extends Controller
             ->orderBy('name')
             ->get()
             ->map(fn ($u) => [
-                'id'    => $u->id,
-                'name'  => $u->name,
+                'id' => $u->id,
+                'name' => $u->name,
                 'stall' => $u->vendorProfile?->stall_number,
             ]);
 
         return view('sale-reports.index', [
-            'reportDate'        => $reportDate,
-            'reports'           => $reports,
-            'rows'              => $rows,
-            'totals'            => $totals,
-            'vendors'           => $vendors,
-            'calendar'          => $calendar,
-            'calendarCounts'    => $calendarCounts,
-            'missingVendors'    => $missingVendors,
-            'selectedVendorId'  => $request->integer('vendor_id') ?: null,
+            'reportDate' => $reportDate,
+            'reports' => $reports,
+            'rows' => $rows,
+            'totals' => $totals,
+            'vendors' => $vendors,
+            'calendar' => $calendar,
+            'calendarCounts' => $calendarCounts,
+            'missingVendors' => $missingVendors,
+            'selectedVendorId' => $request->integer('vendor_id') ?: null,
         ]);
     }
 
@@ -145,11 +145,11 @@ class SaleReportController extends Controller
     private function buildCalendar(Carbon $selected): array
     {
         $monthStart = $selected->copy()->startOfMonth();
-        $monthEnd   = $selected->copy()->endOfMonth();
+        $monthEnd = $selected->copy()->endOfMonth();
 
         // Pad to whole weeks so every row of the grid has seven cells.
         $gridStart = $monthStart->copy()->subDays($monthStart->dayOfWeekIso % 7);
-        $gridEnd   = $monthEnd->copy()->addDays(6 - $monthEnd->dayOfWeekIso % 7);
+        $gridEnd = $monthEnd->copy()->addDays(6 - $monthEnd->dayOfWeekIso % 7);
 
         $counts = VendorSaleReport::whereBetween('report_date', [$gridStart->toDateString(), $gridEnd->toDateString()])
             ->selectRaw('report_date, COUNT(*) as c, SUM(total_sold_kg) as kg')
@@ -157,9 +157,9 @@ class SaleReportController extends Controller
             ->get()
             ->mapWithKeys(fn ($r) => [
                 // MySQL and SQLite both hand back a date string here.
-                \Carbon\Carbon::parse($r->report_date)->toDateString() => [
+                Carbon::parse($r->report_date)->toDateString() => [
                     'reports' => (int) $r->c,
-                    'kg'      => round((float) $r->kg, 2),
+                    'kg' => round((float) $r->kg, 2),
                 ],
             ]);
 
@@ -168,14 +168,14 @@ class SaleReportController extends Controller
             $date = $cursor->toDateString();
 
             $weeks[] = [
-                'date'      => $cursor->toDateString(),
-                'day'       => $cursor->day,
-                'in_month'  => $cursor->month === $selected->month && $cursor->year === $selected->year,
-                'is_today'  => $date === today()->toDateString(),
-                'is_sel'    => $date === $selected->toDateString(),
+                'date' => $cursor->toDateString(),
+                'day' => $cursor->day,
+                'in_month' => $cursor->month === $selected->month && $cursor->year === $selected->year,
+                'is_today' => $date === today()->toDateString(),
+                'is_sel' => $date === $selected->toDateString(),
                 'is_future' => $cursor->greaterThan(today()),
-                'reports'   => $counts[$date]['reports'] ?? 0,
-                'kg'        => $counts[$date]['kg'] ?? 0.0,
+                'reports' => $counts[$date]['reports'] ?? 0,
+                'kg' => $counts[$date]['kg'] ?? 0.0,
             ];
         }
 

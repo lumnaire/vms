@@ -52,9 +52,9 @@ class FrontendSmokeTest extends TestCase
 
         if ($role === 'vendor') {
             VendorProfile::create([
-                'user_id'       => $user->id,
-                'stall_number'  => 'A-01',
-                'business_name' => $user->name . ' Stall',
+                'user_id' => $user->id,
+                'stall_number' => 'A-01',
+                'business_name' => $user->name.' Stall',
             ]);
         }
 
@@ -126,8 +126,8 @@ class FrontendSmokeTest extends TestCase
     {
         foreach ([
             'supervisor' => '/supervisor/dashboard',
-            'staff'      => '/staff/dashboard',
-            'vendor'     => '/vendor/dashboard',
+            'staff' => '/staff/dashboard',
+            'vendor' => '/vendor/dashboard',
         ] as $role => $path) {
             $user = $this->makeUser($role);
 
@@ -168,9 +168,9 @@ class FrontendSmokeTest extends TestCase
     {
         // A fish type gives the price guide and price board something to show.
         FishType::create([
-            'name'          => 'Bangus',
+            'name' => 'Bangus',
             'quality_class' => 'First Class',
-            'is_active'     => true,
+            'is_active' => true,
         ]);
 
         foreach (['supervisor', 'staff', 'vendor'] as $role) {
@@ -196,22 +196,22 @@ class FrontendSmokeTest extends TestCase
             $contents = file_get_contents($file);
 
             foreach ([
-                'cdn.tailwindcss.com'            => 'Tailwind Play CDN',
-                'font-awesome'                   => 'Font Awesome',
-                'fontawesome'                    => 'Font Awesome',
-                'fa-solid'                       => 'Font Awesome',
-                "family=Inter"                   => 'Inter font',
-                'family=Libre+Baskerville'        => 'Libre Baskerville font',
-                'family=Roboto'                  => 'Roboto font',
-                "font-family: 'Inter'"           => 'Inter font',
+                'cdn.tailwindcss.com' => 'Tailwind Play CDN',
+                'font-awesome' => 'Font Awesome',
+                'fontawesome' => 'Font Awesome',
+                'fa-solid' => 'Font Awesome',
+                'family=Inter' => 'Inter font',
+                'family=Libre+Baskerville' => 'Libre Baskerville font',
+                'family=Roboto' => 'Roboto font',
+                "font-family: 'Inter'" => 'Inter font',
             ] as $needle => $label) {
                 if (str_contains($contents, $needle)) {
-                    $offenders[] = $label . ' in ' . $this->relative($file);
+                    $offenders[] = $label.' in '.$this->relative($file);
                 }
             }
         }
 
-        $this->assertSame([], $offenders, "Legacy styling reintroduced:\n" . implode("\n", $offenders));
+        $this->assertSame([], $offenders, "Legacy styling reintroduced:\n".implode("\n", $offenders));
     }
 
     /**
@@ -222,15 +222,15 @@ class FrontendSmokeTest extends TestCase
     public function test_rendered_pages_parse_without_markup_errors(): void
     {
         $fishType = FishType::create([
-            'name'          => 'Bangus',
+            'name' => 'Bangus',
             'quality_class' => 'First Class',
-            'is_active'     => true,
+            'is_active' => true,
         ]);
 
         $problems = [];
 
         $pages = [
-            'guest:/'          => ['/', null],
+            'guest:/' => ['/', null],
         ];
 
         foreach (['supervisor', 'staff', 'vendor'] as $role) {
@@ -266,9 +266,9 @@ class FrontendSmokeTest extends TestCase
             $previous = libxml_use_internal_errors(true);
             libxml_clear_errors();
 
-            $doc = new \DOMDocument();
+            $doc = new \DOMDocument;
             $doc->loadHTML(
-                '<?xml encoding="utf-8" ?>' . $html,
+                '<?xml encoding="utf-8" ?>'.$html,
                 LIBXML_NOERROR | LIBXML_NOWARNING
             );
 
@@ -279,9 +279,9 @@ class FrontendSmokeTest extends TestCase
                 // and are not defects; everything else it complains about is.
                 fn ($e) => ! preg_match(
                     '/^Tag (?:header|main|section|nav|footer|article|aside|figure|'
-                    . 'figcaption|time|mark|summary|details|template|picture|search|'
-                    . 'dialog|slot|svg|path|line|circle|rect|polyline|polygon|g|'
-                    . 'defs|use|ellipse|text|tspan|defs)\b.*\binvalid\b/i',
+                    .'figcaption|time|mark|summary|details|template|picture|search|'
+                    .'dialog|slot|svg|path|line|circle|rect|polyline|polygon|g|'
+                    .'defs|use|ellipse|text|tspan|defs)\b.*\binvalid\b/i',
                     trim($e->message)
                 )
             );
@@ -290,11 +290,11 @@ class FrontendSmokeTest extends TestCase
             libxml_use_internal_errors($previous);
 
             foreach ($errors as $error) {
-                $problems[] = $label . ': ' . trim($error->message);
+                $problems[] = $label.': '.trim($error->message);
             }
         }
 
-        $this->assertSame([], array_slice(array_unique($problems), 0, 12), "Malformed markup:\n" . implode("\n", array_unique($problems)));
+        $this->assertSame([], array_slice(array_unique($problems), 0, 12), "Malformed markup:\n".implode("\n", array_unique($problems)));
     }
 
     /**
@@ -313,20 +313,20 @@ class FrontendSmokeTest extends TestCase
                 // a token name that lost its prefix surgery: text---color-x-500
                 '/\b(?:text|bg|border|fill|stroke)---color-/i' => 'double-dashed token class',
                 // <x-icon class="bi ..."> — the icon font hook leaked onto the component
-                '/<x-icon\b[^>]*\sclass="bi[\s"]/i'                    => 'icon font class leaked onto <x-icon>',
+                '/<x-icon\b[^>]*\sclass="bi[\s"]/i' => 'icon font class leaked onto <x-icon>',
                 // a class attribute that swallowed the following style attribute
-                '/\sclass="[^"]*\bstyle\s*=/'                           => 'class attribute swallowed a style attribute',
+                '/\sclass="[^"]*\bstyle\s*=/' => 'class attribute swallowed a style attribute',
                 // an <i>/<x-icon> class attribute that was never closed
-                '/<(?:i|x-icon)\s+class="[^">]+>/'                       => 'unterminated class attribute',
-                '/\sclass=""\s*\/?>/'                                   => 'empty class attribute',
+                '/<(?:i|x-icon)\s+class="[^">]+>/' => 'unterminated class attribute',
+                '/\sclass=""\s*\/?>/' => 'empty class attribute',
             ] as $pattern => $label) {
                 if (preg_match($pattern, $contents)) {
-                    $offenders[] = $label . ' in ' . $this->relative($file);
+                    $offenders[] = $label.' in '.$this->relative($file);
                 }
             }
         }
 
-        $this->assertSame([], $offenders, "Malformed attributes found:\n" . implode("\n", $offenders));
+        $this->assertSame([], $offenders, "Malformed attributes found:\n".implode("\n", $offenders));
     }
 
     /**
@@ -364,10 +364,10 @@ class FrontendSmokeTest extends TestCase
 
         $report = '';
         foreach ($missing as $name => $files) {
-            $report .= "  {$name} in " . implode(', ', array_unique($files)) . "\n";
+            $report .= "  {$name} in ".implode(', ', array_unique($files))."\n";
         }
 
-        $this->assertSame([], $missing, "Undefined CSS variables:\n" . $report);
+        $this->assertSame([], $missing, "Undefined CSS variables:\n".$report);
     }
 
     /**
@@ -402,6 +402,6 @@ class FrontendSmokeTest extends TestCase
 
     private function relative(string $path): string
     {
-        return str_replace(resource_path('views') . DIRECTORY_SEPARATOR, '', $path);
+        return str_replace(resource_path('views').DIRECTORY_SEPARATOR, '', $path);
     }
 }

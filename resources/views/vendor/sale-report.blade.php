@@ -207,7 +207,10 @@
                             </div>
                         </td>
                         <td class="px-4 py-3">
-                            <x-quality-badge :quality="$entry->quality_class" />
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                <x-quality-badge :quality="$entry->quality_class" />
+                                <x-session-badge :session="$entry->session()" />
+                            </div>
                         </td>
                         <td class="px-4 py-3 text-right text-[13px] font-semibold text-slate-700">
                             ₱{{ number_format($price, 2) }}
@@ -368,7 +371,7 @@
                                 <p class="text-[13px] font-semibold text-slate-700">
                                     {{ $entry->fishType?->name ?? 'Unknown' }}
                                 </p>
-                                <p class="text-[11px] text-slate-400">{{ $entry->quality_class }}</p>
+                                <p class="text-[11px] text-slate-400">{{ $entry->quality_class }} &middot; {{ $entry->session() }}</p>
                             </td>
                             <td class="px-4 py-3 text-right text-[12.5px] text-slate-500">
                                 {{ number_format((float) $entry->released_kg, 2) }} kg

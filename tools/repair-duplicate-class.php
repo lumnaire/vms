@@ -14,12 +14,11 @@
  *
  * Usage: php tools/repair-duplicate-class.php [--write]
  */
-
 $root = dirname(__DIR__);
 $write = in_array('--write', $argv, true);
 
 $it = new RecursiveIteratorIterator(
-    new RecursiveDirectoryIterator($root . '/resources/views')
+    new RecursiveDirectoryIterator($root.'/resources/views')
 );
 
 $fixedTags = 0;
@@ -50,9 +49,9 @@ function mergeTagClasses(string $tag): array
         }
     }
 
-    $merged  = 'class="' . implode(' ', array_keys($tokens)) . '"';
+    $merged = 'class="'.implode(' ', array_keys($tokens)).'"';
     $firstAt = $m[0][0][1];
-    $length  = strlen($m[0][0][0]);
+    $length = strlen($m[0][0][0]);
 
     // Replace the first occurrence, then delete the rest back-to-front so the
     // earlier offsets stay valid.
@@ -89,7 +88,7 @@ foreach ($it as $file) {
     if ($fixes > 0) {
         $files++;
         $fixedTags += $fixes;
-        printf("  %s (%d)\n", str_replace($root . '/resources/views/', '', $file->getPathname()), $fixes);
+        printf("  %s (%d)\n", str_replace($root.'/resources/views/', '', $file->getPathname()), $fixes);
 
         if ($write) {
             file_put_contents($file->getPathname(), $out);

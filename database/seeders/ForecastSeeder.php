@@ -24,7 +24,7 @@ class ForecastSeeder extends Seeder
 
         $fishTypes = FishType::where('is_active', true)->orderBy('name')->get();
         $generated = 0;
-        $skipped   = 0;
+        $skipped = 0;
 
         foreach ($fishTypes as $fishType) {
             foreach (FishType::QUALITY_CLASSES as $quality) {
@@ -39,6 +39,6 @@ class ForecastSeeder extends Seeder
         }
 
         $this->command->info("✅ ForecastSeeder: Generated {$generated} forecast series | Skipped {$skipped} (no data).");
-        $this->command->info('   📈 Horizon: ' . config('forecast.horizon') . ' day(s) per series.');
+        $this->command->info('   📈 Horizon: '.config('forecast.horizon').' day(s) per series.');
     }
 }

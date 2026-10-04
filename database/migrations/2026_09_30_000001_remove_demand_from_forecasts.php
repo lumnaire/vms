@@ -29,8 +29,8 @@ return new class extends Migration
 
         Schema::table('forecasts', function (Blueprint $table) {
             $table->enum('metric', ['price', 'supply'])
-                  ->default('price')
-                  ->change();
+                ->default('price')
+                ->change();
         });
     }
 
@@ -38,8 +38,8 @@ return new class extends Migration
     {
         Schema::table('forecasts', function (Blueprint $table) {
             $table->enum('metric', ['price', 'supply', 'demand'])
-                  ->default('price')
-                  ->change();
+                ->default('price')
+                ->change();
         });
 
         // Demand rows are projections, not history: they are regenerated rather

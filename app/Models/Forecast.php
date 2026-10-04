@@ -20,12 +20,12 @@ class Forecast extends Model
     ];
 
     protected $casts = [
-        'forecast_date'   => 'date',
+        'forecast_date' => 'date',
         'predicted_value' => 'decimal:2',
-        'predicted_min'   => 'decimal:2',
-        'predicted_max'   => 'decimal:2',
-        'arima_params'    => 'array',
-        'generated_at'    => 'datetime',
+        'predicted_min' => 'decimal:2',
+        'predicted_max' => 'decimal:2',
+        'arima_params' => 'array',
+        'generated_at' => 'datetime',
     ];
 
     public function fishType()

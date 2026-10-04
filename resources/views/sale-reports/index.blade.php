@@ -296,7 +296,7 @@
                         </div>
                     </td>
                     <td class="px-4 py-3 text-[13px] font-semibold text-slate-700">{{ $item->fish_type_name }}</td>
-                    <td class="px-4 py-3"><x-quality-badge :quality="$item->quality_class" /></td>
+                    <td class="px-4 py-3"><div class="flex items-center gap-1.5 flex-wrap"><x-quality-badge :quality="$item->quality_class" /><x-session-badge :session="$item->market_session ?? 'AM'" /></div></td>
                     <td class="px-4 py-3 text-right text-[13px] text-slate-600">
                         ₱{{ number_format((float) $item->price_per_kg, 2) }}
                     </td>

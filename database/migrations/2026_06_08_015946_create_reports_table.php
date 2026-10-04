@@ -11,13 +11,13 @@ return new class extends Migration
         Schema::create('reports', function (Blueprint $table) {
             $table->id();
             $table->foreignId('generated_by')
-                  ->constrained('users')
-                  ->restrictOnDelete(); // prevent deleting user who has reports
+                ->constrained('users')
+                ->restrictOnDelete(); // prevent deleting user who has reports
             $table->enum('report_type', [
                 'daily_price',
                 'supply_summary',
                 'forecast_summary',
-                'vendor_performance'
+                'vendor_performance',
             ]);
             $table->date('report_date');
             $table->json('report_data'); // stores the full report content

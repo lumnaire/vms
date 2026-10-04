@@ -32,10 +32,10 @@ class SaleReportTest extends TestCase
 
         if ($role === 'vendor') {
             VendorProfile::create([
-                'user_id'       => $user->id,
+                'user_id' => $user->id,
                 // Stall numbers are unique, so each vendor in a test gets its own.
-                'stall_number'  => 'A-'.str_pad((string) $user->id, 3, '0', STR_PAD_LEFT),
-                'business_name' => $user->name . ' Stall',
+                'stall_number' => 'A-'.str_pad((string) $user->id, 3, '0', STR_PAD_LEFT),
+                'business_name' => $user->name.' Stall',
             ]);
         }
 
@@ -45,9 +45,9 @@ class SaleReportTest extends TestCase
     private function makeFishType(string $name = 'Bangus'): FishType
     {
         return FishType::create([
-            'name'          => $name,
+            'name' => $name,
             'quality_class' => 'First Class',
-            'is_active'     => true,
+            'is_active' => true,
         ]);
     }
 
@@ -65,16 +65,16 @@ class SaleReportTest extends TestCase
         float $sold = 0.0
     ): VendorInventory {
         return VendorInventory::create([
-            'vendor_id'     => $vendor->id,
-            'fish_type_id'  => $fish->id,
+            'vendor_id' => $vendor->id,
+            'fish_type_id' => $fish->id,
             'quality_class' => $fish->quality_class,
-            'price_per_kg'  => $price,
-            'stock_kg'      => $released * 1.2,
-            'released_kg'   => $released,
-            'sold_kg'       => $sold,
-            'status'        => $status,
-            'entry_date'    => $date,
-            'is_locked'     => $date !== today()->toDateString(),
+            'price_per_kg' => $price,
+            'stock_kg' => $released * 1.2,
+            'released_kg' => $released,
+            'sold_kg' => $sold,
+            'status' => $status,
+            'entry_date' => $date,
+            'is_locked' => $date !== today()->toDateString(),
         ]);
     }
 
@@ -106,7 +106,7 @@ class SaleReportTest extends TestCase
         // bg-warning-50 belongs to the notice alone, so it is a reliable fence
         // on both sides of the block.
         $start = strpos($html, 'bg-warning-50 flex items-start');
-        $end   = strpos($html, 'Declared Sales');
+        $end = strpos($html, 'Declared Sales');
 
         if ($start === false || $end === false || $end <= $start) {
             return '';
@@ -115,14 +115,13 @@ class SaleReportTest extends TestCase
         return substr($html, $start, $end - $start);
     }
 
-
     // ─── The declaration itself ───────────────────────────────────
 
     public function test_vendor_declares_the_day_against_confirmed_entries(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fishA  = $this->makeFishType('Bangus');
-        $fishB  = $this->makeFishType('Tilapia');
+        $fishA = $this->makeFishType('Bangus');
+        $fishB = $this->makeFishType('Tilapia');
 
         $a = $this->makeEntry($vendor, $fishA, today()->toDateString(), released: 20.0, price: 250.0);
         $b = $this->makeEntry($vendor, $fishB, today()->toDateString(), released: 10.0, price: 120.0);
@@ -152,8 +151,8 @@ class SaleReportTest extends TestCase
     public function test_items_snapshot_the_trading_day_rather_than_pointing_at_it(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bisugo');
-        $entry  = $this->makeEntry($vendor, $fish, today()->toDateString(), price: 300.0);
+        $fish = $this->makeFishType('Bisugo');
+        $entry = $this->makeEntry($vendor, $fish, today()->toDateString(), price: 300.0);
 
         $this->actingAs($vendor)->post('/vendor/sale-report', $this->payload([$entry], [$entry->id => 5.0]));
 
@@ -174,7 +173,7 @@ class SaleReportTest extends TestCase
     public function test_unconfirmed_entries_are_not_reportable(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Hito');
+        $fish = $this->makeFishType('Hito');
 
         $pending = $this->makeEntry($vendor, $fish, today()->toDateString(), status: 'pending');
 
@@ -197,8 +196,8 @@ class SaleReportTest extends TestCase
     public function test_vendor_cannot_declare_more_than_was_released(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Pusit');
-        $entry  = $this->makeEntry($vendor, $fish, today()->toDateString(), released: 10.0);
+        $fish = $this->makeFishType('Pusit');
+        $entry = $this->makeEntry($vendor, $fish, today()->toDateString(), released: 10.0);
 
         $this->actingAs($vendor)
             ->from('/vendor/sale-report')
@@ -213,8 +212,8 @@ class SaleReportTest extends TestCase
     public function test_a_partial_declaration_is_rejected(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fishA  = $this->makeFishType('Bangus');
-        $fishB  = $this->makeFishType('Tilapia');
+        $fishA = $this->makeFishType('Bangus');
+        $fishB = $this->makeFishType('Tilapia');
 
         $a = $this->makeEntry($vendor, $fishA, today()->toDateString());
         $b = $this->makeEntry($vendor, $fishB, today()->toDateString());
@@ -234,8 +233,8 @@ class SaleReportTest extends TestCase
     public function test_vendor_cannot_declare_another_vendors_stock(): void
     {
         $vendor = $this->makeUser('vendor');
-        $other  = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Galunggong');
+        $other = $this->makeUser('vendor');
+        $fish = $this->makeFishType('Galunggong');
 
         $theirs = $this->makeEntry($other, $fish, today()->toDateString(), released: 50.0);
 
@@ -252,8 +251,8 @@ class SaleReportTest extends TestCase
     public function test_declaring_zero_sold_is_valid_and_still_records_the_day(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Maya-Maya');
-        $entry  = $this->makeEntry($vendor, $fish, today()->toDateString(), released: 8.0);
+        $fish = $this->makeFishType('Maya-Maya');
+        $entry = $this->makeEntry($vendor, $fish, today()->toDateString(), released: 8.0);
 
         $this->actingAs($vendor)->post('/vendor/sale-report', $this->payload([$entry], [$entry->id => 0.0]))
             ->assertRedirect('/vendor/sale-report')
@@ -272,8 +271,8 @@ class SaleReportTest extends TestCase
     public function test_the_day_can_be_revised_and_is_not_duplicated(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
-        $entry  = $this->makeEntry($vendor, $fish, today()->toDateString(), released: 20.0, price: 250.0);
+        $fish = $this->makeFishType('Bangus');
+        $entry = $this->makeEntry($vendor, $fish, today()->toDateString(), released: 20.0, price: 250.0);
 
         $this->actingAs($vendor)->post('/vendor/sale-report', $this->payload([$entry], [$entry->id => 5.0]));
 
@@ -293,8 +292,8 @@ class SaleReportTest extends TestCase
     public function test_an_entry_rejected_after_filing_drops_out_of_the_report(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fishA  = $this->makeFishType('Bangus');
-        $fishB  = $this->makeFishType('Tilapia');
+        $fishA = $this->makeFishType('Bangus');
+        $fishB = $this->makeFishType('Tilapia');
 
         $a = $this->makeEntry($vendor, $fishA, today()->toDateString(), released: 10.0, price: 200.0);
         $b = $this->makeEntry($vendor, $fishB, today()->toDateString(), released: 10.0, price: 100.0);
@@ -331,8 +330,8 @@ class SaleReportTest extends TestCase
         config(['inventory.sale_report_deadline' => '17:00']);
 
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
-        $entry  = $this->makeEntry($vendor, $fish, today()->toDateString());
+        $fish = $this->makeFishType('Bangus');
+        $entry = $this->makeEntry($vendor, $fish, today()->toDateString());
 
         $this->travelTo(now()->setTime(16, 59, 0));
 
@@ -361,8 +360,8 @@ class SaleReportTest extends TestCase
         config(['inventory.sale_report_deadline' => '17:00']);
 
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
-        $entry  = $this->makeEntry($vendor, $fish, today()->toDateString());
+        $fish = $this->makeFishType('Bangus');
+        $entry = $this->makeEntry($vendor, $fish, today()->toDateString());
 
         $this->actingAs($vendor)->post('/vendor/sale-report', $this->payload([$entry], [$entry->id => 2.0]));
 
@@ -376,8 +375,8 @@ class SaleReportTest extends TestCase
     public function test_a_previous_day_cannot_be_declared(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
-        $entry  = $this->makeEntry($vendor, $fish, today()->subDay()->toDateString(), released: 10.0);
+        $fish = $this->makeFishType('Bangus');
+        $entry = $this->makeEntry($vendor, $fish, today()->subDay()->toDateString(), released: 10.0);
 
         $this->actingAs($vendor)->post('/vendor/sale-report', $this->payload([$entry], [$entry->id => 5.0]))
             ->assertSessionHasErrors('items.'.$entry->id.'.total_kg');
@@ -388,8 +387,8 @@ class SaleReportTest extends TestCase
     public function test_the_form_states_the_deadline_and_prefills_a_revision(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
-        $entry  = $this->makeEntry($vendor, $fish, today()->toDateString(), released: 20.0);
+        $fish = $this->makeFishType('Bangus');
+        $entry = $this->makeEntry($vendor, $fish, today()->toDateString(), released: 20.0);
 
         $this->actingAs($vendor)->post('/vendor/sale-report', $this->payload([$entry], [$entry->id => 6.0]));
 
@@ -404,14 +403,14 @@ class SaleReportTest extends TestCase
     public function test_staff_and_supervisor_see_the_report_with_totals(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
-        $entry  = $this->makeEntry($vendor, $fish, today()->toDateString(), released: 20.0, price: 250.0);
+        $fish = $this->makeFishType('Bangus');
+        $entry = $this->makeEntry($vendor, $fish, today()->toDateString(), released: 20.0, price: 250.0);
 
         $this->actingAs($vendor)->post('/vendor/sale-report', $this->payload([$entry], [$entry->id => 8.0]));
 
         foreach (['staff', 'supervisor'] as $role) {
             $user = $this->makeUser($role);
-            $url  = $role === 'staff' ? '/staff/sale-reports' : '/supervisor/sale-reports';
+            $url = $role === 'staff' ? '/staff/sale-reports' : '/supervisor/sale-reports';
 
             $this->actingAs($user)->get($url)
                 ->assertOk()
@@ -421,7 +420,7 @@ class SaleReportTest extends TestCase
         }
     }
 
-/**
+    /**
      * Guards the whole class of bug rather than one page.
      *
      * Blade escapes {{ }}, so an HTML entity is safe as raw markup but becomes
@@ -431,7 +430,7 @@ class SaleReportTest extends TestCase
      */
     public function test_no_blade_template_echoes_or_passes_an_html_entity_as_a_prop(): void
     {
-        $props  = 'prefix|foot|label|unit|title|placeholder';
+        $props = 'prefix|foot|label|unit|title|placeholder';
         $entity = '&(?!(?:amp|lt|gt|quot|#39);)(?:[a-zA-Z]{2,10}|#\d+|#x[0-9a-fA-F]+);';
 
         $offenders = [];
@@ -443,7 +442,7 @@ class SaleReportTest extends TestCase
 
             foreach (preg_split('/\R/', $file->getContents()) ?: [] as $i => $line) {
                 $insideEcho = preg_match('/\{\{[^}]*'.$entity.'[^}]*\}\}/', $line);
-                $inProp     = preg_match('/\b(?:'.$props.')="\s*'.$entity.'/', $line);
+                $inProp = preg_match('/\b(?:'.$props.')="\s*'.$entity.'/', $line);
 
                 if ($insideEcho || $inProp) {
                     $offenders[] = $file->getRelativePathname().':'.($i + 1).'  '.trim($line);
@@ -463,12 +462,11 @@ class SaleReportTest extends TestCase
      * characters on the page instead of a peso sign. Asserting on the sign itself
      * is what pins this down.
      */
-
     public function test_currency_renders_as_a_peso_sign_not_an_html_entity(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
-        $entry  = $this->makeEntry($vendor, $fish, today()->toDateString(), released: 20.0, price: 250.0);
+        $fish = $this->makeFishType('Bangus');
+        $entry = $this->makeEntry($vendor, $fish, today()->toDateString(), released: 20.0, price: 250.0);
 
         $this->actingAs($vendor)->post('/vendor/sale-report', $this->payload([$entry], [$entry->id => 8.0]));
 
@@ -485,34 +483,34 @@ class SaleReportTest extends TestCase
     {
         $vendorA = $this->makeUser('vendor');
         $vendorB = $this->makeUser('vendor');
-        $fish    = $this->makeFishType('Bangus');
+        $fish = $this->makeFishType('Bangus');
 
         $todayA = $this->makeEntry($vendorA, $fish, today()->toDateString(), price: 100.0);
-        $oldB   = $this->makeEntry($vendorB, $fish, today()->subDays(4)->toDateString(), price: 100.0);
+        $oldB = $this->makeEntry($vendorB, $fish, today()->subDays(4)->toDateString(), price: 100.0);
 
         $this->actingAs($vendorA)->post('/vendor/sale-report', $this->payload([$todayA], [$todayA->id => 2.0]));
 
         // The table renders declared lines, so the second filing needs one.
         $oldReport = VendorSaleReport::create([
-            'vendor_id'      => $vendorB->id,
-            'report_date'    => today()->subDays(4)->toDateString(),
+            'vendor_id' => $vendorB->id,
+            'report_date' => today()->subDays(4)->toDateString(),
             'total_stock_kg' => 10.0,
-            'total_sold_kg'  => 5.0,
-            'total_value'    => 500.0,
-            'item_count'     => 1,
-            'submitted_at'   => now(),
+            'total_sold_kg' => 5.0,
+            'total_value' => 500.0,
+            'item_count' => 1,
+            'submitted_at' => now(),
         ]);
 
         VendorSaleReportItem::create([
             'vendor_sale_report_id' => $oldReport->id,
-            'vendor_inventory_id'   => $oldB->id,
-            'fish_type_id'          => $fish->id,
-            'fish_type_name'        => $fish->name,
-            'quality_class'         => $fish->quality_class,
-            'price_per_kg'          => 100.0,
-            'released_kg'           => 10.0,
-            'total_kg'              => 5.0,
-            'total_price'           => 500.0,
+            'vendor_inventory_id' => $oldB->id,
+            'fish_type_id' => $fish->id,
+            'fish_type_name' => $fish->name,
+            'quality_class' => $fish->quality_class,
+            'price_per_kg' => 100.0,
+            'released_kg' => 10.0,
+            'total_kg' => 5.0,
+            'total_price' => 500.0,
         ]);
 
         $supervisor = $this->makeUser('supervisor');
@@ -554,11 +552,11 @@ class SaleReportTest extends TestCase
 
     public function test_a_vendor_that_has_not_filed_is_called_out(): void
     {
-        $filer    = $this->makeUser('vendor');
+        $filer = $this->makeUser('vendor');
         $nonFiler = $this->makeUser('vendor');
-        $fish     = $this->makeFishType('Bangus');
+        $fish = $this->makeFishType('Bangus');
 
-        $filerEntry    = $this->makeEntry($filer, $fish, today()->toDateString());
+        $filerEntry = $this->makeEntry($filer, $fish, today()->toDateString());
         $nonFilerEntry = $this->makeEntry($nonFiler, $fish, today()->toDateString());
 
         $this->actingAs($filer)->post('/vendor/sale-report', $this->payload([$filerEntry], [$filerEntry->id => 3.0]));
@@ -579,11 +577,11 @@ class SaleReportTest extends TestCase
 
     public function test_the_outstanding_notice_survives_the_vendor_filter(): void
     {
-        $filer    = $this->makeUser('vendor');
+        $filer = $this->makeUser('vendor');
         $nonFiler = $this->makeUser('vendor');
-        $fish     = $this->makeFishType('Bangus');
+        $fish = $this->makeFishType('Bangus');
 
-        $filerEntry    = $this->makeEntry($filer, $fish, today()->toDateString());
+        $filerEntry = $this->makeEntry($filer, $fish, today()->toDateString());
         $nonFilerEntry = $this->makeEntry($nonFiler, $fish, today()->toDateString());
 
         $this->actingAs($filer)->post('/vendor/sale-report', $this->payload([$filerEntry], [$filerEntry->id => 3.0]));
@@ -604,10 +602,10 @@ class SaleReportTest extends TestCase
 
     public function test_a_vendor_with_no_confirmed_stock_is_not_expected_to_file(): void
     {
-        $filer   = $this->makeUser('vendor');
-        $idle    = $this->makeUser('vendor');
-        $fish    = $this->makeFishType('Bangus');
-        $entry   = $this->makeEntry($filer, $fish, today()->toDateString());
+        $filer = $this->makeUser('vendor');
+        $idle = $this->makeUser('vendor');
+        $fish = $this->makeFishType('Bangus');
+        $entry = $this->makeEntry($filer, $fish, today()->toDateString());
 
         $this->actingAs($filer)->post('/vendor/sale-report', $this->payload([$entry], [$entry->id => 3.0]));
 
@@ -622,8 +620,8 @@ class SaleReportTest extends TestCase
     public function test_the_calendar_marks_a_day_that_has_reports(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
-        $entry  = $this->makeEntry($vendor, $fish, today()->toDateString());
+        $fish = $this->makeFishType('Bangus');
+        $entry = $this->makeEntry($vendor, $fish, today()->toDateString());
 
         $this->actingAs($vendor)->post('/vendor/sale-report', $this->payload([$entry], [$entry->id => 1.0]));
 
@@ -644,11 +642,11 @@ class SaleReportTest extends TestCase
     public function test_unsold_stock_is_stale_once_it_passes_the_freshness_window(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
+        $fish = $this->makeFishType('Bangus');
         $window = config('inventory.stale_after_days');
 
         $fresh = $this->makeEntry($vendor, $fish, today()->subDays($window - 1)->toDateString(), released: 10.0, sold: 4.0);
-        $old   = $this->makeEntry($vendor, $fish, today()->subDays($window)->toDateString(), released: 10.0, sold: 4.0);
+        $old = $this->makeEntry($vendor, $fish, today()->subDays($window)->toDateString(), released: 10.0, sold: 4.0);
 
         $this->assertFalse($fresh->isStale());
         $this->assertSame($window - 1, $fresh->getAgeInDays());
@@ -664,8 +662,8 @@ class SaleReportTest extends TestCase
     public function test_sold_out_or_unconfirmed_stock_is_never_stale(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
-        $old    = today()->subDays(30)->toDateString();
+        $fish = $this->makeFishType('Bangus');
+        $old = today()->subDays(30)->toDateString();
 
         $soldOut = $this->makeEntry($vendor, $fish, $old, released: 10.0, sold: 10.0);
         $pending = $this->makeEntry($vendor, $fish, $old, released: 10.0, sold: 0.0, status: 'pending');
@@ -678,11 +676,11 @@ class SaleReportTest extends TestCase
     public function test_the_vendor_dashboard_alerts_on_stale_stock_only(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
+        $fish = $this->makeFishType('Bangus');
         $window = config('inventory.stale_after_days');
 
         $fresh = $this->makeEntry($vendor, $fish, today()->subDays(1)->toDateString(), released: 10.0, sold: 1.0);
-        $old   = $this->makeEntry($vendor, $fish, today()->subDays($window + 1)->toDateString(), released: 12.0, sold: 2.0);
+        $old = $this->makeEntry($vendor, $fish, today()->subDays($window + 1)->toDateString(), released: 12.0, sold: 2.0);
         $soldOut = $this->makeEntry($vendor, $fish, today()->subDays($window + 4)->toDateString(), released: 9.0, sold: 9.0);
 
         $response = $this->actingAs($vendor)->get('/vendor/dashboard')->assertOk();
@@ -701,7 +699,7 @@ class SaleReportTest extends TestCase
     public function test_the_dashboard_alert_caps_the_table_and_says_how_many_more(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
+        $fish = $this->makeFishType('Bangus');
         $window = config('inventory.stale_after_days');
 
         // More stale lines than the panel is willing to render.
@@ -724,7 +722,7 @@ class SaleReportTest extends TestCase
     public function test_the_inventory_history_flags_each_stale_line(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
+        $fish = $this->makeFishType('Bangus');
         $window = config('inventory.stale_after_days');
 
         $old = $this->makeEntry($vendor, $fish, today()->subDays($window + 2)->toDateString(), released: 10.0, sold: 3.0);
@@ -739,8 +737,8 @@ class SaleReportTest extends TestCase
     public function test_remaining_stock_on_the_board_comes_from_the_declaration(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
-        $entry  = $this->makeEntry($vendor, $fish, today()->toDateString(), released: 20.0, price: 250.0);
+        $fish = $this->makeFishType('Bangus');
+        $entry = $this->makeEntry($vendor, $fish, today()->toDateString(), released: 20.0, price: 250.0);
 
         $this->actingAs($vendor)->post('/vendor/sale-report', $this->payload([$entry], [$entry->id => 14.0]));
 

@@ -2,8 +2,8 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\FishType;
+use Illuminate\Database\Seeder;
 
 class FishTypeSeeder extends Seeder
 {
@@ -157,7 +157,7 @@ class FishTypeSeeder extends Seeder
                     ['name' => $name],
                     [
                         'quality_class' => $qualityClass,
-                        'is_active'     => true,
+                        'is_active' => true,
                     ]
                 );
             }

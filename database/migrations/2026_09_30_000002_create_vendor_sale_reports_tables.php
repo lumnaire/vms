@@ -30,8 +30,8 @@ return new class extends Migration
             $table->id();
 
             $table->foreignId('vendor_id')
-                  ->constrained('users')
-                  ->restrictOnDelete(); // a vendor with sale history is never deleted
+                ->constrained('users')
+                ->restrictOnDelete(); // a vendor with sale history is never deleted
 
             // The trading day being reported on. One report per vendor per day.
             $table->date('report_date');
@@ -55,14 +55,14 @@ return new class extends Migration
             $table->id();
 
             $table->foreignId('vendor_sale_report_id')
-                  ->constrained('vendor_sale_reports')
-                  ->cascadeOnDelete();
+                ->constrained('vendor_sale_reports')
+                ->cascadeOnDelete();
 
             // The confirmed entry this line declares sales against.
             $table->foreignId('vendor_inventory_id')
-                  ->unique() // one declaration per entry, so totals cannot double-count
-                  ->constrained('vendor_inventories')
-                  ->restrictOnDelete();
+                ->unique() // one declaration per entry, so totals cannot double-count
+                ->constrained('vendor_inventories')
+                ->restrictOnDelete();
 
             // Snapshots of the trading-day facts. See the migration docblock.
             $table->foreignId('fish_type_id')->constrained('fish_types')->restrictOnDelete();

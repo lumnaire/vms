@@ -16,10 +16,10 @@ class PriceGuide extends Model
     ];
 
     protected $casts = [
-        'cheap_max'      => 'decimal:2',
-        'moderate_max'   => 'decimal:2',
+        'cheap_max' => 'decimal:2',
+        'moderate_max' => 'decimal:2',
         'effective_date' => 'date',
-        'is_active'      => 'boolean',
+        'is_active' => 'boolean',
     ];
 
     public function fishType()

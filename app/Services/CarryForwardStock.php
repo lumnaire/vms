@@ -58,31 +58,42 @@ class CarryForwardStock
      *                          is what both entry points want: My Stock carries the
      *                          whole remaining figure, and the sale report carries
      *                          what the declaration showed was left.
+     * @param  string|null  $session  AM or PM for the new entry. Defaults to the
+     *                                source's own session, because a fish that was
+     *                                unsold at dawn is normally sold at dawn; a vendor
+     *                                only overrides it when the restock genuinely
+     *                                belongs to the other half of the day.
      *
      * @throws ValidationException
      */
-    public function carry(VendorInventory $source, CarbonInterface $date, ?float $kg = null): VendorInventory
-    {
-        $date  = Carbon::parse($date)->startOfDay();
-        $kg    = $this->assertCanCarry($source, $date, $kg);
+    public function carry(
+        VendorInventory $source,
+        CarbonInterface $date,
+        ?float $kg = null,
+        ?string $session = null
+    ): VendorInventory {
+        $date = Carbon::parse($date)->startOfDay();
+        $kg = $this->assertCanCarry($source, $date, $kg, $session);
+        $session ??= $source->session();
 
-        $carried = DB::transaction(function () use ($source, $date, $kg) {
+        $carried = DB::transaction(function () use ($source, $date, $kg, $session) {
             $entry = VendorInventory::create([
-                'vendor_id'       => $source->vendor_id,
-                'fish_type_id'    => $source->fish_type_id,
-                'quality_class'   => $source->quality_class,
+                'vendor_id' => $source->vendor_id,
+                'fish_type_id' => $source->fish_type_id,
+                'quality_class' => $source->quality_class,
+                'market_session' => $session,
                 // The price staff agreed is the price this fish is still worth, so
                 // the carry-forward carries it across rather than inventing one.
                 // A vendor who wants to re-price their stock submits a new entry;
                 // staff see this one as the same fish at the same price, which is
                 // exactly what it is.
-                'price_per_kg'    => $source->price_per_kg,
-                'stock_kg'        => $kg,
-                'released_kg'     => $kg,
-                'sold_kg'         => 0,
-                'status'          => 'pending',
-                'entry_date'      => $date->toDateString(),
-                'is_locked'       => false,
+                'price_per_kg' => $source->price_per_kg,
+                'stock_kg' => $kg,
+                'released_kg' => $kg,
+                'sold_kg' => 0,
+                'status' => 'pending',
+                'entry_date' => $date->toDateString(),
+                'is_locked' => false,
                 'carried_from_id' => $source->id,
             ]);
 
@@ -92,12 +103,13 @@ class CarryForwardStock
         });
 
         ActivityLog::create([
-            'user_id'     => auth()->id(),
-            'action'      => 'carry_forward_stock',
-            'description' => 'Resubmitted ' . number_format($kg, 2) . ' kg of '
-                . ($source->fishType?->name ?? 'fish') . ' (' . $source->quality_class . ') from '
-                . $source->entry_date->format('M j, Y') . ' to ' . $date->format('M j, Y')
-                . ' — entry #' . $carried->id . ' awaits staff confirmation.',
+            'user_id' => auth()->id(),
+            'action' => 'carry_forward_stock',
+            'description' => 'Resubmitted '.number_format($kg, 2).' kg of '
+                .($source->fishType?->name ?? 'fish').' ('.$source->quality_class.', '
+                .$session.') from '
+                .$source->entry_date->format('M j, Y').' to '.$date->format('M j, Y')
+                .' — entry #'.$carried->id.' awaits staff confirmation.',
         ]);
 
         return $carried;
@@ -114,9 +126,14 @@ class CarryForwardStock
      *
      * @throws ValidationException
      */
-    public function assertCanCarry(VendorInventory $source, CarbonInterface $date, ?float $kg = null): float
-    {
+    public function assertCanCarry(
+        VendorInventory $source,
+        CarbonInterface $date,
+        ?float $kg = null,
+        ?string $session = null
+    ): float {
         $date = Carbon::parse($date)->startOfDay();
+        $session = $this->assertSession($session) ?? $source->session();
 
         // The entry's own rules come first, so a hand-built request is refused for
         // the same reason the page hides the button. The day matters: today's
@@ -127,7 +144,7 @@ class CarryForwardStock
         }
 
         $remaining = $source->getRemainingStock();
-        $kg       = $kg === null ? $remaining : round($kg, 2);
+        $kg = $kg === null ? $remaining : round($kg, 2);
 
         if ($kg <= 0) {
             throw ValidationException::withMessages([
@@ -137,15 +154,45 @@ class CarryForwardStock
 
         if ($kg > $remaining + 0.001) {
             throw ValidationException::withMessages([
-                'stock' => "You only have " . number_format($remaining, 2) . ' kg left on that entry.',
+                'stock' => 'You only have '.number_format($remaining, 2).' kg left on that entry.',
             ]);
         }
 
         $this->guardDate($source, $date);
 
-        $this->guardNoClashOnTargetDay($source, $date);
+        // No "one entry per fish per session per day" check here. A vendor may hold
+        // several lines of the same fish in the same session — two morning
+        // deliveries are two real deliveries — so a carried line sitting beside a
+        // fresh one is honest. What would double-count stock is carrying the SAME
+        // kilograms twice, and that is already refused: the source is marked
+        // carried_out_at on the first carry, and resubmitBlocker() refuses it after.
 
         return $kg;
+    }
+
+    /**
+     * Resolve a requested session, refusing anything that is not a real one.
+     *
+     * Absent means "keep the source's session", which is why null is allowed
+     * through rather than being defaulted here — the caller needs the resolved
+     * value too, and asserting it in both places would let the check and the write
+     * disagree.
+     *
+     * @throws ValidationException
+     */
+    private function assertSession(?string $session): ?string
+    {
+        if ($session === null || $session === '') {
+            return null;
+        }
+
+        if (! in_array($session, VendorInventory::SESSIONS, true)) {
+            throw ValidationException::withMessages([
+                'market_session' => 'Choose a trading session: AM or PM.',
+            ]);
+        }
+
+        return $session;
     }
 
     /**
@@ -181,25 +228,25 @@ class CarryForwardStock
         if (! $entry->isStale()) {
             throw ValidationException::withMessages([
                 'stock' => 'Only stock that is past the '
-                    . config('inventory.stale_after_days') . '-day freshness window can be reported as written off. '
-                    . 'Sell it or resubmit it on another day instead.',
+                    .config('inventory.stale_after_days').'-day freshness window can be reported as written off. '
+                    .'Sell it or resubmit it on another day instead.',
             ]);
         }
 
         $writtenOff = $entry->getRemainingStock();
 
         $entry->update([
-            'disposed_at'     => now(),
+            'disposed_at' => now(),
             'disposed_reason' => $reason ?: null,
         ]);
 
         ActivityLog::create([
-            'user_id'     => auth()->id(),
-            'action'      => 'dispose_stock',
-            'description' => 'Reported ' . number_format($writtenOff, 2) . ' kg of '
-                . ($entry->fishType?->name ?? 'fish') . ' (' . $entry->quality_class . ') from '
-                . $entry->entry_date->format('M j, Y') . ' as written off'
-                . ($reason ? ": {$reason}" : '.') . ' Held ' . $entry->getAgeInDays() . ' days.',
+            'user_id' => auth()->id(),
+            'action' => 'dispose_stock',
+            'description' => 'Reported '.number_format($writtenOff, 2).' kg of '
+                .($entry->fishType?->name ?? 'fish').' ('.$entry->quality_class.') from '
+                .$entry->entry_date->format('M j, Y').' as written off'
+                .($reason ? ": {$reason}" : '.').' Held '.$entry->getAgeInDays().' days.',
         ]);
 
         return $entry;
@@ -221,32 +268,7 @@ class CarryForwardStock
 
         if ($date->gt(today()->startOfDay()->addDays(self::MAX_DAYS_AHEAD))) {
             throw ValidationException::withMessages([
-                'carry_date' => 'Stock can only be loaded up to ' . self::MAX_DAYS_AHEAD . ' days ahead.',
-            ]);
-        }
-    }
-
-    /**
-     * One entry per fish and quality class per day, on submission and on carry.
-     *
-     * The source is excluded from the lookup on purpose. It is normally the entry
-     * already sitting on the target day, and counting it would make a same-day
-     * resubmission look like a duplicate of itself.
-     */
-    private function guardNoClashOnTargetDay(VendorInventory $source, Carbon $date): void
-    {
-        $clashes = VendorInventory::where('vendor_id', $source->vendor_id)
-            ->where('fish_type_id', $source->fish_type_id)
-            ->where('quality_class', $source->quality_class)
-            ->whereDate('entry_date', $date->toDateString())
-            ->where('id', '!=', $source->id)
-            ->exists();
-
-        if ($clashes) {
-            throw ValidationException::withMessages([
-                'stock' => 'You already have a ' . $source->quality_class . ' entry for '
-                    . ($source->fishType?->name ?? 'this fish') . ' on '
-                    . $date->format('M j, Y') . '. Cancel it first, or add to it on My Inventory.',
+                'carry_date' => 'Stock can only be loaded up to '.self::MAX_DAYS_AHEAD.' days ahead.',
             ]);
         }
     }

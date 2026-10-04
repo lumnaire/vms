@@ -116,6 +116,11 @@
             $guide    = $priceGuides->get($guideKey);
             $compPeers = $confirmedToday->get($guideKey, collect());
 
+            // This vendor's other lines of the same fish and class today.
+            $siblings = $vendorLinesToday->get($entry->repeatKey(), collect())
+                ->reject(fn ($e) => $e->id === $entry->id);
+            $siblingConfirmedKg = (float) $siblings->filter(fn ($e) => $e->isConfirmed())->sum('released_kg');
+
             // Price label
             $priceLabel = null;
             $priceLabelClass = '';
@@ -169,8 +174,11 @@
                         </div>
 
                         <div class="rounded-lg px-3 py-2.5 bg-surface-subtle border border-slate-200">
-                            <p class="text-slate-400 text-[10px] font-semibold uppercase" style="letter-spacing: 0.06em">Quality</p>
-                            <p class="text-slate-700 font-semibold mt-0.5 text-[13px]">{{ $entry->quality_class }}</p>
+                            <p class="text-slate-400 text-[10px] font-semibold uppercase" style="letter-spacing: 0.06em">Quality &middot; Session</p>
+                            <div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                <p class="text-slate-700 font-semibold text-[13px]">{{ $entry->quality_class }}</p>
+                                <x-session-badge :session="$entry->session()" />
+                            </div>
                         </div>
 
                         <div class="rounded-lg px-3 py-2.5 bg-surface-subtle border border-slate-200">
@@ -195,6 +203,31 @@
                         </div>
 
                     </div>
+
+                    {{-- Repeat submission: the vendor's other lines of this fish today --}}
+                    @if($siblings->isNotEmpty())
+                    <div class="mt-3 rounded-lg px-3 py-2.5 bg-warning-50 border border-warning-200">
+                        <p class="flex items-center gap-1.5 text-[11px] font-semibold text-warning-800">
+                            <x-icon name="bi-layers-fill" size="xs" />
+                            Repeat submission &mdash; {{ $siblings->count() + 1 }} lines of {{ $entry->fishType->name }} ({{ $entry->quality_class }}) from this vendor today
+                        </p>
+                        <ul class="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
+                            @foreach($siblings as $sibling)
+                                <li class="flex items-center gap-1.5 text-[11px] text-slate-600 {{ $sibling->isRejected() ? 'line-through opacity-60' : '' }}">
+                                    <x-session-badge :session="$sibling->session()" />
+                                    {{ number_format((float) $sibling->released_kg, 1) }} kg
+                                    @ ₱{{ number_format((float) $sibling->price_per_kg, 2) }}
+                                    <span class="text-slate-400">({{ $sibling->status }}, {{ $sibling->created_at->format('g:i A') }})</span>
+                                </li>
+                            @endforeach
+                        </ul>
+                        <p class="mt-1.5 text-[11px] text-warning-800">
+                            Approving brings this vendor's confirmed total to
+                            <strong>{{ number_format($siblingConfirmedKg + (float) $entry->released_kg, 1) }} kg</strong>
+                            ({{ number_format($siblingConfirmedKg, 1) }} kg already confirmed).
+                        </p>
+                    </div>
+                    @endif
 
                     {{-- Price comparison row --}}
                     @if($guide || $compPeers->isNotEmpty())
@@ -242,6 +275,7 @@
                             data-url="{{ route('staff.confirmations.approve', $entry) }}"
                             data-fish="{{ $entry->fishType->name }}"
                             data-quality="{{ $entry->quality_class }}"
+                            data-session="{{ $entry->session() }}"
                             data-price="{{ number_format($entry->price_per_kg, 2) }}"
                             data-vendor="{{ $entry->vendor->name }}"
                             data-stall="{{ $entry->vendor->vendorProfile->stall_number ?? '' }}"
@@ -261,6 +295,7 @@
                             data-url="{{ route('staff.confirmations.reject', $entry) }}"
                             data-fish="{{ $entry->fishType->name }}"
                             data-quality="{{ $entry->quality_class }}"
+                            data-session="{{ $entry->session() }}"
                             data-price="{{ number_format($entry->price_per_kg, 2) }}"
                             data-vendor="{{ $entry->vendor->name }}"
                             style="background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; cursor: pointer"
@@ -380,7 +415,7 @@
 
         // ── Populate entry details ─────────────────────────────
         document.getElementById('mFish').textContent    = btn.dataset.fish;
-        document.getElementById('mQuality').textContent = btn.dataset.quality + ' Class';
+        document.getElementById('mQuality').textContent = btn.dataset.quality + ' Class · ' + btn.dataset.session;
         document.getElementById('mPrice').textContent   = '₱' + btn.dataset.price;
         document.getElementById('mVendor').textContent  = btn.dataset.vendor;
 
@@ -450,3 +485,4 @@
 @endpush
 
 @endsection
+

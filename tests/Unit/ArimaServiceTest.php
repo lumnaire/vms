@@ -76,7 +76,7 @@ class ArimaServiceTest extends TestCase
             $this->assertNotEquals(
                 $params['phi'],
                 $params['theta'],
-                "theta collapsed onto phi for series: " . implode(', ', $series)
+                'theta collapsed onto phi for series: '.implode(', ', $series)
             );
         }
     }

@@ -22,12 +22,11 @@
  *   php tools/migrate-inline-styles.php          # report only
  *   php tools/migrate-inline-styles.php --write  # apply
  */
-
 $root = dirname(__DIR__);
 $write = in_array('--write', $argv, true);
 
 // ── 1. Parse the token palette out of app.css ────────────────────────────────
-$css = file_get_contents($root . '/resources/css/app.css');
+$css = file_get_contents($root.'/resources/css/app.css');
 
 preg_match_all('/(--color-([a-z]+)-(\d+))\s*:\s*(#[0-9a-fA-F]{3,8})\s*;/', $css, $m, PREG_SET_ORDER);
 
@@ -48,8 +47,9 @@ function rgb(string $hex): array
 {
     $hex = ltrim($hex, '#');
     if (strlen($hex) === 3) {
-        $hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
+        $hex = $hex[0].$hex[0].$hex[1].$hex[1].$hex[2].$hex[2];
     }
+
     return [
         hexdec(substr($hex, 0, 2)),
         hexdec(substr($hex, 2, 2)),
@@ -63,6 +63,7 @@ function distance(array $a, array $b): float
     $dr = $a[0] - $b[0];
     $dg = $a[1] - $b[1];
     $db = $a[2] - $b[2];
+
     return sqrt(0.30 * $dr * $dr + 0.59 * $dg * $dg + 0.11 * $db * $db);
 }
 
@@ -153,12 +154,12 @@ function familyFor(string $hex): array
 function nearest(string $hex, array $ramp, string $property): ?string
 {
     $prefix = match ($property) {
-        'color'   => 'text-',
+        'color' => 'text-',
         'background' => 'bg-',
         'border-color', 'border' => 'border-',
-        'fill'    => 'fill-',
-        'stroke'  => 'stroke-',
-        default   => null,
+        'fill' => 'fill-',
+        'stroke' => 'stroke-',
+        default => null,
     };
 
     if ($prefix === null) {
@@ -196,7 +197,7 @@ function nearest(string $hex, array $ramp, string $property): ?string
         if ($best !== null && $bestD <= 28) {
             // Token keys look like --color-success-500; the utility wants
             // success-500.
-            return $prefix . preg_replace('/^--color-/', '', $best);
+            return $prefix.preg_replace('/^--color-/', '', $best);
         }
     }
 
@@ -248,16 +249,15 @@ $changedIcons = 0;
 $changedColors = 0;
 $unmapped = [];
 
-
 // ── 3. Walk the templates ───────────────────────────────────────────────────
-$it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root . '/resources/views'));
+$it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root.'/resources/views'));
 foreach ($it as $file) {
     if (! $file->isFile() || $file->getExtension() !== 'php') {
         continue;
     }
 
     $path = $file->getPathname();
-    $rel = str_replace($root . '/', '', $path);
+    $rel = str_replace($root.'/', '', $path);
     $src = file_get_contents($path);
     $original = $src;
 
@@ -306,8 +306,9 @@ foreach ($it as $file) {
                     } else {
                         // No scale step this small; keep the declaration.
                         $unmapped["font-size:{$px}px"][] = $rel;
-                        $residual[] = $prop . ':' . $value;
+                        $residual[] = $prop.':'.$value;
                     }
+
                     continue;
                 }
 
@@ -322,39 +323,42 @@ foreach ($it as $file) {
 
                     if ($util) {
                         $utilities[] = $util;
+
                         continue;
                     }
                     $unmapped[$hex][] = $rel;
                 }
 
-                $residual[] = $prop . ':' . $value;
+                $residual[] = $prop.':'.$value;
             }
 
             // Fully consumed: emit the component.
             if (empty($residual) && ($size || $utilities)) {
                 $changedIcons++;
-                $attr = 'name="' . $iconName . '"';
+                $attr = 'name="'.$iconName.'"';
                 if ($size) {
-                    $attr .= ' size="' . $size . '"';
+                    $attr .= ' size="'.$size.'"';
                 }
                 if ($utilities) {
-                    $attr .= ' class="' . implode(' ', array_unique($utilities)) . '"';
+                    $attr .= ' class="'.implode(' ', array_unique($utilities)).'"';
                 }
-                return '<x-icon ' . $attr . ' />';
+
+                return '<x-icon '.$attr.' />';
             }
 
             // Partially consumed: keep <i> but drop what we mapped. The icon
             // font hook has to stay for the glyph to render, and the class
             // attribute MUST be closed before the style attribute is opened.
-            $out = '<i class="bi ' . $iconName;
+            $out = '<i class="bi '.$iconName;
             if ($utilities) {
-                $out .= ' ' . implode(' ', array_unique($utilities));
+                $out .= ' '.implode(' ', array_unique($utilities));
             }
             $out .= '"';
             if ($residual) {
-                $out .= ' style="' . implode('; ', $residual) . '"';
+                $out .= ' style="'.implode('; ', $residual).'"';
             }
-            return $out . '></i>';
+
+            return $out.'></i>';
         },
         $src
     );

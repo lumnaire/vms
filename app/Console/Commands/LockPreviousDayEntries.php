@@ -21,7 +21,8 @@ use Illuminate\Console\Command;
  */
 class LockPreviousDayEntries extends Command
 {
-    protected $signature   = 'inventory:lock';
+    protected $signature = 'inventory:lock';
+
     protected $description = 'Lock all vendor inventory entries from previous days (is_locked = true).';
 
     public function handle(): int
@@ -32,13 +33,14 @@ class LockPreviousDayEntries extends Command
 
         // Activity log entry (system-level, no user_id)
         ActivityLog::create([
-            'user_id'     => null,
-            'action'      => 'inventory_lock',
+            'user_id' => null,
+            'action' => 'inventory_lock',
             'description' => "Locked {$count} inventory entries from previous days.",
-            'logged_at'   => now(),
+            'logged_at' => now(),
         ]);
 
         $this->info("[VPM] Locked {$count} inventory entries.");
+
         return self::SUCCESS;
     }
 }

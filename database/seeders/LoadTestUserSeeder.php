@@ -2,10 +2,10 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
 use App\Models\User;
 use App\Models\VendorProfile;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class LoadTestUserSeeder extends Seeder
 {
@@ -33,10 +33,10 @@ class LoadTestUserSeeder extends Seeder
         User::updateOrCreate(
             ['username' => 'loadtest_supervisor'],
             [
-                'name'       => 'Load Test Supervisor',
-                'password'   => Hash::make('TEST_PASSWORD'),
-                'role'       => 'supervisor',
-                'status'     => 'active',
+                'name' => 'Load Test Supervisor',
+                'password' => Hash::make('TEST_PASSWORD'),
+                'role' => 'supervisor',
+                'status' => 'active',
                 'created_by' => null,
             ]
         );
@@ -46,10 +46,10 @@ class LoadTestUserSeeder extends Seeder
         $staff = User::updateOrCreate(
             ['username' => 'loadtest_staff'],
             [
-                'name'       => 'Load Test Staff',
-                'password'   => Hash::make('TEST_PASSWORD'),
-                'role'       => 'staff',
-                'status'     => 'active',
+                'name' => 'Load Test Staff',
+                'password' => Hash::make('TEST_PASSWORD'),
+                'role' => 'staff',
+                'status' => 'active',
                 'created_by' => null,
             ]
         );
@@ -59,10 +59,10 @@ class LoadTestUserSeeder extends Seeder
         $vendor = User::updateOrCreate(
             ['username' => 'loadtest_vendor'],
             [
-                'name'       => 'Load Test Vendor',
-                'password'   => Hash::make('TEST_PASSWORD'),
-                'role'       => 'vendor',
-                'status'     => 'active',
+                'name' => 'Load Test Vendor',
+                'password' => Hash::make('TEST_PASSWORD'),
+                'role' => 'vendor',
+                'status' => 'active',
                 'created_by' => $staff->id,
             ]
         );

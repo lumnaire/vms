@@ -14,12 +14,11 @@
  *
  * Usage: php tools/repair-swallowed-style.php [--write]
  */
-
 $root = dirname(__DIR__);
 $write = in_array('--write', $argv, true);
 
 $it = new RecursiveIteratorIterator(
-    new RecursiveDirectoryIterator($root . '/resources/views')
+    new RecursiveDirectoryIterator($root.'/resources/views')
 );
 
 $fixed = 0;
@@ -38,7 +37,8 @@ foreach ($it as $file) {
         '/class="([^"]*?)\s+style="([^"]*)"/',
         function (array $m) {
             $classes = trim($m[1]);
-            return 'class="' . $classes . '" style="' . $m[2] . '"';
+
+            return 'class="'.$classes.'" style="'.$m[2].'"';
         },
         $src
     );
@@ -54,7 +54,7 @@ foreach ($it as $file) {
     $out = preg_replace_callback(
         '/(<(?:i|x-icon)\s+class=")((?:[^">])+)(\s*\/?>)/',
         function (array $m) {
-            return $m[1] . trim($m[2]) . '"' . $m[3];
+            return $m[1].trim($m[2]).'"'.$m[3];
         },
         $out ?? $src
     );
@@ -62,7 +62,7 @@ foreach ($it as $file) {
     if ($out !== null && $out !== $src) {
         $files++;
         $fixed += preg_match_all('/class="[^"]*\bstyle\s*=/', $src);
-        printf("  %s\n", str_replace($root . '/', '', $path));
+        printf("  %s\n", str_replace($root.'/', '', $path));
         if ($write) {
             file_put_contents($path, $out);
         }

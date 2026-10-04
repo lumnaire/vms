@@ -189,6 +189,7 @@
                                     </p>
                                     <p class="text-[11px] text-slate-400">
                                         ₱{{ number_format((float) $entry->price_per_kg, 2) }} per kg &middot;
+                                        {{ $entry->session() }} &middot;
                                         {{ $entry->carried_from_id ? 'carried forward' : 'new stock' }}
                                     </p>
                                 </div>
@@ -350,7 +351,7 @@
                             <p class="font-semibold text-[13px] text-slate-700">
                                 {{ $entry->fishType?->name ?? 'Unknown' }}
                             </p>
-                            <p class="text-[11px] text-slate-400">{{ $entry->quality_class }}</p>
+                            <p class="text-[11px] text-slate-400">{{ $entry->quality_class }} &middot; {{ $entry->session() }}</p>
                         </td>
                         <td class="px-4 py-3 text-[12.5px] text-slate-600">
                             {{ $entry->entry_date->format('M j, Y') }}

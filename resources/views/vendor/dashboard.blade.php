@@ -7,6 +7,12 @@
 
 @section('content')
 
+<x-alert class="mb-5" />
+
+@if($errors->any() && ! old('add_stock_entry'))
+    <x-alert variant="error" :message="$errors->first()" class="mb-5" />
+@endif
+
 {{-- ── Welcome Banner ──────────────────────────────────────── --}}
 <div class="rounded-xl p-5 mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 overflow-hidden relative"
      style="background: linear-gradient(135deg, #0f2d5e 0%, #1a4a8a 100%); box-shadow: 0 4px 14px rgba(15,45,94,0.3);">
@@ -225,11 +231,17 @@
                         <th class="px-5 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
                            >Quality</th>
                         <th class="px-5 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
+                           >Session</th>
+                        <th class="px-5 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
                            >Price / kg</th>
                         <th class="px-5 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
                            >Stock (kg)</th>
                         <th class="px-5 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
+                           >Left (kg)</th>
+                        <th class="px-5 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
                            >Status</th>
+                        <th class="px-5 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em] text-center"
+                           >Action</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-50">
@@ -241,11 +253,18 @@
                         <td class="px-5 py-3 text-slate-500 text-[12px]">
                             {{ $item->quality_class }}
                         </td>
+                        <td class="px-5 py-3">
+                            <x-session-badge :session="$item->session()" />
+                        </td>
                         <td class="px-5 py-3 text-slate-700 text-[12px]">
                             ₱{{ number_format($item->price_per_kg, 2) }}
                         </td>
                         <td class="px-5 py-3 text-slate-700 text-[12px]">
                             {{ number_format($item->stock_kg, 1) }} kg
+                        </td>
+                        {{-- Released minus declared sold, the same figure the price board shows. --}}
+                        <td class="px-5 py-3 text-[12px] font-semibold {{ $item->isConfirmed() ? 'text-slate-700' : 'text-slate-300' }}">
+                            {{ $item->isConfirmed() ? number_format($item->getRemainingStock(), 1) . ' kg' : '—' }}
                         </td>
                         <td class="px-5 py-3">
                             @if($item->status === 'confirmed')
@@ -265,6 +284,13 @@
                                 </span>
                             @endif
                         </td>
+                        <td class="px-5 py-3 text-center">
+                            @if($item->canAddStock())
+                                @include('vendor.partials.add-stock-button', ['entry' => $item])
+                            @else
+                                <span class="text-slate-300 text-[11px]" title="{{ $item->addStockBlocker() }}">&mdash;</span>
+                            @endif
+                        </td>
                     </tr>
                     @endforeach
                 </tbody>
@@ -273,5 +299,7 @@
     @endif
 
 </div>
+
+@include('vendor.partials.add-stock-modal')
 
 @endsection

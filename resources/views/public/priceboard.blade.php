@@ -329,76 +329,33 @@
         .pb-stock-low  { color: var(--color-danger-600); }
         .pb-stock-ok   { color: var(--color-slate-700); }
 
-        /* Card view */
-        .pb-cardgrid {
+        /* ── Vendor cards ────────────────────────────────────────────────
+           One card per vendor, listing every fish they sell today. Each fish
+           shows its AM / PM deliveries and what is still for sale across them. */
+        .pb-vgrid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
             gap: 1rem;
+            align-items: start;
         }
-        .pb-card { overflow: hidden; }
-        .pb-card-top { background-image: linear-gradient(135deg, var(--color-navy-800), var(--color-brand-600)); }
-        .pb-cardfish { color: #fff; font-size: 1rem; font-weight: 700; }
-        .pb-cardvendor { color: rgb(255 255 255 / 0.72); font-size: 0.75rem; margin-top: 2px; }
-        .pb-cardmedia {
-            position: relative;
-            width: 100%;
-            height: 110px;
-            overflow: hidden;
+        @media (max-width: 420px) {
+            .pb-vgrid { grid-template-columns: 1fr; }
         }
-        .pb-cardmedia img { width: 100%; height: 100%; object-fit: cover; display: block; }
-        .pb-cardmedia::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(to top, rgb(10 31 60 / 0.88) 0%, rgb(10 31 60 / 0.2) 60%, transparent 100%);
-        }
-        .pb-cardoverlay {
-            position: absolute;
-            bottom: 10px;
-            left: 14px;
-            right: 14px;
-            display: flex;
-            align-items: flex-end;
-            justify-content: space-between;
-            gap: 0.5rem;
-            z-index: 1;
-        }
-        .pb-pill-onbrand {
-            white-space: nowrap;
-            font-size: 0.65rem;
-            background: rgb(255 255 255 / 0.2);
-            color: #fff;
-            border: 1px solid rgb(255 255 255 / 0.35);
-        }
-        .pb-pricerow { display: flex; align-items: baseline; gap: 3px; margin-bottom: 0.75rem; }
-        .pb-peso { font-size: 1rem; font-weight: 600; color: var(--color-slate-500); }
-        .pb-pricenum { font-size: 1.85rem; font-weight: 800; color: var(--color-slate-900); line-height: 1; }
-        .pb-priceunit { font-size: 0.8rem; color: var(--color-slate-400); align-self: flex-end; padding-bottom: 3px; }
-        .pb-cardmeta {
-            display: flex;
-            align-items: center;
-            font-size: 0.8rem;
-        }
-        .pb-cardstock { display: flex; align-items: center; gap: 5px; color: var(--color-slate-600); }
-
-        /* Grouped-by-vendor view */
-        .pb-vendor-section { margin-bottom: 1.25rem; }
-        .pb-vendor-header {
+        .pb-vcard { overflow: hidden; }
+        .pb-vhead {
             display: flex;
             align-items: center;
             gap: 0.75rem;
-            background: var(--color-surface);
-            border: 1px solid var(--color-slate-200);
-            border-bottom: 2px solid var(--color-brand-600);
-            border-radius: var(--radius-card) var(--radius-card) 0 0;
-            padding: 0.85rem 1.25rem;
+            padding: 0.9rem 1.1rem;
+            background-image: linear-gradient(135deg, var(--color-navy-800), var(--color-brand-600));
         }
-        .pb-vendor-avatar {
-            width: 38px;
-            height: 38px;
+        .pb-vavatar {
+            width: 40px;
+            height: 40px;
             border-radius: var(--radius-control);
-            background: var(--color-brand-50);
-            color: var(--color-brand-600);
+            background: rgb(255 255 255 / 0.16);
+            border: 1px solid rgb(255 255 255 / 0.28);
+            color: #fff;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -406,36 +363,62 @@
             font-size: 0.85rem;
             flex-shrink: 0;
         }
-        .pb-vendor-name { font-weight: 700; color: var(--color-slate-900); font-size: 0.95rem; }
-        .pb-vendor-stall { font-size: 0.75rem; color: var(--color-slate-500); }
-        .pb-vendor-count {
-            margin-left: auto;
-            background: var(--color-brand-50);
-            color: var(--color-brand-600);
-            font-size: 0.75rem;
-            font-weight: 600;
-            padding: 3px 10px;
-            border-radius: var(--radius-pill);
-        }
-        .pb-vendor-items {
-            background: var(--color-surface);
-            border: 1px solid var(--color-slate-200);
-            border-top: 0;
-            border-radius: 0 0 var(--radius-card) var(--radius-card);
-            overflow: hidden;
-        }
-        .pb-vendor-item {
+        .pb-vname { color: #fff; font-weight: 700; font-size: 0.98rem; line-height: 1.2; }
+        .pb-vstall { color: rgb(255 255 255 / 0.72); font-size: 0.74rem; margin-top: 2px; }
+        .pb-vtotal { margin-left: auto; text-align: right; flex-shrink: 0; }
+        .pb-vtotal-num { color: #fff; font-size: 1.15rem; font-weight: 800; line-height: 1; }
+        .pb-vtotal-lbl { color: rgb(255 255 255 / 0.7); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.07em; margin-top: 3px; }
+
+        .pb-fish { padding: 0.85rem 1.1rem; border-bottom: 1px solid var(--color-slate-100); }
+        .pb-fish:last-child { border-bottom: 0; }
+        .pb-fish.is-soldout { background: var(--color-surface-subtle); }
+        .pb-fish-head { display: flex; align-items: center; gap: 0.65rem; }
+        .pb-fish-name { font-weight: 700; color: var(--color-slate-900); font-size: 0.92rem; line-height: 1.2; }
+        .pb-fish-price { margin-left: auto; text-align: right; flex-shrink: 0; }
+        .pb-fish-price-num { font-size: 1.05rem; font-weight: 800; color: var(--color-slate-900); line-height: 1; }
+        .pb-fish-price-unit { font-size: 0.7rem; color: var(--color-slate-400); }
+
+        .pb-lines { margin: 0.6rem 0 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+        .pb-line {
             display: grid;
-            grid-template-columns: 1fr auto auto;
+            grid-template-columns: auto 1fr auto;
             align-items: center;
-            gap: 1rem;
-            padding: 0.75rem 1.25rem;
-            border-bottom: 1px solid var(--color-slate-100);
-            font-size: 0.875rem;
+            gap: 0.6rem;
+            font-size: 0.8rem;
+            color: var(--color-slate-600);
+            padding: 4px 8px;
+            border-radius: var(--radius-control);
+            background: var(--color-surface-subtle);
         }
-        .pb-vendor-item:last-child { border-bottom: 0; }
-        .pb-vendor-item:hover { background: var(--color-surface-subtle); }
-        .pb-mini-label { font-size: 0.75rem; color: var(--color-slate-500); }
+        .pb-line.is-soldout { opacity: 0.55; }
+        .pb-line-kg { font-weight: 700; color: var(--color-slate-800); }
+        .pb-line-of { color: var(--color-slate-400); font-size: 0.74rem; }
+        .pb-line-meta { color: var(--color-slate-400); font-size: 0.72rem; white-space: nowrap; }
+
+        .pb-fish-total {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 0.5rem;
+            margin-top: 0.55rem;
+            padding-top: 0.5rem;
+            border-top: 1px dashed var(--color-slate-200);
+            font-size: 0.78rem;
+            color: var(--color-slate-500);
+        }
+        .pb-fish-total-num { font-size: 0.95rem; font-weight: 800; color: var(--color-success-700); }
+        .pb-fish-total-num.is-zero { color: var(--color-danger-600); }
+
+        .pb-session-pill { font-size: 0.66rem; padding: 1px 7px; min-width: 34px; justify-content: center; }
+        .pb-soldout-tag {
+            font-size: 0.66rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--color-danger-600);
+        }
+        .pb-legend { font-size: 0.75rem; color: var(--color-slate-500); margin: -0.5rem 0 1rem; }
+        [x-cloak] { display: none !important; }
 
         .pb-footer {
             background: var(--color-navy-950);
@@ -563,47 +546,41 @@
     </div>
 </header>
 
+
 {{-- ═══════════════════════════════════════════════════════════
      STATS BAR
 ═══════════════════════════════════════════════════════════════ --}}
-@php
-    $totalEntries  = $prices->count();
-    $totalVendors  = $prices->pluck('vendor_id')->unique()->count();
-    $totalStockKg  = number_format($prices->sum('stock_kg'), 1);
-    $fishTypeCount = $prices->pluck('fish_type_id')->unique()->count();
-@endphp
-
 <div class="pb-stats">
     <div class="pb-stats-inner">
         <div class="pb-stat">
-            <div class="pb-stat-icon vpm-stat-icon"><x-icon name="bi-tags" /></div>
+            <div class="pb-stat-icon vpm-stat-icon-success"><x-icon name="bi-shop-window" /></div>
             <div>
-                <div class="pb-stat-val">{{ $totalEntries }}</div>
-                <div class="pb-stat-lbl">Price Entries</div>
+                <div class="pb-stat-val">{{ $stats['vendors'] }}</div>
+                <div class="pb-stat-lbl">Vendors Selling</div>
             </div>
         </div>
         <div class="pb-divider"></div>
         <div class="pb-stat">
-            <div class="pb-stat-icon vpm-stat-icon-success"><x-icon name="bi-shop-window" /></div>
+            <div class="pb-stat-icon vpm-stat-icon"><x-icon name="bi-tags" /></div>
             <div>
-                <div class="pb-stat-val">{{ $totalVendors }}</div>
-                <div class="pb-stat-lbl">Active Vendors</div>
+                <div class="pb-stat-val">{{ $stats['listings'] }}</div>
+                <div class="pb-stat-lbl">Fish Listings</div>
             </div>
         </div>
         <div class="pb-divider"></div>
         <div class="pb-stat">
             <div class="pb-stat-icon vpm-stat-icon"><x-icon name="bi-fish" /></div>
             <div>
-                <div class="pb-stat-val">{{ $fishTypeCount }}</div>
+                <div class="pb-stat-val">{{ $stats['varieties'] }}</div>
                 <div class="pb-stat-lbl">Fish Varieties</div>
             </div>
         </div>
         <div class="pb-divider"></div>
         <div class="pb-stat">
-            <div class="pb-stat-icon vpm-stat-icon-warning"><x-icon name="bi-weight-hanging" /></div>
+            <div class="pb-stat-icon vpm-stat-icon-warning"><x-icon name="bi-box-seam" /></div>
             <div>
-                <div class="pb-stat-val">{{ $totalStockKg }} kg</div>
-                <div class="pb-stat-lbl">Total Stock</div>
+                <div class="pb-stat-val">{{ number_format($stats['remaining_kg'], 1) }} kg</div>
+                <div class="pb-stat-lbl">Available Now</div>
             </div>
         </div>
         <div class="pb-divider ml-auto d-none d-md-block"></div>
@@ -617,7 +594,7 @@
 {{-- ═══════════════════════════════════════════════════════════
      MAIN CONTENT
 ═══════════════════════════════════════════════════════════════ --}}
-<main class="pb-main" x-data="priceBoard()" x-init="init()">
+<main class="pb-main" x-data="priceBoard()" x-cloak>
 
     {{-- Controls Bar --}}
     <div class="pb-controls">
@@ -625,50 +602,151 @@
             <x-icon name="bi-search" />
             <input type="text"
                    class="vpm-input pl-9"
-                   placeholder="Search fish type or vendor..."
+                   placeholder="Search fish, vendor or stall..."
                    aria-label="Search prices"
-                   x-model="search"
-                   @input="applyFilters()">
+                   x-model.debounce.150ms="search">
         </div>
 
-        <select class="vpm-filter-select" x-model="sortBy" @change="applyFilters()" aria-label="Sort prices">
-            <option value="fish">Sort by Fish Name</option>
-            <option value="price_asc">Price: Low to High</option>
-            <option value="price_desc">Price: High to Low</option>
-            <option value="stock">Most Stock</option>
-            <option value="vendor">Vendor Name</option>
+        <select class="vpm-filter-select" x-model="sortBy" aria-label="Sort vendors">
+            <option value="vendor">Sort by Vendor Name</option>
+            <option value="stock">Most Fish Available</option>
+            <option value="price_asc">Lowest Price First</option>
+            <option value="stall">Stall Number</option>
         </select>
 
+        {{-- Trading session: what was delivered in the morning, the afternoon, or both. --}}
+        <div class="vpm-segment" role="group" aria-label="Trading session">
+            <button :aria-pressed="session === ''" @click="session=''" title="Whole day">All Day</button>
+            <button :aria-pressed="session === 'AM'" @click="session='AM'" title="Morning deliveries">
+                <x-icon name="bi-sunrise-fill" /> AM
+            </button>
+            <button :aria-pressed="session === 'PM'" @click="session='PM'" title="Afternoon deliveries">
+                <x-icon name="bi-sunset-fill" /> PM
+            </button>
+        </div>
+
         <div class="vpm-segment" role="group" aria-label="View mode">
+            <button :aria-pressed="view === 'vendor'" @click="view='vendor'" title="Vendor cards">
+                <x-icon name="bi-grid" />
+            </button>
             <button :aria-pressed="view === 'table'" @click="view='table'" title="Table view">
                 <x-icon name="bi-list-ul" />
             </button>
-            <button :aria-pressed="view === 'card'" @click="view='card'" title="Card view">
-                <x-icon name="bi-grid" />
-            </button>
-            <button :aria-pressed="view === 'vendor'" @click="view='vendor'" title="By vendor">
-                <x-icon name="bi-shop-window" />
-            </button>
         </div>
 
-        <span class="pb-result" x-text="filtered.length + ' result' + (filtered.length !== 1 ? 's' : '')"></span>
+        <span class="pb-result"
+              x-text="vendors.length + ' vendor' + (vendors.length !== 1 ? 's' : '') + ' · ' + listingCount + ' listing' + (listingCount !== 1 ? 's' : '')"></span>
     </div>
 
     {{-- Quality Class Tabs --}}
     <div class="pb-tabs" role="group" aria-label="Filter by quality class">
-        <button class="pb-tab" :class="{ 'is-active': classFilter === '' }" @click="classFilter=''; applyFilters()">
+        <button class="pb-tab" :class="{ 'is-active': classFilter === '' }" @click="classFilter=''">
             All Classes
         </button>
-        @foreach(['First Class','Second Class','Third Class','Fourth Class','Special Class'] as $cls)
+        @foreach(\App\Models\FishType::QUALITY_CLASSES as $cls)
             <button class="pb-tab"
                     :class="{ 'is-active': classFilter === '{{ $cls }}' }"
-                    @click="classFilter='{{ $cls }}'; applyFilters()">
+                    @click="classFilter='{{ $cls }}'">
                 {{ $cls }}
             </button>
         @endforeach
     </div>
 
-    {{-- ── TABLE VIEW ──────────────────────────────────────── --}}
+    <p class="pb-legend">
+        <x-icon name="bi-info-circle" />
+        Quantities are what is <strong>still for sale</strong> &mdash; each vendor's declared sales are already taken off.
+    </p>
+
+    {{-- ── VENDOR CARDS ────────────────────────────────────── --}}
+    <div x-show="view === 'vendor'">
+        <template x-if="vendors.length === 0">
+            <x-empty-state icon="bi-shop-window"
+                           title="No fish on the board right now"
+                           text="No confirmed listings match your current filters." />
+        </template>
+
+        <div class="pb-vgrid">
+            <template x-for="vendor in vendors" :key="vendor.id">
+                <article class="vpm-card pb-vcard">
+                    <header class="pb-vhead">
+                        <div class="pb-vavatar" x-text="initials(vendor.name)"></div>
+                        <div class="min-w-0">
+                            <div class="pb-vname truncate" x-text="vendor.name"></div>
+                            <div class="pb-vstall">
+                                Stall <span x-text="vendor.stall"></span>
+                                &bull; <span x-text="vendor.fish.length + ' fish'"></span>
+                            </div>
+                        </div>
+                        <div class="pb-vtotal">
+                            <div class="pb-vtotal-num" x-text="kg(vendor.remaining_kg)"></div>
+                            <div class="pb-vtotal-lbl">available</div>
+                        </div>
+                    </header>
+
+                    <template x-for="fish in vendor.fish" :key="fish.key">
+                        <section class="pb-fish" :class="{ 'is-soldout': fish.remaining_kg <= 0 }">
+                            <div class="pb-fish-head">
+                                <template x-if="fish.fish_image">
+                                    <img :src="fish.fish_image" :alt="fish.fish_name" class="pb-thumb">
+                                </template>
+                                <template x-if="!fish.fish_image">
+                                    <div class="pb-thumb-fallback"><x-icon name="bi-fish" /></div>
+                                </template>
+                                <div class="min-w-0">
+                                    <div class="pb-fish-name" x-text="fish.fish_name"></div>
+                                    <span :class="qualityClass(fish.quality_class)" class="mt-1 inline-block" x-text="fish.quality_class"></span>
+                                </div>
+                                <div class="pb-fish-price">
+                                    <div class="pb-fish-price-num" x-text="priceText(fish)"></div>
+                                    <div class="pb-fish-price-unit">per kg</div>
+                                </div>
+                            </div>
+
+                            {{-- Every delivery of this fish today, AM first --}}
+                            <ul class="pb-lines">
+                                <template x-for="line in fish.lines" :key="line.id">
+                                    <li class="pb-line" :class="{ 'is-soldout': line.remaining_kg <= 0 }">
+                                        <span class="vpm-badge pb-session-pill"
+                                              :class="line.session === 'PM' ? 'vpm-badge-info' : 'vpm-badge-warning'"
+                                              x-text="line.session"></span>
+                                        <span>
+                                            <template x-if="line.remaining_kg <= 0">
+                                                <span class="pb-soldout-tag">Sold out</span>
+                                            </template>
+                                            <template x-if="line.remaining_kg > 0">
+                                                <span class="pb-line-kg" x-text="kg(line.remaining_kg)"></span>
+                                            </template>
+                                            <span class="pb-line-of" x-show="line.sold_kg > 0"
+                                                  x-text="'of ' + kg(line.released_kg) + ' · ' + kg(line.sold_kg) + ' sold'"></span>
+                                        </span>
+                                        <span class="pb-line-meta">
+                                            <span x-show="fish.min_price !== fish.max_price" x-text="peso(line.price_per_kg) + ' · '"></span>
+                                            <span x-text="line.time"></span>
+                                        </span>
+                                    </li>
+                                </template>
+                            </ul>
+
+                            <div class="pb-fish-total">
+                                <span>
+                                    <template x-if="session === '' && fish.am_kg > 0 && fish.pm_kg > 0">
+                                        <span x-text="'AM ' + kg(fish.am_kg) + ' + PM ' + kg(fish.pm_kg)"></span>
+                                    </template>
+                                    <template x-if="!(session === '' && fish.am_kg > 0 && fish.pm_kg > 0)">
+                                        <span x-text="session ? session + ' available' : 'Available now'"></span>
+                                    </template>
+                                </span>
+                                <span class="pb-fish-total-num" :class="{ 'is-zero': fish.remaining_kg <= 0 }"
+                                      x-text="fish.remaining_kg > 0 ? kg(fish.remaining_kg) : 'Sold out'"></span>
+                            </div>
+                        </section>
+                    </template>
+                </article>
+            </template>
+        </div>
+    </div>
+
+    {{-- ── TABLE VIEW: one row per vendor and fish ───────────── --}}
     <div x-show="view === 'table'">
         <div class="vpm-card overflow-hidden">
             <div class="overflow-x-auto">
@@ -678,168 +756,61 @@
                             <th>Fish Type</th>
                             <th>Quality Class</th>
                             <th>Vendor / Stall</th>
-                            <th class="vpm-th-right">Stock Available</th>
+                            <th class="vpm-th-right">AM Left</th>
+                            <th class="vpm-th-right">PM Left</th>
+                            <th class="vpm-th-right">Total Available</th>
                             <th class="vpm-th-right">Price per kg</th>
-                            <th class="vpm-th-right">Confirmed At</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <template x-if="filtered.length === 0">
+                        <template x-if="tableRows.length === 0">
                             <tr>
-                                <td colspan="6">
+                                <td colspan="7">
                                     <x-empty-state icon="bi-fish"
                                                    title="No confirmed prices found for today"
                                                    text="Nothing matches your current filters." />
                                 </td>
                             </tr>
                         </template>
-                        <template x-for="row in filtered" :key="row.id">
+                        <template x-for="row in tableRows" :key="row.vendor.id + '_' + row.fish.key">
                             <tr>
                                 <td>
                                     <div class="flex items-center gap-2.5">
-                                        <template x-if="row.fish_image">
-                                            <img :src="row.fish_image" :alt="row.fish_name" class="pb-thumb">
+                                        <template x-if="row.fish.fish_image">
+                                            <img :src="row.fish.fish_image" :alt="row.fish.fish_name" class="pb-thumb">
                                         </template>
-                                        <template x-if="!row.fish_image">
+                                        <template x-if="!row.fish.fish_image">
                                             <div class="pb-thumb-fallback"><x-icon name="bi-fish" /></div>
                                         </template>
-                                        <span class="vpm-cell-strong" x-text="row.fish_name"></span>
+                                        <span class="vpm-cell-strong" x-text="row.fish.fish_name"></span>
                                     </div>
                                 </td>
                                 <td>
-                                    <span :class="qualityClass(row.quality_class)" x-text="row.quality_class"></span>
+                                    <span :class="qualityClass(row.fish.quality_class)" x-text="row.fish.quality_class"></span>
                                 </td>
                                 <td>
                                     <div class="vpm-cell-muted">
-                                        <span x-text="row.vendor_name"></span>
-                                        <x-badge variant="neutral" class="ml-1">Stall <span x-text="row.stall_number"></span></x-badge>
+                                        <span x-text="row.vendor.name"></span>
+                                        <x-badge variant="neutral" class="ml-1">Stall <span x-text="row.vendor.stall"></span></x-badge>
                                     </div>
                                 </td>
+                                <td class="vpm-td-right vpm-cell-muted" x-text="row.fish.am_kg > 0 ? kg(row.fish.am_kg) : '—'"></td>
+                                <td class="vpm-td-right vpm-cell-muted" x-text="row.fish.pm_kg > 0 ? kg(row.fish.pm_kg) : '—'"></td>
                                 <td class="vpm-td-right">
                                     <span class="font-semibold"
-                                          :class="row.stock_kg < 20 ? 'pb-stock-low' : 'pb-stock-ok'"
-                                          x-text="parseFloat(row.stock_kg).toFixed(1) + ' kg'"></span>
+                                          :class="row.fish.remaining_kg <= 0 ? 'pb-stock-low' : 'pb-stock-ok'"
+                                          x-text="row.fish.remaining_kg > 0 ? kg(row.fish.remaining_kg) : 'Sold out'"></span>
                                 </td>
                                 <td class="vpm-td-right">
-                                    <span class="text-[15px] font-bold text-slate-900">
-                                        ₱<span x-text="parseFloat(row.price_per_kg).toFixed(2)"></span>
-                                        <span class="text-[11.5px] font-normal text-slate-400">/kg</span>
-                                    </span>
+                                    <span class="text-[15px] font-bold text-slate-900" x-text="priceText(row.fish)"></span>
+                                    <span class="text-[11.5px] font-normal text-slate-400">/kg</span>
                                 </td>
-                                <td class="vpm-td-right vpm-cell-muted" x-text="row.confirmed_at"></td>
                             </tr>
                         </template>
                     </tbody>
                 </table>
             </div>
         </div>
-    </div>
-
-    {{-- ── CARD VIEW ───────────────────────────────────────── --}}
-    <div x-show="view === 'card'">
-        <template x-if="filtered.length === 0">
-            <x-empty-state icon="bi-fish"
-                           title="No prices available"
-                           text="No confirmed price entries match your current filters." />
-        </template>
-        <div class="pb-cardgrid">
-            <template x-for="row in filtered" :key="row.id">
-                <div class="vpm-card vpm-card-hover pb-card">
-                    <template x-if="row.fish_image">
-                        <div class="pb-cardmedia">
-                            <img :src="row.fish_image" :alt="row.fish_name">
-                            <div class="pb-cardoverlay">
-                                <div>
-                                    <div class="pb-cardfish" x-text="row.fish_name"></div>
-                                    <div class="pb-cardvendor">
-                                        <span x-text="row.vendor_name"></span>
-                                        &bull; Stall <span x-text="row.stall_number"></span>
-                                    </div>
-                                </div>
-                                <span class="vpm-quality pb-pill-onbrand" x-text="row.quality_class"></span>
-                            </div>
-                        </div>
-                    </template>
-                    <template x-if="!row.fish_image">
-                        <div class="pb-card-top p-4 pb-3 flex items-start justify-between gap-2">
-                            <div>
-                                <div class="pb-cardfish" x-text="row.fish_name"></div>
-                                <div class="pb-cardvendor">
-                                    <span x-text="row.vendor_name"></span>
-                                    &bull; Stall <span x-text="row.stall_number"></span>
-                                </div>
-                            </div>
-                            <span class="whitespace-nowrap" :class="qualityClass(row.quality_class)" style="font-size: 0.65rem"></span>
-                        </div>
-                    </template>
-                    <div class="p-4">
-                        <div class="pb-pricerow">
-                            <span class="pb-peso">₱</span>
-                            <span class="pb-pricenum" x-text="parseFloat(row.price_per_kg).toFixed(2)"></span>
-                            <span class="pb-priceunit">per kg</span>
-                        </div>
-                        <div class="pb-cardmeta">
-                            <div class="pb-cardstock">
-                                <x-icon name="bi-box-seam" class="text-slate-400" />
-                                <span :class="row.stock_kg < 20 ? 'pb-stock-low' : ''"
-                                      x-text="parseFloat(row.stock_kg).toFixed(1) + ' kg available'"></span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </template>
-        </div>
-    </div>
-
-    {{-- ── BY VENDOR VIEW ──────────────────────────────────── --}}
-    <div x-show="view === 'vendor'">
-        <template x-if="filtered.length === 0">
-            <x-empty-state icon="bi-shop-window"
-                           title="No vendors found"
-                           text="No confirmed price entries match your current filters." />
-        </template>
-        <template x-for="vendor in byVendor()" :key="vendor.id">
-            <div class="pb-vendor-section">
-                <div class="pb-vendor-header">
-                    <div class="pb-vendor-avatar" x-text="initials(vendor.name)"></div>
-                    <div>
-                        <div class="pb-vendor-name" x-text="vendor.name"></div>
-                        <div class="pb-vendor-stall">Stall <span x-text="vendor.stall"></span></div>
-                    </div>
-                    <span class="pb-vendor-count" x-text="vendor.entries.length + ' item' + (vendor.entries.length !== 1 ? 's' : '')"></span>
-                </div>
-                <div class="pb-vendor-items">
-                    <template x-for="row in vendor.entries" :key="row.id">
-                        <div class="pb-vendor-item">
-                            <div class="flex items-center gap-2.5">
-                                <template x-if="row.fish_image">
-                                    <img :src="row.fish_image" :alt="row.fish_name" class="pb-thumb pb-thumb-lg">
-                                </template>
-                                <template x-if="!row.fish_image">
-                                    <div class="pb-thumb-fallback pb-thumb-lg"><x-icon name="bi-fish" /></div>
-                                </template>
-                                <div>
-                                    <div class="vpm-cell-strong" x-text="row.fish_name"></div>
-                                    <span :class="qualityClass(row.quality_class)" style="margin-top: 4px; display: inline-block;"></span>
-                                </div>
-                            </div>
-                            <div class="text-right">
-                                <div class="pb-mini-label">Stock</div>
-                                <div class="font-semibold"
-                                     :class="row.stock_kg < 20 ? 'pb-stock-low' : ''"
-                                     x-text="parseFloat(row.stock_kg).toFixed(1) + ' kg'"></div>
-                            </div>
-                            <div class="text-right min-w-[90px]">
-                                <div class="pb-mini-label">Price/kg</div>
-                                <div class="text-[17px] font-bold text-slate-900">
-                                    ₱<span x-text="parseFloat(row.price_per_kg).toFixed(2)"></span>
-                                </div>
-                            </div>
-                        </div>
-                    </template>
-                </div>
-            </div>
-        </template>
     </div>
 
 </main>
@@ -855,31 +826,9 @@
 
 {{-- ═══════════════════════════════════════════════════════════
      ALPINE.JS — CLIENT-SIDE FILTERING / SORTING / VIEW
+     The vendor cards are built in PriceboardController; this only narrows
+     and reorders them, and re-totals a fish when one session is picked.
 ═══════════════════════════════════════════════════════════════ --}}
-
-{{-- Prepare a plain array for @json — closures inside @json() cause a ParseError --}}
-@php
-    $priceRows = $prices->map(function ($p) {
-        return [
-            'id'            => $p->id,
-            'fish_name'     => $p->fishType->name ?? '—',
-            'fish_type_id'  => $p->fish_type_id,
-            'fish_image'    => $p->fishType->image_path
-                                ? asset('storage/' . $p->fishType->image_path)
-                                : null,
-            'quality_class' => $p->quality_class,
-            'vendor_id'     => $p->vendor_id,
-            'vendor_name'   => $p->vendor->name ?? '—',
-            'stall_number'  => $p->vendor->vendorProfile->stall_number ?? '—',
-            'price_per_kg'  => (float) $p->price_per_kg,
-            'stock_kg'      => (float) $p->stock_kg,
-            'confirmed_at'  => $p->confirmed_at
-                ? \Carbon\Carbon::parse($p->confirmed_at)->format('h:i A')
-                : '—',
-        ];
-    })->values()->all();
-@endphp
-
 <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
 <script>
     {{-- Tier -> tone map, derived from the canonical list so this JS copy can
@@ -891,88 +840,89 @@
             ])
     );
 
-    function priceBoard() {
-        const raw = @json($priceRows);
+    const BOARD_VENDORS = @json($vendors);
 
+    function priceBoard() {
+        const round2 = n => Math.round(n * 100) / 100;
+        const sum = (arr, key) => round2(arr.reduce((t, x) => t + x[key], 0));
 
         return {
-            all: raw,
-            filtered: raw,
+            all: BOARD_VENDORS,
             search: '',
-            sortBy: 'fish',
+            sortBy: 'vendor',
             classFilter: '',
-            view: 'card',
+            session: '',
+            view: 'vendor',
 
-            init() {
-                this.applyFilters();
-            },
+            // Vendor cards after search, class and session filters, re-totalled.
+            get vendors() {
+                const q = this.search.trim().toLowerCase();
 
-            applyFilters() {
-                let data = [...this.all];
+                const out = this.all.map(vendor => {
+                    const vendorHit = q && (vendor.name.toLowerCase().includes(q)
+                        || String(vendor.stall).toLowerCase().includes(q));
 
-                // Search filter
-                if (this.search.trim()) {
-                    const q = this.search.toLowerCase();
-                    data = data.filter(r =>
-                        r.fish_name.toLowerCase().includes(q) ||
-                        r.vendor_name.toLowerCase().includes(q) ||
-                        r.stall_number.toLowerCase().includes(q)
-                    );
-                }
+                    const fish = vendor.fish
+                        .filter(f => !this.classFilter || f.quality_class === this.classFilter)
+                        .filter(f => !q || vendorHit || f.fish_name.toLowerCase().includes(q))
+                        .map(f => {
+                            const lines = this.session ? f.lines.filter(l => l.session === this.session) : f.lines;
+                            const prices = lines.map(l => l.price_per_kg);
+                            return {
+                                ...f,
+                                lines,
+                                remaining_kg: sum(lines, 'remaining_kg'),
+                                min_price: Math.min(...prices),
+                                max_price: Math.max(...prices),
+                            };
+                        })
+                        .filter(f => f.lines.length > 0);
 
-                // Class filter
-                if (this.classFilter) {
-                    data = data.filter(r => r.quality_class === this.classFilter);
-                }
+                    return { ...vendor, fish, remaining_kg: sum(fish, 'remaining_kg') };
+                }).filter(v => v.fish.length > 0);
 
-                // Sort
+                const cheapest = v => Math.min(...v.fish.map(f => f.min_price));
                 switch (this.sortBy) {
-                    case 'fish':
-                        data.sort((a, b) => a.fish_name.localeCompare(b.fish_name));
-                        break;
-                    case 'price_asc':
-                        data.sort((a, b) => a.price_per_kg - b.price_per_kg);
-                        break;
-                    case 'price_desc':
-                        data.sort((a, b) => b.price_per_kg - a.price_per_kg);
-                        break;
-                    case 'stock':
-                        data.sort((a, b) => b.stock_kg - a.stock_kg);
-                        break;
-                    case 'vendor':
-                        data.sort((a, b) => a.vendor_name.localeCompare(b.vendor_name));
-                        break;
+                    case 'stock':     out.sort((a, b) => b.remaining_kg - a.remaining_kg); break;
+                    case 'price_asc': out.sort((a, b) => cheapest(a) - cheapest(b)); break;
+                    case 'stall':     out.sort((a, b) => String(a.stall).localeCompare(String(b.stall), undefined, { numeric: true })); break;
+                    default:          out.sort((a, b) => a.name.localeCompare(b.name));
                 }
 
-                this.filtered = data;
+                return out;
             },
 
-            {{-- Resolves a quality class to the shared .vpm-quality-* tone. The
-                 map is emitted from FishType::QUALITY_CLASSES below so the tier
-                 list has a single source of truth, exactly as the server-rendered
-                 <x-quality-badge> does. --}}
+            get tableRows() {
+                return this.vendors.flatMap(vendor => vendor.fish.map(fish => ({ vendor, fish })));
+            },
+
+            get listingCount() {
+                return this.vendors.reduce((t, v) => t + v.fish.length, 0);
+            },
+
+            kg(n) {
+                return Number(n).toLocaleString('en-PH', { minimumFractionDigits: 1, maximumFractionDigits: 2 }) + ' kg';
+            },
+
+            peso(n) {
+                return '₱' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            },
+
+            // One price when every delivery shares it, otherwise the range.
+            priceText(fish) {
+                return fish.min_price === fish.max_price
+                    ? this.peso(fish.min_price)
+                    : this.peso(fish.min_price) + '–' + this.peso(fish.max_price).slice(1);
+            },
+
+            {{-- Resolves a quality class to the shared .vpm-quality-* tone, the
+                 same single source of truth <x-quality-badge> uses. --}}
             qualityClass(cls) {
                 return QUALITY_TONES[cls] || 'vpm-quality vpm-quality-neutral';
             },
 
-            byVendor() {
-                const map = {};
-                this.filtered.forEach(row => {
-                    if (!map[row.vendor_id]) {
-                        map[row.vendor_id] = {
-                            id:      row.vendor_id,
-                            name:    row.vendor_name,
-                            stall:   row.stall_number,
-                            entries: [],
-                        };
-                    }
-                    map[row.vendor_id].entries.push(row);
-                });
-                return Object.values(map).sort((a, b) => a.name.localeCompare(b.name));
-            },
-
             initials(name) {
-                return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
+                return name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
             },
         };
     }

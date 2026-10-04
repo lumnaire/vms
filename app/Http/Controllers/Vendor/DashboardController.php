@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Vendor;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Support\Facades\Auth;
 use App\Models\VendorInventory;
+use Illuminate\Support\Facades\Auth;
 
 class DashboardController extends Controller
 {
@@ -12,9 +12,9 @@ class DashboardController extends Controller
     {
         $vendorId = Auth::id();
 
-        $todayEntries    = VendorInventory::where('vendor_id', $vendorId)->whereDate('entry_date', today())->count();
+        $todayEntries = VendorInventory::where('vendor_id', $vendorId)->whereDate('entry_date', today())->count();
         $confirmedEntries = VendorInventory::where('vendor_id', $vendorId)->where('status', 'confirmed')->whereDate('entry_date', today())->count();
-        $pendingEntries  = VendorInventory::where('vendor_id', $vendorId)->where('status', 'pending')->whereDate('entry_date', today())->count();
+        $pendingEntries = VendorInventory::where('vendor_id', $vendorId)->where('status', 'pending')->whereDate('entry_date', today())->count();
 
         // Remaining stock comes from today's confirmed entries, so the figure is
         // released minus what the vendor declared sold on the sale report — never
@@ -27,10 +27,11 @@ class DashboardController extends Controller
 
         $remainingStock = (float) $todayConfirmed->sum(fn ($item) => $item->getRemainingStock());
 
-        // Today's inventory rows for the dashboard table
+        // Today's inventory rows for the dashboard table, AM before PM
         $todayInventory = VendorInventory::with('fishType')
             ->where('vendor_id', $vendorId)
             ->whereDate('entry_date', today())
+            ->orderBy('market_session')
             ->latest()
             ->get();
 
@@ -47,10 +48,10 @@ class DashboardController extends Controller
             ->sortByDesc(fn ($item) => $item->getAgeInDays())
             ->values();
 
-        $staleTotal        = $staleEntries->count();
-        $staleTotalValue   = $staleEntries->sum(fn ($item) => $item->getRemainingStockValue());
+        $staleTotal = $staleEntries->count();
+        $staleTotalValue = $staleEntries->sum(fn ($item) => $item->getRemainingStockValue());
         $staleShownEntries = $staleEntries->take(10);
-        $staleHiddenCount  = $staleTotal - $staleShownEntries->count();
+        $staleHiddenCount = $staleTotal - $staleShownEntries->count();
 
         return view('vendor.dashboard', compact(
             'todayEntries',

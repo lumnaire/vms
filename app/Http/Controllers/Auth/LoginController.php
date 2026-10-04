@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\ActivityLog;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class LoginController extends Controller
@@ -23,7 +23,7 @@ class LoginController extends Controller
         // browser throws it away when the window closes (config/session.php,
         // expire_on_close). Passing `false` here guarantees Laravel never adds
         // the long-lived remember cookie that would survive a browser restart.
-        if (!Auth::attempt($credentials, false)) {
+        if (! Auth::attempt($credentials, false)) {
             return back()
                 ->withInput($request->only('username'))
                 ->withErrors(['username' => 'Invalid username or password.']);
@@ -34,6 +34,7 @@ class LoginController extends Controller
         // Block inactive accounts
         if ($user->status !== 'active') {
             Auth::logout();
+
             return back()
                 ->withInput($request->only('username'))
                 ->withErrors(['username' => 'Your account is inactive. Please contact the supervisor.']);
@@ -45,8 +46,8 @@ class LoginController extends Controller
         $request->session()->regenerate();
 
         ActivityLog::create([
-            'user_id'     => $user->id,
-            'action'      => 'login',
+            'user_id' => $user->id,
+            'action' => 'login',
             'description' => "{$user->name} ({$user->role}) logged in.",
         ]);
 
@@ -56,7 +57,7 @@ class LoginController extends Controller
     // ─── Handle Logout ───────────────────────────────────────────
     public function logout(Request $request)
     {
-        $userId   = Auth::id();
+        $userId = Auth::id();
         $userName = Auth::user()?->name;
         $userRole = Auth::user()?->role;
         Auth::logout();
@@ -64,8 +65,8 @@ class LoginController extends Controller
         $request->session()->regenerateToken();
 
         ActivityLog::create([
-            'user_id'     => $userId,
-            'action'      => 'logout',
+            'user_id' => $userId,
+            'action' => 'logout',
             'description' => "{$userName} ({$userRole}) logged out.",
         ]);
 
@@ -78,9 +79,9 @@ class LoginController extends Controller
     {
         return match ($role) {
             'supervisor' => redirect()->route('supervisor.dashboard'),
-            'staff'      => redirect()->route('staff.dashboard'),
-            'vendor'     => redirect()->route('vendor.dashboard'),
-            default      => redirect('/'),
+            'staff' => redirect()->route('staff.dashboard'),
+            'vendor' => redirect()->route('vendor.dashboard'),
+            default => redirect('/'),
         };
     }
 }

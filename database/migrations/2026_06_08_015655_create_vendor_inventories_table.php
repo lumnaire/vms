@@ -13,20 +13,20 @@ return new class extends Migration
 
             // vendor who submitted this entry
             $table->foreignId('vendor_id')
-                  ->constrained('users')
-                  ->restrictOnDelete(); // prevent deleting vendor with existing records
+                ->constrained('users')
+                ->restrictOnDelete(); // prevent deleting vendor with existing records
 
             // fish type being sold
             $table->foreignId('fish_type_id')
-                  ->constrained('fish_types')
-                  ->restrictOnDelete(); // prevent deleting fish type with existing records
+                ->constrained('fish_types')
+                ->restrictOnDelete(); // prevent deleting fish type with existing records
 
             $table->enum('quality_class', [
                 'First Class',
                 'Second Class',
                 'Third Class',
                 'Fourth Class',
-                'Special Class'
+                'Special Class',
             ]);
 
             $table->decimal('price_per_kg', 10, 2);
@@ -38,9 +38,9 @@ return new class extends Migration
 
             // staff who confirmed this entry (nullable - not yet confirmed)
             $table->foreignId('confirmed_by')
-                  ->nullable()
-                  ->constrained('users')
-                  ->nullOnDelete(); // set to null if staff account is deleted
+                ->nullable()
+                ->constrained('users')
+                ->nullOnDelete(); // set to null if staff account is deleted
 
             $table->timestamp('confirmed_at')->nullable();
             $table->date('entry_date');

@@ -34,9 +34,9 @@ class StockCarryForwardTest extends TestCase
 
         if ($role === 'vendor') {
             VendorProfile::create([
-                'user_id'       => $user->id,
-                'stall_number'  => 'B-'.str_pad((string) $user->id, 3, '0', STR_PAD_LEFT),
-                'business_name' => $user->name . ' Stall',
+                'user_id' => $user->id,
+                'stall_number' => 'B-'.str_pad((string) $user->id, 3, '0', STR_PAD_LEFT),
+                'business_name' => $user->name.' Stall',
             ]);
         }
 
@@ -46,9 +46,9 @@ class StockCarryForwardTest extends TestCase
     private function makeFishType(string $name = 'Bangus', string $quality = 'First Class'): FishType
     {
         return FishType::create([
-            'name'          => $name,
+            'name' => $name,
             'quality_class' => $quality,
-            'is_active'     => true,
+            'is_active' => true,
         ]);
     }
 
@@ -62,16 +62,16 @@ class StockCarryForwardTest extends TestCase
         float $price = 250.0
     ): VendorInventory {
         return VendorInventory::create([
-            'vendor_id'     => $vendor->id,
-            'fish_type_id'  => $fish->id,
+            'vendor_id' => $vendor->id,
+            'fish_type_id' => $fish->id,
             'quality_class' => $fish->quality_class,
-            'price_per_kg'  => $price,
-            'stock_kg'      => $released * 1.2,
-            'released_kg'   => $released,
-            'sold_kg'       => $sold,
-            'status'        => $status,
-            'entry_date'    => $date,
-            'is_locked'     => $date !== today()->toDateString(),
+            'price_per_kg' => $price,
+            'stock_kg' => $released * 1.2,
+            'released_kg' => $released,
+            'sold_kg' => $sold,
+            'status' => $status,
+            'entry_date' => $date,
+            'is_locked' => $date !== today()->toDateString(),
         ]);
     }
 
@@ -103,13 +103,12 @@ class StockCarryForwardTest extends TestCase
         return $matches[1];
     }
 
-
     // ─── Seeing what is left ─────────────────────────────────────
 
     public function test_leftover_stock_shows_on_my_stock_with_its_age(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
+        $fish = $this->makeFishType('Bangus');
 
         $entry = $this->makeEntry($vendor, $fish, $this->yesterday(), released: 10.0, sold: 4.0);
 
@@ -128,8 +127,8 @@ class StockCarryForwardTest extends TestCase
     public function test_my_stock_summarises_confirmed_total_and_remaining_stock(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fishA  = $this->makeFishType('Bangus');
-        $fishB  = $this->makeFishType('Tilapia');
+        $fishA = $this->makeFishType('Bangus');
+        $fishB = $this->makeFishType('Tilapia');
 
         $this->makeEntry($vendor, $fishA, $this->yesterday(), released: 10.0, sold: 4.0);
         $this->makeEntry($vendor, $fishB, $this->yesterday(2), released: 6.0, sold: 6.0);
@@ -166,8 +165,8 @@ class StockCarryForwardTest extends TestCase
     public function test_submitting_again_today_creates_a_pending_entry_for_staff(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
-        $entry  = $this->makeEntry($vendor, $fish, $this->yesterday(), released: 10.0, sold: 4.0, price: 250.0);
+        $fish = $this->makeFishType('Bangus');
+        $entry = $this->makeEntry($vendor, $fish, $this->yesterday(), released: 10.0, sold: 4.0, price: 250.0);
 
         $this->actingAs($vendor)
             ->post("/vendor/my-stock/{$entry->id}/carry")
@@ -190,8 +189,8 @@ class StockCarryForwardTest extends TestCase
     public function test_carried_stock_is_counted_once_and_the_old_line_stops_holding_it(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
-        $entry  = $this->makeEntry($vendor, $fish, $this->yesterday(), released: 10.0, sold: 4.0);
+        $fish = $this->makeFishType('Bangus');
+        $entry = $this->makeEntry($vendor, $fish, $this->yesterday(), released: 10.0, sold: 4.0);
 
         $this->actingAs($vendor)->post("/vendor/my-stock/{$entry->id}/carry");
 
@@ -227,7 +226,7 @@ class StockCarryForwardTest extends TestCase
     public function test_carrying_stock_forward_restarts_the_freshness_countdown(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
+        $fish = $this->makeFishType('Bangus');
 
         // One day short of the window: still sellable, but close to it.
         $entry = $this->makeEntry($vendor, $fish, $this->yesterday($this->window() - 1), released: 10.0, sold: 2.0);
@@ -250,7 +249,7 @@ class StockCarryForwardTest extends TestCase
     public function test_stock_past_the_freshness_window_cannot_be_resubmitted(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
+        $fish = $this->makeFishType('Bangus');
 
         $stale = $this->makeEntry($vendor, $fish, $this->yesterday($this->window()), released: 10.0, sold: 1.0);
 
@@ -279,7 +278,7 @@ class StockCarryForwardTest extends TestCase
     public function test_stock_that_sold_completely_has_nothing_to_resubmit(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
+        $fish = $this->makeFishType('Bangus');
 
         $soldOut = $this->makeEntry($vendor, $fish, $this->yesterday(), released: 10.0, sold: 10.0);
 
@@ -297,8 +296,8 @@ class StockCarryForwardTest extends TestCase
     public function test_a_carried_entry_can_be_declared_and_then_reads_as_bought_completely(): void
     {
         $vendor = $this->makeUser('vendor');
-        $staff  = $this->makeUser('staff');
-        $fish   = $this->makeFishType('Bangus');
+        $staff = $this->makeUser('staff');
+        $fish = $this->makeFishType('Bangus');
 
         // Yesterday: 5 kg released, 2 kg sold, 3 kg left over.
         $entry = $this->makeEntry($vendor, $fish, $this->yesterday(), released: 5.0, sold: 2.0);
@@ -324,7 +323,7 @@ class StockCarryForwardTest extends TestCase
         $this->assertSame(3.0, (float) $carried->fresh()->sold_kg);
         $this->assertSame(0.0, (float) $carried->fresh()->getRemainingStock());
         $this->assertTrue($carried->fresh()->isSoldThrough());
-        $this->assertSame(\App\Models\VendorInventory::STATE_SOLD_OUT, $carried->fresh()->getStockState());
+        $this->assertSame(VendorInventory::STATE_SOLD_OUT, $carried->fresh()->getStockState());
 
         // And the vendor's remaining stock on My Stock is empty again.
         $this->actingAs($vendor)->get('/vendor/my-stock')->assertOk()->assertSee('Nothing left on your stall');
@@ -340,8 +339,8 @@ class StockCarryForwardTest extends TestCase
     public function test_stock_resubmitted_today_cannot_be_submitted_again_once_staff_confirm_it(): void
     {
         $vendor = $this->makeUser('vendor');
-        $staff  = $this->makeUser('staff');
-        $fish   = $this->makeFishType('Bangus');
+        $staff = $this->makeUser('staff');
+        $fish = $this->makeFishType('Bangus');
 
         // Yesterday: 10 kg released, 4 kg sold, 6 kg left over.
         $original = $this->makeEntry($vendor, $fish, $this->yesterday(), released: 10.0, sold: 4.0);
@@ -391,8 +390,8 @@ class StockCarryForwardTest extends TestCase
     public function test_a_confirmed_resubmission_is_still_declared_on_todays_sale_report(): void
     {
         $vendor = $this->makeUser('vendor');
-        $staff  = $this->makeUser('staff');
-        $fish   = $this->makeFishType('Bangus');
+        $staff = $this->makeUser('staff');
+        $fish = $this->makeFishType('Bangus');
 
         $original = $this->makeEntry($vendor, $fish, $this->yesterday(), released: 10.0, sold: 4.0);
 
@@ -416,7 +415,7 @@ class StockCarryForwardTest extends TestCase
     public function test_the_sale_report_cannot_restock_stock_onto_a_day_it_already_sits_on(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
+        $fish = $this->makeFishType('Bangus');
 
         $entry = $this->makeEntry($vendor, $fish, today()->toDateString(), released: 5.0, sold: 0.0);
 
@@ -428,7 +427,7 @@ class StockCarryForwardTest extends TestCase
             ->from('/vendor/sale-report')
             ->post('/vendor/sale-report/restock', [
                 'carry_date' => today()->toDateString(),
-                'entries'    => [$entry->id],
+                'entries' => [$entry->id],
             ])
             ->assertSessionHasErrors();
 
@@ -443,8 +442,8 @@ class StockCarryForwardTest extends TestCase
     public function test_a_refused_resubmission_returns_the_stock_to_the_original_entry(): void
     {
         $vendor = $this->makeUser('vendor');
-        $staff  = $this->makeUser('staff');
-        $fish   = $this->makeFishType('Bangus');
+        $staff = $this->makeUser('staff');
+        $fish = $this->makeFishType('Bangus');
 
         $entry = $this->makeEntry($vendor, $fish, $this->yesterday(), released: 10.0, sold: 4.0);
 
@@ -465,7 +464,7 @@ class StockCarryForwardTest extends TestCase
     public function test_cancelling_a_pending_resubmission_returns_the_stock_to_the_original_entry(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
+        $fish = $this->makeFishType('Bangus');
 
         $entry = $this->makeEntry($vendor, $fish, $this->yesterday(), released: 10.0, sold: 4.0);
 
@@ -485,7 +484,7 @@ class StockCarryForwardTest extends TestCase
     public function test_stale_stock_can_be_reported_as_written_off_and_leaves_the_book(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
+        $fish = $this->makeFishType('Bangus');
 
         $stale = $this->makeEntry($vendor, $fish, $this->yesterday($this->window() + 1), released: 10.0, sold: 2.0);
 
@@ -498,7 +497,7 @@ class StockCarryForwardTest extends TestCase
         $this->assertSame('Spoiled overnight', $stale->fresh()->disposed_reason);
         $this->assertSame(0.0, (float) $stale->fresh()->getRemainingStock());
         $this->assertFalse($stale->fresh()->isStale());
-        $this->assertSame(\App\Models\VendorInventory::STATE_DISPOSED, $stale->fresh()->getStockState());
+        $this->assertSame(VendorInventory::STATE_DISPOSED, $stale->fresh()->getStockState());
 
         // It comes off the totals and is listed as written off, with the reason.
         $html = $this->actingAs($vendor)->get('/vendor/my-stock')->assertOk()->getContent();
@@ -510,7 +509,7 @@ class StockCarryForwardTest extends TestCase
     public function test_fresh_stock_cannot_be_written_off(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
+        $fish = $this->makeFishType('Bangus');
 
         $fresh = $this->makeEntry($vendor, $fish, $this->yesterday(), released: 10.0, sold: 4.0);
 
@@ -529,11 +528,11 @@ class StockCarryForwardTest extends TestCase
     public function test_a_vendor_cannot_carry_or_write_off_another_vendors_stock(): void
     {
         $vendor = $this->makeUser('vendor');
-        $other  = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
+        $other = $this->makeUser('vendor');
+        $fish = $this->makeFishType('Bangus');
 
         $theirs = $this->makeEntry($other, $fish, $this->yesterday(), released: 10.0, sold: 1.0);
-        $stale  = $this->makeEntry($other, $this->makeFishType('Tilapia'), $this->yesterday($this->window() + 2), released: 5.0);
+        $stale = $this->makeEntry($other, $this->makeFishType('Tilapia'), $this->yesterday($this->window() + 2), released: 5.0);
 
         $this->actingAs($vendor)->post("/vendor/my-stock/{$theirs->id}/carry")->assertForbidden();
         $this->actingAs($vendor)->post("/vendor/my-stock/{$stale->id}/dispose")->assertForbidden();
@@ -542,24 +541,34 @@ class StockCarryForwardTest extends TestCase
         $this->assertNull($stale->fresh()->disposed_at);
     }
 
-    public function test_stock_cannot_be_carried_onto_a_day_that_already_has_that_fish(): void
+    public function test_stock_can_be_carried_onto_a_day_that_already_has_that_fish(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
+        $fish = $this->makeFishType('Bangus');
 
         $leftover = $this->makeEntry($vendor, $fish, $this->yesterday(), released: 10.0, sold: 4.0);
 
         // The vendor already has fresh Bangus logged for today, which is where a
-        // resubmission from My Stock would land.
-        $this->makeEntry($vendor, $fish, today()->toDateString(), released: 8.0);
+        // resubmission from My Stock lands. Several lines of the same fish on one
+        // day are allowed, so the carried line sits beside the fresh one.
+        $fresh = $this->makeEntry($vendor, $fish, today()->toDateString(), released: 8.0);
 
         $this->actingAs($vendor)
             ->from('/vendor/my-stock')
             ->post("/vendor/my-stock/{$leftover->id}/carry")
-            ->assertSessionHasErrors('stock');
+            ->assertSessionHasNoErrors();
 
-        $this->assertSame(0, VendorInventory::where('carried_from_id', $leftover->id)->count());
-        $this->assertSame(6.0, (float) $leftover->fresh()->getRemainingStock());
+        $carried = VendorInventory::where('carried_from_id', $leftover->id)->sole();
+        $this->assertSame(6.0, (float) $carried->released_kg);
+        $this->assertSame(8.0, (float) $fresh->fresh()->released_kg);
+
+        // ...but the same kilograms still cannot be carried twice.
+        $this->assertSame(0.0, (float) $leftover->fresh()->getRemainingStock());
+        $this->actingAs($vendor)
+            ->from('/vendor/my-stock')
+            ->post("/vendor/my-stock/{$leftover->id}/carry")
+            ->assertSessionHasErrors('stock');
+        $this->assertSame(1, VendorInventory::where('carried_from_id', $leftover->id)->count());
     }
 
     // ─── Restocking a later trading day from the sale report ────
@@ -567,8 +576,8 @@ class StockCarryForwardTest extends TestCase
     public function test_the_sale_report_carries_the_leftover_onto_a_later_day(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fishA  = $this->makeFishType('Bangus');
-        $fishB  = $this->makeFishType('Tilapia');
+        $fishA = $this->makeFishType('Bangus');
+        $fishB = $this->makeFishType('Tilapia');
 
         $a = $this->makeEntry($vendor, $fishA, today()->toDateString(), released: 5.0, sold: 0.0, price: 250.0);
         $b = $this->makeEntry($vendor, $fishB, today()->toDateString(), released: 4.0, sold: 0.0, price: 120.0);
@@ -577,7 +586,7 @@ class StockCarryForwardTest extends TestCase
         $this->actingAs($vendor)
             ->post('/vendor/sale-report/restock', [
                 'carry_date' => today()->addDay()->toDateString(),
-                'entries'    => [$a->id],
+                'entries' => [$a->id],
             ])
             ->assertSessionHasErrors('carry_date');
 
@@ -595,7 +604,7 @@ class StockCarryForwardTest extends TestCase
             ->from('/vendor/sale-report')
             ->post('/vendor/sale-report/restock', [
                 'carry_date' => $tomorrow,
-                'entries'    => [$a->id, $b->id],
+                'entries' => [$a->id, $b->id],
             ])
             ->assertSessionHasErrors('entries.'.$b->id);
 
@@ -606,7 +615,7 @@ class StockCarryForwardTest extends TestCase
             ->from('/vendor/sale-report')
             ->post('/vendor/sale-report/restock', [
                 'carry_date' => $tomorrow,
-                'entries'    => [$a->id],
+                'entries' => [$a->id],
             ])
             ->assertRedirect('/vendor/sale-report')
             ->assertSessionHas('success');
@@ -626,7 +635,7 @@ class StockCarryForwardTest extends TestCase
     public function test_the_sale_report_offers_a_date_picker_for_the_restock(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
+        $fish = $this->makeFishType('Bangus');
 
         $entry = $this->makeEntry($vendor, $fish, today()->toDateString(), released: 5.0, sold: 0.0);
 
@@ -644,7 +653,7 @@ class StockCarryForwardTest extends TestCase
     public function test_restock_cannot_be_pushed_past_the_trading_horizon(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
+        $fish = $this->makeFishType('Bangus');
 
         $entry = $this->makeEntry($vendor, $fish, today()->toDateString(), released: 5.0, sold: 0.0);
 
@@ -653,7 +662,7 @@ class StockCarryForwardTest extends TestCase
         $this->actingAs($vendor)
             ->post('/vendor/sale-report/restock', [
                 'carry_date' => today()->addDays(30)->toDateString(),
-                'entries'    => [$entry->id],
+                'entries' => [$entry->id],
             ])
             ->assertSessionHasErrors('carry_date');
 
@@ -663,18 +672,18 @@ class StockCarryForwardTest extends TestCase
     public function test_restock_only_takes_todays_confirmed_entries(): void
     {
         $vendor = $this->makeUser('vendor');
-        $other  = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
+        $other = $this->makeUser('vendor');
+        $fish = $this->makeFishType('Bangus');
 
-        $mine     = $this->makeEntry($vendor, $fish, today()->toDateString(), released: 5.0, sold: 0.0);
-        $theirs   = $this->makeEntry($other, $fish, today()->toDateString(), released: 5.0, sold: 0.0);
-        $yesterday= $this->makeEntry($vendor, $fish, $this->yesterday(), released: 5.0, sold: 1.0);
+        $mine = $this->makeEntry($vendor, $fish, today()->toDateString(), released: 5.0, sold: 0.0);
+        $theirs = $this->makeEntry($other, $fish, today()->toDateString(), released: 5.0, sold: 0.0);
+        $yesterday = $this->makeEntry($vendor, $fish, $this->yesterday(), released: 5.0, sold: 1.0);
 
         $this->actingAs($vendor)->post('/vendor/sale-report', ['items' => [$mine->id => ['total_kg' => 2.0]]]);
 
         $this->actingAs($vendor)->post('/vendor/sale-report/restock', [
             'carry_date' => today()->addDay()->toDateString(),
-            'entries'    => [$theirs->id, $yesterday->id],
+            'entries' => [$theirs->id, $yesterday->id],
         ])->assertSessionHasErrors();
 
         $this->assertFalse($theirs->fresh()->isCarriedOut());
@@ -684,7 +693,7 @@ class StockCarryForwardTest extends TestCase
     public function test_staff_see_the_resubmitted_entry_waiting_to_be_confirmed(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fish   = $this->makeFishType('Bangus');
+        $fish = $this->makeFishType('Bangus');
 
         $entry = $this->makeEntry($vendor, $fish, $this->yesterday(), released: 10.0, sold: 4.0);
 

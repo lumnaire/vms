@@ -30,9 +30,9 @@ class MarketplaceFlowTest extends TestCase
 
         if ($role === 'vendor') {
             VendorProfile::create([
-                'user_id'       => $user->id,
-                'stall_number'  => 'A-01',
-                'business_name' => $user->name . ' Stall',
+                'user_id' => $user->id,
+                'stall_number' => 'A-01',
+                'business_name' => $user->name.' Stall',
             ]);
         }
 
@@ -42,21 +42,21 @@ class MarketplaceFlowTest extends TestCase
     private function makeFishType(string $name = 'Bangus', string $class = 'First Class'): FishType
     {
         return FishType::create([
-            'name'          => $name,
+            'name' => $name,
             'quality_class' => $class,
-            'is_active'     => true,
+            'is_active' => true,
         ]);
     }
 
     private function makeGuide(FishType $fish, float $cheap = 240, float $moderate = 460): PriceGuide
     {
         return PriceGuide::create([
-            'fish_type_id'   => $fish->id,
-            'quality_class'  => $fish->quality_class,
-            'cheap_max'      => $cheap,
-            'moderate_max'   => $moderate,
+            'fish_type_id' => $fish->id,
+            'quality_class' => $fish->quality_class,
+            'cheap_max' => $cheap,
+            'moderate_max' => $moderate,
             'effective_date' => today(),
-            'is_active'      => true,
+            'is_active' => true,
         ]);
     }
 
@@ -125,20 +125,20 @@ class MarketplaceFlowTest extends TestCase
 
         $this->actingAs($vendor)
             ->post('/vendor/inventory', [
-                'fish_type_id'  => $fish->id,
+                'fish_type_id' => $fish->id,
                 'quality_class' => 'First Class',
-                'price_per_kg'  => 900, // far above the ₱460 ceiling
-                'stock_kg'      => 10,
-                'released_kg'   => 10,
+                'price_per_kg' => 900, 'market_session' => 'AM', // far above the ₱460 ceiling
+                'stock_kg' => 10,
+                'released_kg' => 10,
             ])
             ->assertRedirect('/vendor/inventory')
             ->assertSessionHasNoErrors();
 
         $this->assertDatabaseHas('vendor_inventories', [
-            'vendor_id'     => $vendor->id,
-            'fish_type_id'  => $fish->id,
-            'price_per_kg'  => 900,
-            'status'        => 'pending',
+            'vendor_id' => $vendor->id,
+            'fish_type_id' => $fish->id,
+            'price_per_kg' => 900, 'market_session' => 'AM',
+            'status' => 'pending',
         ]);
     }
 
@@ -149,11 +149,11 @@ class MarketplaceFlowTest extends TestCase
 
         $this->actingAs($vendor)
             ->post('/vendor/inventory', [
-                'fish_type_id'  => $fish->id,
+                'fish_type_id' => $fish->id,
                 'quality_class' => 'First Class',
-                'price_per_kg'  => 100,
-                'stock_kg'      => 5,
-                'released_kg'   => 5,
+                'price_per_kg' => 100, 'market_session' => 'AM',
+                'stock_kg' => 5,
+                'released_kg' => 5, 'market_session' => 'AM',
             ])
             ->assertSessionHasErrors('quality_class');
 
@@ -169,10 +169,10 @@ class MarketplaceFlowTest extends TestCase
 
         $this->actingAs($supervisor)
             ->post('/supervisor/price-guides', [
-                'fish_type_id'   => $fish->id,
-                'quality_class'  => 'First Class',
-                'cheap_max'      => 150,
-                'moderate_max'   => 220,
+                'fish_type_id' => $fish->id,
+                'quality_class' => 'First Class',
+                'cheap_max' => 150,
+                'moderate_max' => 220,
                 'effective_date' => today()->toDateString(),
             ])
             ->assertRedirect('/supervisor/price-guides')
@@ -185,8 +185,8 @@ class MarketplaceFlowTest extends TestCase
 
         $this->actingAs($supervisor)
             ->put('/supervisor/price-guides/'.$guide->id, [
-                'cheap_max'      => 240,
-                'moderate_max'   => 460,
+                'cheap_max' => 240,
+                'moderate_max' => 460,
                 'effective_date' => today()->toDateString(),
             ])
             ->assertRedirect('/supervisor/price-guides')
@@ -232,10 +232,10 @@ class MarketplaceFlowTest extends TestCase
 
         $this->actingAs($supervisor)
             ->post('/supervisor/price-guides', [
-                'fish_type_id'   => $fish->id,
-                'quality_class'  => 'First Class',
-                'cheap_max'      => 999,
-                'moderate_max'   => 1999,
+                'fish_type_id' => $fish->id,
+                'quality_class' => 'First Class',
+                'cheap_max' => 999,
+                'moderate_max' => 1999,
                 'effective_date' => today()->toDateString(),
             ])
             ->assertSessionHasErrors('quality_class');
@@ -250,10 +250,10 @@ class MarketplaceFlowTest extends TestCase
 
         $this->actingAs($supervisor)
             ->post('/supervisor/price-guides', [
-                'fish_type_id'   => $fish->id,
-                'quality_class'  => 'First Class',
-                'cheap_max'      => 500,
-                'moderate_max'   => 100,
+                'fish_type_id' => $fish->id,
+                'quality_class' => 'First Class',
+                'cheap_max' => 500,
+                'moderate_max' => 100,
                 'effective_date' => today()->toDateString(),
             ])
             ->assertSessionHasErrors('moderate_max');
@@ -275,8 +275,8 @@ class MarketplaceFlowTest extends TestCase
         $this->actingAs($supervisor)
             ->from('/supervisor/price-guides')
             ->put('/supervisor/price-guides/'.$guide->id, [
-                'cheap_max'      => 500,
-                'moderate_max'   => 100,
+                'cheap_max' => 500,
+                'moderate_max' => 100,
                 'effective_date' => today()->toDateString(),
             ])
             ->assertRedirect('/supervisor/price-guides')
@@ -288,8 +288,8 @@ class MarketplaceFlowTest extends TestCase
 
         // The edit modal is the one that reopens, pre-filled with what was typed.
         $this->assertStringContainsString("openEditModal(\n", $html);
-        $this->assertStringContainsString("value=\"500\"", $html);
-        $this->assertStringContainsString("value=\"100\"", $html);
+        $this->assertStringContainsString('value="500"', $html);
+        $this->assertStringContainsString('value="100"', $html);
         $this->assertStringContainsString('Moderate max must be greater than the cheap max.', $html);
         // The add modal must stay shut, otherwise the message is shown in the
         // wrong dialog.
@@ -304,16 +304,16 @@ class MarketplaceFlowTest extends TestCase
 
         $this->actingAs($supervisor)
             ->post('/supervisor/fish-types', [
-                'name'          => 'bangkulis  (white fin)',
+                'name' => 'bangkulis  (white fin)',
                 'quality_class' => 'Second Class',
             ])
             ->assertRedirect('/supervisor/fish-types')
             ->assertSessionHasNoErrors();
 
         $this->assertDatabaseHas('fish_types', [
-            'name'          => 'Bangkulis (White Fin)',
+            'name' => 'Bangkulis (White Fin)',
             'quality_class' => 'Second Class',
-            'is_active'     => true,
+            'is_active' => true,
         ]);
     }
 
@@ -324,7 +324,7 @@ class MarketplaceFlowTest extends TestCase
 
         $this->actingAs($supervisor)
             ->post('/supervisor/fish-types', [
-                'name'          => 'Bangus',
+                'name' => 'Bangus',
                 'quality_class' => 'First Class',
             ])
             ->assertSessionHasErrors('name');
@@ -343,23 +343,23 @@ class MarketplaceFlowTest extends TestCase
         $vendor = $this->makeUser('vendor');
 
         $entry = VendorInventory::create([
-            'vendor_id'     => $vendor->id,
-            'fish_type_id'  => $fish->id,
+            'vendor_id' => $vendor->id,
+            'fish_type_id' => $fish->id,
             'quality_class' => 'First Class',
-            'price_per_kg'  => 300,
-            'stock_kg'      => 10,
-            'released_kg'   => 10,
-            'sold_kg'       => 0,
-            'status'        => 'confirmed',
-            'entry_date'    => today(),
-            'is_locked'     => false,
+            'price_per_kg' => 300,
+            'stock_kg' => 10,
+            'released_kg' => 10,
+            'sold_kg' => 0,
+            'status' => 'confirmed',
+            'entry_date' => today(),
+            'is_locked' => false,
         ]);
 
         $supervisor = $this->makeUser('supervisor');
 
         $this->actingAs($supervisor)
             ->put('/supervisor/fish-types/'.$fish->id, [
-                'name'          => 'Bangus',
+                'name' => 'Bangus',
                 'quality_class' => 'Second Class',
             ])
             ->assertRedirect('/supervisor/fish-types')
@@ -382,7 +382,7 @@ class MarketplaceFlowTest extends TestCase
         $this->actingAs($supervisor)
             ->from('/supervisor/fish-types')
             ->put('/supervisor/fish-types/'.$fish->id, [
-                'name'          => 'Bangus', // collides
+                'name' => 'Bangus', // collides
                 'quality_class' => 'First Class',
             ])
             ->assertRedirect('/supervisor/fish-types')
@@ -474,23 +474,23 @@ class MarketplaceFlowTest extends TestCase
         $vendor = $this->makeUser('vendor');
 
         $entry = VendorInventory::create([
-            'vendor_id'     => $vendor->id,
-            'fish_type_id'  => $fish->id,
+            'vendor_id' => $vendor->id,
+            'fish_type_id' => $fish->id,
             'quality_class' => 'First Class',
-            'price_per_kg'  => 200,
-            'stock_kg'      => 10,
-            'released_kg'   => 10,
-            'sold_kg'       => 0,
-            'status'        => 'confirmed',
-            'entry_date'    => today(),
-            'is_locked'     => true,
+            'price_per_kg' => 200,
+            'stock_kg' => 10,
+            'released_kg' => 10,
+            'sold_kg' => 0,
+            'status' => 'confirmed',
+            'entry_date' => today(),
+            'is_locked' => true,
         ]);
 
         $supervisor = $this->makeUser('supervisor');
 
         $this->actingAs($supervisor)
             ->put('/supervisor/fish-types/'.$fish->id, [
-                'name'          => 'Bangus Laka',
+                'name' => 'Bangus Laka',
                 'quality_class' => 'Second Class',
             ])
             ->assertRedirect('/supervisor/fish-types')
@@ -510,16 +510,16 @@ class MarketplaceFlowTest extends TestCase
         $staff = $this->makeUser('staff');
 
         $entry = VendorInventory::create([
-            'vendor_id'     => $vendor->id,
-            'fish_type_id'  => $fish->id,
+            'vendor_id' => $vendor->id,
+            'fish_type_id' => $fish->id,
             'quality_class' => 'First Class',
-            'price_per_kg'  => 300, // within the guide => Moderate
-            'stock_kg'      => 10,
-            'released_kg'   => 10,
-            'sold_kg'       => 0,
-            'status'        => 'pending',
-            'entry_date'    => today(),
-            'is_locked'     => false,
+            'price_per_kg' => 300, // within the guide => Moderate
+            'stock_kg' => 10,
+            'released_kg' => 10,
+            'sold_kg' => 0,
+            'status' => 'pending',
+            'entry_date' => today(),
+            'is_locked' => false,
         ]);
 
         $html = $this->actingAs($staff)->get('/staff/confirmations')
@@ -543,16 +543,16 @@ class MarketplaceFlowTest extends TestCase
         $staff = $this->makeUser('staff');
 
         $entry = VendorInventory::create([
-            'vendor_id'     => $vendor->id,
-            'fish_type_id'  => $fish->id,
+            'vendor_id' => $vendor->id,
+            'fish_type_id' => $fish->id,
             'quality_class' => 'First Class',
-            'price_per_kg'  => 700, // above the guide => Expensive
-            'stock_kg'      => 10,
-            'released_kg'   => 10,
-            'sold_kg'       => 0,
-            'status'        => 'pending',
-            'entry_date'    => today(),
-            'is_locked'     => false,
+            'price_per_kg' => 700, // above the guide => Expensive
+            'stock_kg' => 10,
+            'released_kg' => 10,
+            'sold_kg' => 0,
+            'status' => 'pending',
+            'entry_date' => today(),
+            'is_locked' => false,
         ]);
 
         $this->actingAs($staff)
@@ -577,16 +577,16 @@ class MarketplaceFlowTest extends TestCase
         $supervisor = $this->makeUser('supervisor');
 
         $entry = VendorInventory::create([
-            'vendor_id'     => $vendor->id,
-            'fish_type_id'  => $fish->id,
+            'vendor_id' => $vendor->id,
+            'fish_type_id' => $fish->id,
             'quality_class' => 'First Class',
-            'price_per_kg'  => 300,
-            'stock_kg'      => 10,
-            'released_kg'   => 10,
-            'sold_kg'       => 2,
-            'status'        => 'pending',
-            'entry_date'    => today(),
-            'is_locked'     => false,
+            'price_per_kg' => 300,
+            'stock_kg' => 10,
+            'released_kg' => 10,
+            'sold_kg' => 2,
+            'status' => 'pending',
+            'entry_date' => today(),
+            'is_locked' => false,
         ]);
 
         $pages = [
@@ -694,8 +694,8 @@ class MarketplaceFlowTest extends TestCase
         $supervisor = $this->makeUser('supervisor');
 
         ActivityLog::create([
-            'user_id'     => $supervisor->id,
-            'action'      => 'update',
+            'user_id' => $supervisor->id,
+            'action' => 'update',
             'description' => 'Something worth seeing in the log.',
         ]);
 
@@ -726,16 +726,16 @@ class MarketplaceFlowTest extends TestCase
 
         foreach ($prices as $i => $price) {
             VendorInventory::create([
-                'vendor_id'     => $vendor->id,
-                'fish_type_id'  => $fish->id,
+                'vendor_id' => $vendor->id,
+                'fish_type_id' => $fish->id,
                 'quality_class' => 'First Class',
-                'price_per_kg'  => $price,
-                'stock_kg'      => 10,
-                'released_kg'   => 10,
-                'sold_kg'       => 0,
-                'status'        => 'confirmed',
-                'entry_date'    => today()->subDays(count($prices) - $i),
-                'is_locked'     => false,
+                'price_per_kg' => $price,
+                'stock_kg' => 10,
+                'released_kg' => 10,
+                'sold_kg' => 0,
+                'status' => 'confirmed',
+                'entry_date' => today()->subDays(count($prices) - $i),
+                'is_locked' => false,
             ]);
         }
 
