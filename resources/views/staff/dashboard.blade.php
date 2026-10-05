@@ -116,8 +116,7 @@
                         <div class="flex-1 min-w-0">
                             <p class="text-slate-700 font-medium truncate text-[12px]">
                                 {{ $entry->fishType->name ?? '—' }}
-                                <span class="text-slate-400 font-normal">&bull; {{ $entry->quality_class }}</span>
-                                <x-session-badge :session="$entry->session()" class="ml-1" />
+                                <span class="text-slate-400 font-normal">&bull; {{ $entry->quality_class }} &bull; {{ $entry->batchLabel() }}</span>
                             </p>
                             <p class="text-slate-400 mt-0.5 text-[10.5px]">
                                 {{ $entry->vendor->name ?? 'Unknown vendor' }}
@@ -147,18 +146,18 @@
         @endif
     </div>
 
-    {{-- Repeat Submissions: the same vendor logging the same fish and class
-         more than once today, AM or PM, with what the lines add up to. --}}
+    {{-- Multiple Batches: the same vendor submitting the same fish and class
+         more than once today, with the supply the batches add up to. --}}
     <div class="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-card">
         <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
             <div>
                 <h2 class="text-slate-700 font-bold text-[13.5px]">
-                    Multiple Submissions Today
+                    Multiple Batches Today
                     @if($repeatSubmissions->isNotEmpty())
                         <span class="ml-1.5 inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-white font-bold text-[10px] bg-info-600">{{ $repeatSubmissions->count() }}</span>
                     @endif
                 </h2>
-                <p class="text-slate-400 text-[11px] mt-px">Same vendor, same fish and class &mdash; every AM and PM line side by side</p>
+                <p class="text-slate-400 text-[11px] mt-px">Same vendor, same fish and class &mdash; every batch side by side</p>
             </div>
         </div>
 
@@ -177,7 +176,7 @@
                                     @if($group['vendor']?->vendorProfile)
                                         &bull; Stall {{ $group['vendor']->vendorProfile->stall_number }}
                                     @endif
-                                    &bull; {{ $group['lines']->count() }} submissions
+                                    &bull; {{ $group['lines']->count() }} batches
                                 </p>
                             </div>
                             <div class="text-right flex-shrink-0">
@@ -189,8 +188,8 @@
                         <ul class="space-y-1">
                             @foreach($group['lines'] as $line)
                                 <li class="flex items-center gap-2 text-[11.5px] {{ $line->isRejected() ? 'opacity-50 line-through' : '' }}">
-                                    <x-session-badge :session="$line->session()" />
-                                    <span class="font-semibold text-slate-700">{{ number_format((float) $line->released_kg, 1) }} kg</span>
+                                    <span class="font-semibold text-slate-600 w-14">{{ $line->batchLabel() }}</span>
+                                    <span class="font-semibold text-slate-700">{{ number_format((float) $line->stock_kg, 1) }} kg</span>
                                     <span class="text-slate-400">@ ₱{{ number_format((float) $line->price_per_kg, 2) }}</span>
                                     <span class="text-slate-300">&bull;</span>
                                     <span class="text-slate-400">{{ $line->created_at->format('g:i A') }}</span>
@@ -208,9 +207,7 @@
                         </ul>
 
                         <p class="mt-2 text-[10.5px] text-slate-500">
-                            AM {{ number_format($group['am_kg'], 1) }} kg
-                            &bull; PM {{ number_format($group['pm_kg'], 1) }} kg
-                            &bull; <span class="font-semibold text-slate-600">{{ number_format($group['remaining_kg'], 1) }} kg left on the board</span>
+                            <span class="font-semibold text-slate-600">{{ number_format($group['confirmed_kg'], 1) }} kg confirmed supply</span>
                             @if($group['pending_count'] > 0)
                                 &bull; <a href="{{ route('staff.confirmations.index') }}" class="text-warning-700 font-semibold hover:underline">{{ number_format($group['pending_kg'], 1) }} kg pending review</a>
                             @endif
@@ -223,7 +220,7 @@
                 <div class="w-10 h-10 rounded-full flex items-center justify-center mb-3 bg-surface-subtle">
                     <x-icon name="bi-layers" size="lg" class="text-slate-300" />
                 </div>
-                <p class="text-slate-500 font-medium text-[12px]">No repeat submissions</p>
+                <p class="text-slate-500 font-medium text-[12px]">No multiple batches</p>
                 <p class="text-slate-300 mt-0.5 text-[11px]">Each vendor has logged each fish once today</p>
             </div>
         @endif

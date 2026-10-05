@@ -16,23 +16,19 @@ class DashboardController extends Controller
         $confirmedEntries = VendorInventory::where('vendor_id', $vendorId)->where('status', 'confirmed')->whereDate('entry_date', today())->count();
         $pendingEntries = VendorInventory::where('vendor_id', $vendorId)->where('status', 'pending')->whereDate('entry_date', today())->count();
 
-        // Remaining stock comes from today's confirmed entries, so the figure is
-        // released minus what the vendor declared sold on the sale report — never
-        // a separately maintained total that can drift.
-        $todayConfirmed = VendorInventory::with('fishType')
-            ->where('vendor_id', $vendorId)
-            ->where('status', 'confirmed')
-            ->whereDate('entry_date', today())
-            ->get();
+        // Remaining stock across every batch still on the stall, whichever day it
+        // was submitted: stock minus what the vendor has released as sold.
+        $remainingStock = (float) VendorInventory::where('vendor_id', $vendorId)
+            ->open()
+            ->get()
+            ->sum(fn ($item) => $item->getRemainingStock());
 
-        $remainingStock = (float) $todayConfirmed->sum(fn ($item) => $item->getRemainingStock());
-
-        // Today's inventory rows for the dashboard table, AM before PM
+        // Today's batches for the dashboard table
         $todayInventory = VendorInventory::with('fishType')
             ->where('vendor_id', $vendorId)
             ->whereDate('entry_date', today())
-            ->orderBy('market_session')
-            ->latest()
+            ->orderBy('fish_type_id')
+            ->orderBy('batch_no')
             ->get();
 
         // Unsold stock that has been held past the freshness window. Surfaced

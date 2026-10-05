@@ -3,29 +3,29 @@
 namespace App\Models;
 
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * One batch of fish a vendor brought to the stall.
+ *
+ * Every submission is a batch. Submitting the same fish and quality class again on
+ * the same day is the next batch (Batch 1, Batch 2, …), each with its own price,
+ * stock and age. A batch stays on sale across days until it is sold out or passes
+ * the freshness window, after which the vendor writes it off.
+ *
+ * Stock and what is for sale are the same figure: released_kg is set to stock_kg
+ * on submission. sold_kg is what the vendor has recorded as sold through Release,
+ * so remaining stock is always released − sold.
+ */
 class VendorInventory extends Model
 {
-    /**
-     * The two trading sessions a market day is split into.
-     *
-     * A vendor may land fish in both — 15 kg at dawn and 5 kg after lunch is two
-     * deliveries, not one entry submitted twice — so this is what tells those
-     * lines apart on the board and in the declaration.
-     */
-    public const SESSIONS = ['AM', 'PM'];
-
-    public const SESSION_AM = 'AM';
-
-    public const SESSION_PM = 'PM';
-
     protected $fillable = [
         'vendor_id',
         'fish_type_id',
         'quality_class',
-        'market_session',
+        'batch_no',
         'price_per_kg',
         'stock_kg',
         'released_kg',
@@ -35,13 +35,12 @@ class VendorInventory extends Model
         'confirmed_at',
         'entry_date',
         'is_locked',
-        'carried_from_id',
-        'carried_out_at',
         'disposed_at',
         'disposed_reason',
     ];
 
     protected $casts = [
+        'batch_no' => 'integer',
         'price_per_kg' => 'decimal:2',
         'stock_kg' => 'decimal:2',
         'released_kg' => 'decimal:2',
@@ -70,37 +69,51 @@ class VendorInventory extends Model
         return $this->belongsTo(User::class, 'confirmed_by');
     }
 
-    /** The entry this one's stock was carried forward from, if it is a resubmission. */
-    public function carriedFrom()
+    // ─── Scopes ──────────────────────────────────────────────────
+
+    /**
+     * Confirmed batches that still have fish left: what the vendor is selling.
+     *
+     * Includes stale batches, which are still on the vendor's stall until they are
+     * written off; the public board filters those out separately.
+     */
+    public function scopeOpen(Builder $query): Builder
     {
-        return $this->belongsTo(self::class, 'carried_from_id');
+        return $query->where('status', 'confirmed')
+            ->whereNull('disposed_at')
+            // Legacy: stock handed to another day before carrying was removed.
+            ->whereNull('carried_out_at')
+            ->whereColumn('sold_kg', '<', 'released_kg');
     }
 
-    /** The entry this one's leftover stock was handed to, once it has been. */
-    public function carriedTo()
+    // ─── Batches ─────────────────────────────────────────────────
+
+    /** The number the next submission of this fish gets on that day. */
+    public static function nextBatchNo(int $vendorId, int $fishTypeId, string $qualityClass, CarbonInterface $date): int
     {
-        return $this->hasOne(self::class, 'carried_from_id');
+        return (int) static::where('vendor_id', $vendorId)
+            ->where('fish_type_id', $fishTypeId)
+            ->where('quality_class', $qualityClass)
+            ->whereDate('entry_date', $date->toDateString())
+            ->max('batch_no') + 1;
     }
 
-    // ─── Helper Methods ──────────────────────────────────────────
-
-    public function getRemainingStock(): float
+    public function batchLabel(): string
     {
-        // Stock handed to another entry, or written off, has left this line even
-        // though released_kg and sold_kg still describe the day it was declared on.
-        // Counting it here as well would put the same kilograms on two lines and
-        // double every remaining-stock total the moment a vendor resubmits.
-        if ($this->isCarriedOut() || $this->isDisposed()) {
-            return 0.0;
-        }
-
-        return max(0, (float) $this->released_kg - (float) $this->sold_kg);
+        return 'Batch '.max(1, (int) $this->batch_no);
     }
 
-    public function getEstimatedSales(): float
+    /**
+     * Lines sharing this key are the same vendor selling the same fish in the same
+     * quality class. Staff see them grouped, and the board lists them as batches
+     * under one fish with a combined total.
+     */
+    public function repeatKey(): string
     {
-        return $this->sold_kg * $this->price_per_kg;
+        return $this->vendor_id.'_'.$this->fish_type_id.'_'.$this->quality_class;
     }
+
+    // ─── Status ──────────────────────────────────────────────────
 
     public function isPending(): bool
     {
@@ -117,341 +130,208 @@ class VendorInventory extends Model
         return $this->status === 'rejected';
     }
 
-    // ─── Trading Session ──────────────────────────────────────────
-
-    /** The session this entry was logged in, falling back to AM on legacy rows. */
-    public function session(): string
+    /** Stock handed to another day under the old carry-forward. No longer created. */
+    public function isCarriedOut(): bool
     {
-        return in_array($this->market_session, self::SESSIONS, true)
-            ? $this->market_session
-            : self::SESSION_AM;
+        return $this->carried_out_at !== null;
     }
 
-    public function isAmSession(): bool
+    /** The vendor wrote the batch off as unsellable. */
+    public function isDisposed(): bool
     {
-        return $this->session() === self::SESSION_AM;
+        return $this->disposed_at !== null;
     }
 
-    public function isPmSession(): bool
+    // ─── Stock ───────────────────────────────────────────────────
+
+    public function getRemainingStock(): float
     {
-        return $this->session() === self::SESSION_PM;
+        // Written-off (or legacy carried) stock has left the stall even though
+        // released_kg and sold_kg still describe the batch as it was.
+        if ($this->isCarriedOut() || $this->isDisposed()) {
+            return 0.0;
+        }
+
+        return round(max(0, (float) $this->released_kg - (float) $this->sold_kg), 2);
     }
 
-    /** "Morning" / "Afternoon", for prose that should not shout abbreviations. */
-    public function sessionLabel(): string
-    {
-        return $this->isAmSession() ? 'Morning' : 'Afternoon';
-    }
-
-    /**
-     * Lines sharing this key are the same vendor selling the same fish in the same
-     * quality class. More than one of them on a day is a repeat submission —
-     * several deliveries, in either session — which staff see grouped together and
-     * the price board adds up into one total.
-     */
-    public function repeatKey(): string
-    {
-        return $this->vendor_id.'_'.$this->fish_type_id.'_'.$this->quality_class;
-    }
-
-    // ─── Stock Age ────────────────────────────────────────────────
-    //
-    // Remaining stock is released minus what the vendor declared sold, so it
-    // always reflects the day's own submission rather than a separate tally.
-
-    /** Whether any kg is still unsold. */
     public function hasRemainingStock(): bool
     {
         return $this->getRemainingStock() > 0;
     }
 
-    /**
-     * Trading days this entry has been sitting on the stall.
-     *
-     * Measured from entry_date, the day the vendor declared the stock, rather
-     * than created_at — a back-filled entry is as old as the day it claims.
-     *
-     * Carrying stock forward resets the clock, because the replacement entry is
-     * dated the day it is resubmitted. That is deliberate: the fish is fresh
-     * again in the vendor's hands at that point, and it is the resubmission that
-     * makes it sellable, so the countdown tracks the current claim on the stock
-     * rather than the original one.
-     */
-    public function getAgeInDays(): int
+    public function getSoldKg(): float
     {
-        return (int) $this->entry_date->startOfDay()->diffInDays(today()->startOfDay());
+        return round((float) $this->sold_kg, 2);
     }
 
-    /**
-     * Unsold stock that has been held too long to sell fresh.
-     *
-     * Only confirmed stock counts: pending or rejected entries were never
-     * released for sale, so flagging them would cry wolf.
-     */
+    public function getRemainingStockValue(): float
+    {
+        return round($this->getRemainingStock() * (float) $this->price_per_kg, 2);
+    }
+
+    public function isSoldOut(): bool
+    {
+        return (float) $this->released_kg > 0 && (float) $this->sold_kg >= (float) $this->released_kg;
+    }
+
+    /** Confirmed with fish left: on the vendor's stall. */
+    public function isOpen(): bool
+    {
+        return $this->isConfirmed() && $this->hasRemainingStock();
+    }
+
+    /** On the public board: open and still fresh. */
+    public function isOnBoard(): bool
+    {
+        return $this->isOpen() && ! $this->isStale();
+    }
+
+    // ─── Freshness ───────────────────────────────────────────────
+    //
+    // A batch is measured from entry_date, the day it was submitted. It can be
+    // sold for `inventory.stale_after_days` days; on that day it turns stale,
+    // leaves the public board, and the vendor writes it off.
+
+    public static function freshnessDays(): int
+    {
+        return max(1, (int) config('inventory.stale_after_days'));
+    }
+
+    public function getAgeInDays(): int
+    {
+        return (int) $this->entry_date->copy()->startOfDay()->diffInDays(today()->startOfDay());
+    }
+
+    /** "1d / 3d": days on the stall out of the days it can be sold. */
+    public function ageLabel(): string
+    {
+        return $this->getAgeInDays().'d / '.self::freshnessDays().'d';
+    }
+
+    /** Unsold confirmed stock that has been held too long to sell fresh. */
     public function isStale(): bool
     {
         if (! $this->isConfirmed() || ! $this->hasRemainingStock()) {
             return false;
         }
 
-        return $this->getAgeInDays() >= config('inventory.stale_after_days');
+        return $this->getAgeInDays() >= self::freshnessDays();
     }
 
-    /** Days of freshness left before this stock stops being sellable. Zero once stale. */
+    /** Days of freshness left. Zero once stale. */
     public function getDaysUntilStale(): int
     {
-        return max(0, (int) config('inventory.stale_after_days') - $this->getAgeInDays());
+        return max(0, self::freshnessDays() - $this->getAgeInDays());
     }
 
-    /** Value of the unsold stock, for the loss figure on the stale alert. */
-    public function getRemainingStockValue(): float
-    {
-        return round($this->getRemainingStock() * (float) $this->price_per_kg, 2);
-    }
+    // ─── State ───────────────────────────────────────────────────
 
-    // ─── Stock Lifecycle ──────────────────────────────────────────
-    //
-    // A line of stock ends in exactly one of four ways, and My Stock reads that
-    // state straight off the row rather than inferring it from four separate
-    // figures a page could contradict itself about.
+    public const STATE_PENDING = 'pending';
 
-    public const STATE_OPEN = 'open';
+    public const STATE_REJECTED = 'rejected';
 
-    public const STATE_SOLD_OUT = 'sold_out';
-
-    public const STATE_CARRIED = 'carried';
-
-    public const STATE_DISPOSED = 'disposed';
+    public const STATE_ON_SALE = 'on_sale';
 
     public const STATE_STALE = 'stale';
 
-    /** Every kg released was declared sold — the fish was bought completely. */
-    public function isSoldThrough(): bool
-    {
-        return (float) $this->released_kg > 0
-            && (float) $this->sold_kg >= (float) $this->released_kg;
-    }
+    public const STATE_SOLD_OUT = 'sold_out';
 
-    /** The leftover stock has been resubmitted on another day. */
-    public function isCarriedOut(): bool
-    {
-        return $this->carried_out_at !== null;
-    }
+    public const STATE_WRITTEN_OFF = 'written_off';
 
-    /** The vendor reported the stock as unsellable and off the stall. */
-    public function isDisposed(): bool
-    {
-        return $this->disposed_at !== null;
-    }
-
-    /**
-     * Where this line of stock stands. Ordered so the endings win: a line that was
-     * carried forward and then sold through on its new day reads as carried, which
-     * is the fact the vendor needs — this is where those kilograms went.
-     */
     public function getStockState(): string
     {
-        if ($this->isDisposed()) {
-            return self::STATE_DISPOSED;
-        }
-
-        if ($this->isCarriedOut()) {
-            return self::STATE_CARRIED;
-        }
-
-        if ($this->isSoldThrough()) {
-            return self::STATE_SOLD_OUT;
-        }
-
-        return $this->isStale() ? self::STATE_STALE : self::STATE_OPEN;
+        return match (true) {
+            $this->isPending() => self::STATE_PENDING,
+            $this->isRejected() => self::STATE_REJECTED,
+            $this->isDisposed() || $this->isCarriedOut() => self::STATE_WRITTEN_OFF,
+            $this->isSoldOut() => self::STATE_SOLD_OUT,
+            $this->isStale() => self::STATE_STALE,
+            default => self::STATE_ON_SALE,
+        };
     }
 
-    /**
-     * Why this stock cannot be resubmitted, or null when it can.
-     *
-     * A single reason rather than a boolean, because the vendor needs to know
-     * which one applies and every blocked row has a different remedy: wait for
-     * staff, nothing is left, it is already on another day, or it has to be
-     * written off. CarryForwardStock and the My Stock page both render this.
-     *
-     * $on is the trading day the stock would be resubmitted onto. It defaults to
-     * today because that is what the My Stock button does; the sale report passes
-     * the day the vendor picked, which is normally not today.
-     */
-    public function resubmitBlocker(?CarbonInterface $on = null): ?string
+    // ─── Release (recording a sale) ──────────────────────────────
+
+    /** Why kilograms cannot be released from this batch, or null when they can. */
+    public function releaseBlocker(): ?string
     {
-        if ($this->isDisposed()) {
-            return 'Reported as written off.';
-        }
-
-        if ($this->isCarriedOut()) {
-            $carriedOn = $this->carried_out_at?->format('M j, Y');
-
-            return 'Handed over to another day'.($carriedOn ? " on {$carriedOn}" : '').'.';
-        }
-
         if (! $this->isConfirmed()) {
-            return 'Not confirmed by staff yet.';
+            return $this->isPending()
+                ? 'Wait for staff to confirm this batch first.'
+                : 'Rejected batches cannot be sold.';
+        }
+
+        if ($this->isDisposed() || $this->isCarriedOut()) {
+            return 'This batch has been written off.';
         }
 
         if (! $this->hasRemainingStock()) {
-            return 'Nothing left to resubmit.';
-        }
-
-        if ($this->isStale()) {
-            return $this->getAgeInDays().' days old — too old to sell. Report it as written off.';
-        }
-
-        // Already sitting on the day it would be resubmitted onto.
-        //
-        // A resubmission creates a new entry rather than re-dating this one, so
-        // resubmitting stock that is already dated on that day does not make it
-        // sellable — it is sellable already — it just writes a second entry for
-        // the same kilograms on the same day. Staff would confirm that as fresh
-        // stock and the fish would be counted twice.
-        //
-        // The remedy is Add Stock, which tops this very entry up instead of
-        // opening a new line beside it.
-        $on ??= today();
-
-        if ($this->entry_date->isSameDay($on)) {
-            return 'Already on '.$on->format('M j').' — use Add Stock on that entry instead.';
+            return 'This batch is sold out.';
         }
 
         return null;
     }
 
-    public function canResubmit(?CarbonInterface $on = null): bool
+    public function canRelease(): bool
     {
-        return $this->resubmitBlocker($on) === null;
-    }
-
-    // ─── Adding Stock ─────────────────────────────────────────────
-    //
-    // More fish of the same kind turns up after staff have already approved the
-    // entry. Rather than opening a second entry for it — which would need a second
-    // approval for a fact staff can already see — the vendor tops the confirmed
-    // line up, and the board's figure moves with it.
-    //
-    // The session decides where the kilograms land. More fish in the same session
-    // tops this line up. Fish arriving in the other session becomes its own
-    // confirmed line beside it, so 15 kg AM plus 5 kg PM stays two truthful lines
-    // on the board instead of the morning delivery being relabelled as afternoon.
-
-    /**
-     * Why more stock cannot be added to this entry right now, or null when it can.
-     *
-     * Same shape as resubmitBlocker() and for the same reason: the My Inventory
-     * page and this method must never disagree about why a control is missing.
-     */
-    public function addStockBlocker(): ?string
-    {
-        // Only today's stock is on the board and only today's stock is declared,
-        // so topping up yesterday's line would change numbers nothing reads.
-        if (! $this->entry_date->isSameDay(today())) {
-            return 'Only today\'s stock can be added to. Older entries are locked after their trading day.';
-        }
-
-        if (! $this->isConfirmed()) {
-            return $this->isPending()
-                ? 'Not confirmed by staff yet.'
-                : 'Rejected entries cannot be added to.';
-        }
-
-        if ($this->isDisposed()) {
-            return 'Reported as written off.';
-        }
-
-        if ($this->isCarriedOut()) {
-            return 'Handed over to another trading day.';
-        }
-
-        return null;
-    }
-
-    public function canAddStock(): bool
-    {
-        return $this->addStockBlocker() === null;
+        return $this->releaseBlocker() === null;
     }
 
     /**
-     * Add $stockKg to the entry, of which $releasedKg goes up for sale.
-     *
-     * Both figures are asked for because they answer different questions and a
-     * vendor bringing 20 kg to the stall does not always put all of it out: the
-     * difference is kept back, which is exactly what stock_kg versus released_kg
-     * has always meant on this row.
-     *
-     * Returns the line that received the stock: this entry when the session
-     * matches, otherwise the new line opened for the other session.
+     * Record $kg of this batch as sold. It comes off the remaining stock, and so
+     * off the public board.
      *
      * @throws ValidationException
      */
-    public function addStock(float $stockKg, float $releasedKg, ?string $session = null): self
+    public function release(float $kg): self
     {
-        if ($blocker = $this->addStockBlocker()) {
-            throw ValidationException::withMessages(['stock' => $blocker]);
+        if ($blocker = $this->releaseBlocker()) {
+            throw ValidationException::withMessages(['release_kg' => $blocker]);
         }
 
-        if ($session !== null && $session !== '' && ! in_array($session, self::SESSIONS, true)) {
+        $kg = round($kg, 2);
+        $remaining = $this->getRemainingStock();
+
+        if ($kg < 0.01) {
+            throw ValidationException::withMessages(['release_kg' => 'Enter how many kilograms were sold.']);
+        }
+
+        if ($kg > $remaining + 0.001) {
             throw ValidationException::withMessages([
-                'market_session' => 'Choose a trading session: AM or PM.',
+                'release_kg' => 'Only '.number_format($remaining, 2).' kg is left in this batch.',
             ]);
         }
 
-        $session = $session ?: $this->session();
+        $this->update(['sold_kg' => round((float) $this->sold_kg + $kg, 2)]);
 
-        $stockKg = round($stockKg, 2);
-        $releasedKg = round($releasedKg, 2);
+        return $this;
+    }
 
-        if ($stockKg < 0.1) {
+    // ─── Write-off ───────────────────────────────────────────────
+
+    public function canWriteOff(): bool
+    {
+        return $this->isStale() && ! $this->isDisposed();
+    }
+
+    /**
+     * Clear a stale batch off the stall. Only stale stock qualifies, so fresh fish
+     * cannot be erased from the vendor's remaining stock.
+     *
+     * @throws ValidationException
+     */
+    public function writeOff(?string $reason = null): self
+    {
+        if (! $this->canWriteOff()) {
             throw ValidationException::withMessages([
-                'stock_kg' => 'Enter how many kilograms you are adding.',
-            ]);
-        }
-
-        // The release cannot outrun the delivery, on the same terms as a fresh
-        // submission — otherwise the row would claim more fish for sale than the
-        // vendor admits to having brought.
-        if ($releasedKg > $stockKg + 0.001) {
-            throw ValidationException::withMessages([
-                'released_kg' => 'Released cannot be more than the stock you added.',
-            ]);
-        }
-
-        // What the declaration has already claimed sold must survive the top-up.
-        // It always will: sold_kg is untouched and only released_kg grows, so
-        // remaining rises rather than the day being rewritten. Checked anyway so a
-        // future change cannot quietly break that.
-        if ((float) $this->released_kg + $releasedKg < (float) $this->sold_kg) {
-            throw ValidationException::withMessages([
-                'released_kg' => 'That would leave less released than you already declared sold.',
-            ]);
-        }
-
-        if ($session !== $this->session()) {
-            // Already confirmed on arrival: the price is the one staff agreed on
-            // this entry, and only the weight and the session are new.
-            return self::create([
-                'vendor_id' => $this->vendor_id,
-                'fish_type_id' => $this->fish_type_id,
-                'quality_class' => $this->quality_class,
-                'market_session' => $session,
-                'price_per_kg' => $this->price_per_kg,
-                'stock_kg' => $stockKg,
-                'released_kg' => $releasedKg,
-                'sold_kg' => 0,
-                'status' => 'confirmed',
-                'confirmed_by' => $this->confirmed_by,
-                'confirmed_at' => now(),
-                'entry_date' => $this->entry_date->toDateString(),
-                'is_locked' => false,
+                'write_off' => 'Only batches past the '.self::freshnessDays().'-day freshness window can be written off.',
             ]);
         }
 
         $this->update([
-            'stock_kg' => round((float) $this->stock_kg + $stockKg, 2),
-            'released_kg' => round((float) $this->released_kg + $releasedKg, 2),
+            'disposed_at' => now(),
+            'disposed_reason' => $reason ?: null,
         ]);
 
         return $this;

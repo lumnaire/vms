@@ -127,9 +127,8 @@ class MarketplaceFlowTest extends TestCase
             ->post('/vendor/inventory', [
                 'fish_type_id' => $fish->id,
                 'quality_class' => 'First Class',
-                'price_per_kg' => 900, 'market_session' => 'AM', // far above the ₱460 ceiling
+                'price_per_kg' => 900, // far above the ₱460 ceiling
                 'stock_kg' => 10,
-                'released_kg' => 10,
             ])
             ->assertRedirect('/vendor/inventory')
             ->assertSessionHasNoErrors();
@@ -137,7 +136,8 @@ class MarketplaceFlowTest extends TestCase
         $this->assertDatabaseHas('vendor_inventories', [
             'vendor_id' => $vendor->id,
             'fish_type_id' => $fish->id,
-            'price_per_kg' => 900, 'market_session' => 'AM',
+            'price_per_kg' => 900,
+            'released_kg' => 10,
             'status' => 'pending',
         ]);
     }
@@ -151,9 +151,8 @@ class MarketplaceFlowTest extends TestCase
             ->post('/vendor/inventory', [
                 'fish_type_id' => $fish->id,
                 'quality_class' => 'First Class',
-                'price_per_kg' => 100, 'market_session' => 'AM',
+                'price_per_kg' => 100,
                 'stock_kg' => 5,
-                'released_kg' => 5, 'market_session' => 'AM',
             ])
             ->assertSessionHasErrors('quality_class');
 
@@ -752,5 +751,42 @@ class MarketplaceFlowTest extends TestCase
         $this->assertGreaterThan(0, Forecast::where('fish_type_id', $fish->id)->count());
 
         $response->assertDontSee('No forecasts yet');
+    }
+
+    /**
+     * Most fish types have never been sold, so the first fish alphabetically
+     * usually has no history. The page must open on a fish that has a forecast,
+     * and say which ones do not, rather than greet the supervisor with an empty
+     * chart.
+     */
+    public function test_forecast_page_opens_on_a_fish_that_has_a_forecast(): void
+    {
+        $empty = $this->makeFishType('Agoot', 'First Class');
+        $fish = $this->makeFishType('Tilapia', 'First Class');
+        $vendor = $this->makeUser('vendor');
+
+        foreach ([120, 121, 119, 120, 122, 121, 120, 119, 121, 120] as $i => $price) {
+            VendorInventory::create([
+                'vendor_id' => $vendor->id,
+                'fish_type_id' => $fish->id,
+                'quality_class' => 'First Class',
+                'price_per_kg' => $price,
+                'stock_kg' => 10,
+                'released_kg' => 10,
+                'sold_kg' => 10,
+                'status' => 'confirmed',
+                'entry_date' => today()->subDays(10 - $i),
+                'is_locked' => true,
+            ]);
+        }
+
+        $this->artisan('forecast:generate')->assertSuccessful();
+
+        $response = $this->actingAs($this->makeUser('supervisor'))->get('/supervisor/forecasts')->assertOk();
+
+        $this->assertSame($fish->id, $response->viewData('selectedFishTypeId'));
+        $this->assertTrue($response->viewData('forecasts')->isNotEmpty());
+        $response->assertSee('Agoot · not enough data');
+        $response->assertDontSee('Tilapia · not enough data');
     }
 }

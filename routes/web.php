@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Public\PriceboardController;
-use App\Http\Controllers\SaleReportController;
 use App\Http\Controllers\Staff\ConfirmationController;
 use App\Http\Controllers\Supervisor\AccountController;
 use App\Http\Controllers\Supervisor\DashboardController;
@@ -13,7 +12,6 @@ use App\Http\Controllers\Supervisor\ReportController;
 use App\Http\Controllers\Supervisor\StaffController;
 use App\Http\Controllers\Supervisor\VendorController;
 use App\Http\Controllers\Vendor\InventoryController;
-use App\Http\Controllers\Vendor\MyStockController;
 use Illuminate\Support\Facades\Route;
 
 // ── Public ──────────────────────────────────────────────────────
@@ -68,9 +66,6 @@ Route::middleware(['auth', 'role:supervisor'])
         Route::get('/forecasts', [ForecastController::class, 'index'])->name('forecasts.index');
         Route::get('/reports', [ReportController::class,   'index'])->name('reports.index');
 
-        // ── Vendor Sale Reports ─────────────────────────────────────
-        Route::get('/sale-reports', [SaleReportController::class, 'index'])->name('sale-reports.index');
-
         // ── My Account ─────────────────────────────────────────────
         Route::get('/account', [AccountController::class, 'edit'])->name('account.edit');
         Route::put('/account/profile', [AccountController::class, 'updateProfile'])->name('account.profile');
@@ -98,10 +93,10 @@ Route::middleware(['auth', 'role:staff'])
 
         // ── Records ────────────────────────────────────────────────
         Route::get('/price-guides', [App\Http\Controllers\Staff\PriceGuideController::class, 'index'])->name('price-guides.index');
-        Route::get('/reports', [App\Http\Controllers\Staff\ReportController::class,     'index'])->name('reports.index');
+        // Supply report: daily / monthly / yearly, previewed here and downloaded as PDF.
+        Route::get('/reports', [App\Http\Controllers\Staff\ReportController::class, 'index'])->name('reports.index');
+        Route::get('/reports/pdf', [App\Http\Controllers\Staff\ReportController::class, 'pdf'])->name('reports.pdf');
 
-        // ── Vendor Sale Reports ─────────────────────────────────────
-        Route::get('/sale-reports', [SaleReportController::class, 'index'])->name('sale-reports.index');
     });
 
 // ── Vendor ─────────────────────────────────────────────────────────
@@ -115,29 +110,10 @@ Route::middleware(['auth', 'role:vendor'])
         Route::post('/inventory', [InventoryController::class, 'store'])->name('inventory.store');
         Route::delete('/inventory/{inventory}', [InventoryController::class, 'destroy'])->name('inventory.destroy');
 
-        // More of the same fish turns up after staff have already approved the
-        // entry. The vendor tops the confirmed line up rather than opening a second
-        // entry for it, because re-approving a delivery the market already witnessed
-        // is not information anyone gains.
-        Route::post('/inventory/{inventory}/stock', [InventoryController::class, 'addStock'])->name('inventory.add-stock');
-
-        // ── My Stock ──────────────────────────────────────────────────
-        // Unsold fish from an earlier day cannot be declared on today's sale report,
-        // because that only reports on today's entries. These are the two ways out:
-        // resubmit the leftover so it is sellable again, or write it off once it is
-        // too old to sell. Both act on the entry, and both go back to the vendor.
-        Route::get('/my-stock', [MyStockController::class, 'index'])->name('my-stock.index');
-        Route::post('/my-stock/{inventory}/carry', [MyStockController::class, 'carry'])->name('my-stock.carry');
-        Route::post('/my-stock/{inventory}/dispose', [MyStockController::class, 'dispose'])->name('my-stock.dispose');
-
-        // ── Sale Report ───────────────────────────────────────────────
-        // The vendor declares the day's sales against the entries staff
-        // confirmed. Closes at 11:59 PM on the report date; `sold_kg` is no
-        // longer edited entry-by-entry.
-        Route::get('/sale-report', [App\Http\Controllers\Vendor\SaleReportController::class, 'index'])->name('sale-report.index');
-        Route::post('/sale-report', [App\Http\Controllers\Vendor\SaleReportController::class, 'store'])->name('sale-report.store');
-
-        // What the declaration left over, loaded onto a later trading day so the
-        // fish is sellable again instead of stranded on a closed day.
-        Route::post('/sale-report/restock', [App\Http\Controllers\Vendor\SaleReportController::class, 'restock'])->name('sale-report.restock');
+        // ── Batch actions ─────────────────────────────────────────────
+        // Release records kilograms sold from a confirmed batch, which comes off
+        // the batch's remaining stock and the public board. Write-off clears a
+        // batch that has passed its freshness window.
+        Route::post('/inventory/{inventory}/release', [InventoryController::class, 'release'])->name('inventory.release');
+        Route::post('/inventory/{inventory}/write-off', [InventoryController::class, 'writeOff'])->name('inventory.write-off');
     });

@@ -215,13 +215,20 @@ class ArimaService
             $currentVal = $nextVal;
         }
 
-        $trend = $this->classifyTrend(
-            $projections[0]['value'],
-            $projections[count($projections) - 1]['value']
-        );
+        // The label compares where the forecast ends against the average of the
+        // last few real days, i.e. "is this heading above or below this past
+        // week?". Comparing forecast day 3 with forecast day 1 instead put only two
+        // days between the two values, so a ±2% band could almost never be crossed
+        // and every series read as stable.
+        $baselineDays = max(1, (int) config('forecast.trend_baseline_days', 7));
+        $recent = array_slice($series, -$baselineDays);
+        $baseline = array_sum($recent) / count($recent);
+
+        $trend = $this->classifyTrend($baseline, $projections[count($projections) - 1]['value']);
 
         foreach ($projections as $i => $point) {
             $projections[$i]['trend'] = $trend;
+            $projections[$i]['params']['trend_baseline'] = round($baseline, 2);
         }
 
         return $projections;
@@ -248,16 +255,16 @@ class ArimaService
     }
 
     /**
-     * Classify a projected window as upward, downward or stable using the
-     * configured fractional band.
+     * Classify the final projected value against the recent actual baseline
+     * using the configured fractional band.
      */
-    private function classifyTrend(float $first, float $last): string
+    private function classifyTrend(float $baseline, float $last): string
     {
         $threshold = config('forecast.trend_threshold');
 
         return match (true) {
-            $last > $first * (1 + $threshold) => 'upward',
-            $last < $first * (1 - $threshold) => 'downward',
+            $last > $baseline * (1 + $threshold) => 'upward',
+            $last < $baseline * (1 - $threshold) => 'downward',
             default => 'stable',
         };
     }

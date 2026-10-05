@@ -21,30 +21,26 @@ class DashboardController extends Controller
         $rejectedToday = VendorInventory::where('status', 'rejected')->whereDate('entry_date', today())->count();
         $totalVendors = User::where('role', 'vendor')->where('status', 'active')->count();
 
-        // ── Repeat submissions ────────────────────────────────────
-        // A vendor may log the same fish and class several times a day, in either
-        // session. Each line is reviewed on its own, so staff need one place that
-        // shows the lines side by side with what they add up to — otherwise a
-        // vendor quietly declaring the same 15 kg three times is invisible.
+        // ── Multiple batches ──────────────────────────────────────
+        // A vendor may submit the same fish and class several times a day; each
+        // submission is its own batch and is reviewed on its own. Staff need one
+        // place that shows the batches side by side with the supply they add up
+        // to — otherwise a vendor declaring the same 15 kg three times is
+        // invisible. Supply only: what vendors sold is the vendor's own record.
         $repeatSubmissions = VendorInventory::with(['fishType', 'vendor.vendorProfile'])
             ->whereDate('entry_date', today())
-            ->orderBy('created_at')
+            ->orderBy('batch_no')
             ->get()
             ->groupBy(fn ($e) => $e->repeatKey())
             ->filter(fn ($lines) => $lines->count() > 1)
             ->map(function ($lines) {
-                $confirmed = $lines->filter(fn ($e) => $e->isConfirmed());
-
                 return [
                     'vendor' => $lines->first()->vendor,
                     'fish' => $lines->first()->fishType,
                     'quality_class' => $lines->first()->quality_class,
-                    'lines' => $lines->sortBy(fn ($e) => $e->session().$e->created_at)->values(),
-                    'am_kg' => (float) $confirmed->filter(fn ($e) => $e->isAmSession())->sum('released_kg'),
-                    'pm_kg' => (float) $confirmed->filter(fn ($e) => $e->isPmSession())->sum('released_kg'),
-                    'confirmed_kg' => (float) $confirmed->sum('released_kg'),
-                    'remaining_kg' => (float) $confirmed->sum(fn ($e) => $e->getRemainingStock()),
-                    'pending_kg' => (float) $lines->filter(fn ($e) => $e->isPending())->sum('released_kg'),
+                    'lines' => $lines->values(),
+                    'confirmed_kg' => (float) $lines->filter(fn ($e) => $e->isConfirmed())->sum('stock_kg'),
+                    'pending_kg' => (float) $lines->filter(fn ($e) => $e->isPending())->sum('stock_kg'),
                     'pending_count' => $lines->filter(fn ($e) => $e->isPending())->count(),
                 ];
             })

@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\PriceGuide;
 use App\Models\VendorInventory;
-use App\Services\CarryForwardStock;
 use Illuminate\Support\Facades\Auth;
 
 class ConfirmationController extends Controller
@@ -40,12 +39,12 @@ class ConfirmationController extends Controller
             ->get()
             ->groupBy(fn ($e) => $e->fish_type_id.'_'.$e->quality_class);
 
-        // Every line each vendor logged today, grouped per vendor + fish + class,
-        // so a pending entry can show the vendor's other AM / PM lines of the
+        // Every batch each vendor submitted today, grouped per vendor + fish +
+        // class, so a pending batch can show the vendor's other batches of the
         // same fish beside it. Staff then judge a repeat submission knowing what
         // is already on the board instead of approving it blind.
         $vendorLinesToday = VendorInventory::whereDate('entry_date', today())
-            ->orderBy('created_at')
+            ->orderBy('batch_no')
             ->get()
             ->groupBy(fn ($e) => $e->repeatKey());
 
@@ -72,7 +71,7 @@ class ConfirmationController extends Controller
             'confirmed_at' => now(),
         ]);
 
-        $label = "{$inventory->fishType->name} ({$inventory->quality_class} Class, {$inventory->session()})";
+        $label = "{$inventory->fishType->name} ({$inventory->quality_class} Class, {$inventory->batchLabel()})";
 
         ActivityLog::create([
             'user_id' => Auth::id(),
@@ -85,19 +84,13 @@ class ConfirmationController extends Controller
     }
 
     // ─── Reject a pending inventory entry ────────────────────────
-    public function reject(VendorInventory $inventory, CarryForwardStock $carry)
+    public function reject(VendorInventory $inventory)
     {
         abort_if($inventory->status !== 'pending', 422, 'This entry is no longer pending.');
 
         $inventory->update(['status' => 'rejected']);
 
-        // A refused resubmission hands its stock back to the line it came from. The
-        // source has been counting nothing for as long as this replacement was
-        // pending, so without this the kilograms would be on the vendor's books and
-        // on nobody's stall.
-        $carry->release($inventory);
-
-        $label = "{$inventory->fishType->name} ({$inventory->quality_class} Class, {$inventory->session()})";
+        $label = "{$inventory->fishType->name} ({$inventory->quality_class} Class, {$inventory->batchLabel()})";
 
         ActivityLog::create([
             'user_id' => Auth::id(),
@@ -105,11 +98,7 @@ class ConfirmationController extends Controller
             'description' => "Rejected: {$label} from {$inventory->vendor->name}.",
         ]);
 
-        $note = $inventory->carried_from_id
-            ? ' The unsold stock it carried has been returned to the original entry.'
-            : '';
-
         return redirect()->route('staff.confirmations.index')
-            ->with('error', "✗ Entry rejected: {$label} from {$inventory->vendor->name}.{$note}");
+            ->with('error', "✗ Entry rejected: {$label} from {$inventory->vendor->name}.");
     }
 }

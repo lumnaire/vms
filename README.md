@@ -271,8 +271,9 @@ php artisan inventory:lock
 
 ## ARIMA Forecasting
 
-The system projects **three days forward** for three numbers per fish type and
-quality class. This section explains where each number comes from and how the
+The system projects **three days forward** for two numbers (price and supply)
+per fish type and quality class. A Tagalog, non-technical guide is in
+[FORECASTING.md](FORECASTING.md). This section explains where each number comes from and how the
 projection is calculated.
 
 Everything below lives in two files:
@@ -464,18 +465,22 @@ than on day 1.
 
 **Step 8 — Trend label**
 
-The three days are given a single label by comparing the last day to the first,
-using a ±2% band:
+The three days are given a single label by comparing the **last projected day**
+with the **average of the last 7 actual days** (`trend_baseline_days`), using a
+±2% band:
 
 ```
-Day 3 > Day 1 × 1.02   →  "upward"
-Day 3 < Day 1 × 0.98   →  "downward"
-otherwise              →  "stable"
+baseline = average of the last 7 real days
+
+Day 3 > baseline × 1.02   →  "upward"
+Day 3 < baseline × 0.98   →  "downward"
+otherwise                 →  "stable"
 ```
 
-> ⚠️ The label describes the **projected window only** — it is not a statement
-> about the history. A series that climbed steadily for two weeks can still be
-> labelled `stable` if the three projected days land within 2% of each other.
+> The label answers "is this heading above or below what we saw this past
+> week?". An earlier version compared forecast day 3 with forecast day 1, but
+> those are only two days apart, so a ±2% band needed a ~1%-a-day move to ever
+> trigger and almost every real series read `stable`.
 
 ---
 
@@ -497,13 +502,13 @@ y : 100  101  103  102  105  104  108  107  111  110
 | 5    | Typical error `σ`  | `0.7659`                        |
 
 **Projecting day 1.** Yesterday's change was `−1`, so the model expects the move
-to partly reverse, damped by `φ`. The last residual was `0.4388`:
+to partly reverse, damped by `φ`. The last residual was `0.4403`:
 
 ```
 Δŷ = μ + φ·(Δy − μ) + θ·ε
-   = 1.1111 + (−0.8832)(−1 − 1.1111) + (−0.1366)(0.4388)
-   = 1.1111 + 1.8645 − 0.0599
-   = 2.9157
+   = 1.1111 + (−0.8832)(−1 − 1.1111) + (−0.1366)(0.4403)
+   = 1.1111 + 1.8645 − 0.0601
+   = 2.9155
 
 ŷ    = 110 + 2.9157 = 112.92
 band = 1.96 × 0.7659 × √1 = 1.50
@@ -519,10 +524,9 @@ stored with the forecast in the `forecasts` table's `arima_params` column.
 | 2   |   ₱112.43 | ₱110.31 – ₱114.56 |  4.25 |
 | 3   |   ₱114.95 | ₱112.35 – ₱117.55 |  5.20 |
 
-All three days carry the same trend label, `stable`, because day 3 (₱114.95) is
-only 1.8% above day 1 (₱112.92) — inside the ±2% band — even though the series
-itself climbed across the 10 historical days. The range widens as expected too,
-in the ratio √1 : √2 : √3.
+All three days carry the same trend label, `upward`: the last 7 real days
+average ₱106.71, and day 3 (₱114.95) is 7.7% above that — well outside the ±2%
+band. The range widens as expected too, in the ratio √1 : √2 : √3.
 
 > This example is pinned by a unit test
 > (`tests/Unit/ArimaServiceTest::test_it_reproduces_the_documented_worked_example`),
@@ -562,6 +566,7 @@ Every value lives in `config/forecast.php`. The first four can be set in `.env`:
 | `order`              | —                             | `1,1,1` | The ARIMA order                                                |
 | `z`                  | —                             | `1.96`  | Range width — `1.96` gives 95%                                 |
 | `trend_threshold`    | —                             | `0.02`  | The ±2% band used for the trend label                          |
+| `trend_baseline_days`| —                             | `7`     | Real days averaged as the trend label's baseline               |
 
 Note that the **fit window (90 days)** and the **chart window (30 days)** are
 deliberately different: the model uses everything available, while the chart

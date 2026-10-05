@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Supervisor;
 use App\Http\Controllers\Controller;
 use App\Models\FishType;
 use App\Models\Forecast;
+use App\Models\VendorInventory;
 use App\Services\ArimaService;
 use Illuminate\Http\Request;
 
@@ -12,12 +13,42 @@ class ForecastController extends Controller
 {
     public function index(Request $request, ArimaService $arima)
     {
-        $fishTypes = FishType::where('is_active', true)->orderBy('name')->get();
         $qualityClasses = FishType::QUALITY_CLASSES;
         $metrics = $this->metricOptions();
         $horizon = config('forecast.horizon');
 
-        $selectedFishTypeId = (int) $request->input('fish_type_id', $fishTypes->first()?->id);
+        // Fish that currently have a forecast are listed first, so the dropdown
+        // does not open on one of the many fish nobody has sold yet.
+        $forecastFishIds = Forecast::where('forecast_date', '>=', today())
+            ->distinct()
+            ->pluck('fish_type_id')
+            ->flip();
+
+        $fishTypes = FishType::where('is_active', true)
+            ->orderBy('name')
+            ->get()
+            // A block body, not an arrow fn: each() stops at a callback that
+            // returns false, which the assignment would for the first fish
+            // without a forecast.
+            ->each(function ($ft) use ($forecastFishIds) {
+                $ft->has_forecast = $forecastFishIds->has($ft->id);
+            })
+            ->sortBy(fn ($ft) => ($ft->has_forecast ? '0' : '1').strtolower($ft->name))
+            ->values();
+
+        // With nothing picked, open on the forecast fish with the most history:
+        // the series the model has learned the most from.
+        $defaultFishTypeId = $forecastFishIds->isEmpty()
+            ? $fishTypes->first()?->id
+            : VendorInventory::where('status', 'confirmed')
+                ->whereIn('fish_type_id', $forecastFishIds->keys())
+                ->whereDate('entry_date', '>=', today()->subDays(config('forecast.history_days')))
+                ->selectRaw('fish_type_id, COUNT(*) as n')
+                ->groupBy('fish_type_id')
+                ->orderByDesc('n')
+                ->value('fish_type_id');
+
+        $selectedFishTypeId = (int) $request->input('fish_type_id', $defaultFishTypeId);
         $selectedFishType = $fishTypes->firstWhere('id', $selectedFishTypeId);
         $selectedQuality = $request->input('quality_class', $selectedFishType?->quality_class ?? 'First Class');
         $selectedMetric = $this->resolveMetric($request->input('metric'), array_keys($metrics));
@@ -36,6 +67,7 @@ class ForecastController extends Controller
         if ($forecasts->isEmpty() && $selectedFishType !== null) {
             if ($arima->generate($selectedFishTypeId, $selectedQuality, $selectedMetric) > 0) {
                 $forecasts = $this->forecastSeries($selectedFishTypeId, $selectedQuality, $selectedMetric, $horizon);
+                $selectedFishType->has_forecast = true;
             }
         }
 

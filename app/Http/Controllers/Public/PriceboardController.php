@@ -9,28 +9,27 @@ use App\Models\VendorInventory;
 class PriceboardController extends Controller
 {
     /**
-     * The public board: one card per vendor, listing every fish they sell today.
+     * The public board: one card per vendor, listing every fish they have for sale.
      *
-     * A vendor may log the same fish several times in a day — 15 kg at dawn,
-     * another 5 kg later in the morning, 5 kg after lunch — so each fish carries
-     * its AM / PM lines and the total still for sale across them.
+     * A vendor may submit the same fish several times — Batch 1 at 15 kg, Batch 2
+     * at another 15 kg — each approved at its own time and price. The card lists
+     * each batch under the fish and adds them up: 15 + 15 = 30 kg available.
      *
-     * Every figure is what is LEFT, not what was delivered: released minus what
-     * the vendor has declared sold on the sale report. Declaring the morning's
-     * sales therefore takes those kilograms off the board straight away.
+     * Every figure is what is LEFT: stock minus what the vendor has released as
+     * sold. Batches stay on the board across days until they sell out or pass the
+     * freshness window.
      */
     public function index()
     {
         $fishTypes = FishType::where('is_active', true)->get();
 
         $lines = VendorInventory::with(['vendor.vendorProfile', 'fishType'])
-            ->where('status', 'confirmed')
-            ->whereDate('entry_date', today())
-            // Carried to another day or written off: no longer on today's stall.
-            ->whereNull('carried_out_at')
-            ->whereNull('disposed_at')
-            ->orderBy('created_at')
-            ->get();
+            ->open()
+            ->orderBy('entry_date')
+            ->orderBy('batch_no')
+            ->get()
+            // Past the freshness window: off the board until the vendor writes it off.
+            ->reject(fn ($e) => $e->isStale());
 
         $vendors = $lines
             ->groupBy('vendor_id')
@@ -48,7 +47,7 @@ class PriceboardController extends Controller
         return view('public.priceboard', compact('fishTypes', 'vendors', 'stats'));
     }
 
-    /** One vendor's card: their fish, each with its session lines and totals. */
+    /** One vendor's card: their fish, each with its batches and total. */
     private function vendorCard($vendorLines): array
     {
         $first = $vendorLines->first();
@@ -56,8 +55,7 @@ class PriceboardController extends Controller
         $fish = $vendorLines
             ->groupBy(fn ($e) => $e->fish_type_id.'_'.$e->quality_class)
             ->map(fn ($fishLines) => $this->fishRow($fishLines))
-            // Still for sale first, sold-out last; alphabetical within each.
-            ->sortBy(fn ($f) => ($f['remaining_kg'] > 0 ? '0' : '1').strtolower($f['fish_name']))
+            ->sortBy(fn ($f) => strtolower($f['fish_name']))
             ->values()
             ->all();
 
@@ -74,26 +72,25 @@ class PriceboardController extends Controller
     {
         $first = $fishLines->first();
 
-        $sessionLines = $fishLines
-            ->sortBy(fn ($e) => $e->session().$e->created_at)
-            ->map(fn ($e) => [
-                'id' => $e->id,
-                'session' => $e->session(),
-                'price_per_kg' => (float) $e->price_per_kg,
-                'released_kg' => (float) $e->released_kg,
-                'sold_kg' => (float) $e->sold_kg,
-                'remaining_kg' => $e->getRemainingStock(),
-                'time' => ($e->confirmed_at ?? $e->created_at)?->format('g:i A'),
-            ])
+        $batches = $fishLines
+            ->map(function ($e) {
+                $approved = $e->confirmed_at ?? $e->created_at;
+
+                return [
+                    'id' => $e->id,
+                    'label' => $e->batchLabel(),
+                    'price_per_kg' => (float) $e->price_per_kg,
+                    'remaining_kg' => $e->getRemainingStock(),
+                    // Today's batches show the time; older ones the day as well.
+                    'approved' => $approved
+                        ? ($approved->isToday() ? $approved->format('g:i A') : $approved->format('M j, g:i A'))
+                        : null,
+                ];
+            })
             ->values()
             ->all();
 
-        $sum = fn (string $session) => round(array_sum(array_column(
-            array_filter($sessionLines, fn ($l) => $l['session'] === $session),
-            'remaining_kg'
-        )), 2);
-
-        $prices = array_column($sessionLines, 'price_per_kg');
+        $prices = array_column($batches, 'price_per_kg');
 
         return [
             'key' => $first->fish_type_id.'_'.$first->quality_class,
@@ -102,12 +99,8 @@ class PriceboardController extends Controller
             'quality_class' => $first->quality_class,
             'min_price' => min($prices),
             'max_price' => max($prices),
-            'am_kg' => $sum(VendorInventory::SESSION_AM),
-            'pm_kg' => $sum(VendorInventory::SESSION_PM),
-            'released_kg' => round(array_sum(array_column($sessionLines, 'released_kg')), 2),
-            'sold_kg' => round(array_sum(array_column($sessionLines, 'sold_kg')), 2),
-            'remaining_kg' => round(array_sum(array_column($sessionLines, 'remaining_kg')), 2),
-            'lines' => $sessionLines,
+            'remaining_kg' => round(array_sum(array_column($batches, 'remaining_kg')), 2),
+            'batches' => $batches,
         ];
     }
 }

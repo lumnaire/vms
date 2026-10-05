@@ -331,7 +331,7 @@
 
         /* ── Vendor cards ────────────────────────────────────────────────
            One card per vendor, listing every fish they sell today. Each fish
-           shows its AM / PM deliveries and what is still for sale across them. */
+           shows each batch (its own price and approval time) and the total left. */
         .pb-vgrid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
@@ -390,10 +390,9 @@
             border-radius: var(--radius-control);
             background: var(--color-surface-subtle);
         }
-        .pb-line.is-soldout { opacity: 0.55; }
-        .pb-line-kg { font-weight: 700; color: var(--color-slate-800); }
-        .pb-line-of { color: var(--color-slate-400); font-size: 0.74rem; }
-        .pb-line-meta { color: var(--color-slate-400); font-size: 0.72rem; white-space: nowrap; }
+                .pb-line-kg { font-weight: 700; color: var(--color-slate-800); }
+                .pb-line-meta { color: var(--color-slate-700); font-size: 0.72rem; font-weight: 600; white-space: nowrap; }
+        .pb-line-price { color: var(--color-slate-900); font-weight: 800; }
 
         .pb-fish-total {
             display: flex;
@@ -409,7 +408,7 @@
         .pb-fish-total-num { font-size: 0.95rem; font-weight: 800; color: var(--color-success-700); }
         .pb-fish-total-num.is-zero { color: var(--color-danger-600); }
 
-        .pb-session-pill { font-size: 0.66rem; padding: 1px 7px; min-width: 34px; justify-content: center; }
+        .pb-batch-pill { font-size: 0.66rem; padding: 1px 7px; justify-content: center; white-space: nowrap; }
         .pb-soldout-tag {
             font-size: 0.66rem;
             font-weight: 700;
@@ -614,16 +613,6 @@
             <option value="stall">Stall Number</option>
         </select>
 
-        {{-- Trading session: what was delivered in the morning, the afternoon, or both. --}}
-        <div class="vpm-segment" role="group" aria-label="Trading session">
-            <button :aria-pressed="session === ''" @click="session=''" title="Whole day">All Day</button>
-            <button :aria-pressed="session === 'AM'" @click="session='AM'" title="Morning deliveries">
-                <x-icon name="bi-sunrise-fill" /> AM
-            </button>
-            <button :aria-pressed="session === 'PM'" @click="session='PM'" title="Afternoon deliveries">
-                <x-icon name="bi-sunset-fill" /> PM
-            </button>
-        </div>
 
         <div class="vpm-segment" role="group" aria-label="View mode">
             <button :aria-pressed="view === 'vendor'" @click="view='vendor'" title="Vendor cards">
@@ -654,7 +643,7 @@
 
     <p class="pb-legend">
         <x-icon name="bi-info-circle" />
-        Quantities are what is <strong>still for sale</strong> &mdash; each vendor's declared sales are already taken off.
+        Quantities are what is <strong>still for sale</strong> right now. Each batch shows its own price and the time staff approved it.
     </p>
 
     {{-- ── VENDOR CARDS ────────────────────────────────────── --}}
@@ -702,42 +691,23 @@
                                 </div>
                             </div>
 
-                            {{-- Every delivery of this fish today, AM first --}}
+                            {{-- Every batch of this fish: its own kg left, price and approval time --}}
                             <ul class="pb-lines">
-                                <template x-for="line in fish.lines" :key="line.id">
-                                    <li class="pb-line" :class="{ 'is-soldout': line.remaining_kg <= 0 }">
-                                        <span class="vpm-badge pb-session-pill"
-                                              :class="line.session === 'PM' ? 'vpm-badge-info' : 'vpm-badge-warning'"
-                                              x-text="line.session"></span>
-                                        <span>
-                                            <template x-if="line.remaining_kg <= 0">
-                                                <span class="pb-soldout-tag">Sold out</span>
-                                            </template>
-                                            <template x-if="line.remaining_kg > 0">
-                                                <span class="pb-line-kg" x-text="kg(line.remaining_kg)"></span>
-                                            </template>
-                                            <span class="pb-line-of" x-show="line.sold_kg > 0"
-                                                  x-text="'of ' + kg(line.released_kg) + ' · ' + kg(line.sold_kg) + ' sold'"></span>
-                                        </span>
+                                <template x-for="batch in fish.batches" :key="batch.id">
+                                    <li class="pb-line">
+                                        <span class="vpm-badge vpm-badge-neutral pb-batch-pill" x-text="batch.label"></span>
+                                        <span class="pb-line-kg" x-text="kg(batch.remaining_kg)"></span>
                                         <span class="pb-line-meta">
-                                            <span x-show="fish.min_price !== fish.max_price" x-text="peso(line.price_per_kg) + ' · '"></span>
-                                            <span x-text="line.time"></span>
+                                            <span class="pb-line-price" x-text="peso(batch.price_per_kg)"></span>
+                                            <span x-show="batch.approved" x-text="' · ' + batch.approved"></span>
                                         </span>
                                     </li>
                                 </template>
                             </ul>
 
                             <div class="pb-fish-total">
-                                <span>
-                                    <template x-if="session === '' && fish.am_kg > 0 && fish.pm_kg > 0">
-                                        <span x-text="'AM ' + kg(fish.am_kg) + ' + PM ' + kg(fish.pm_kg)"></span>
-                                    </template>
-                                    <template x-if="!(session === '' && fish.am_kg > 0 && fish.pm_kg > 0)">
-                                        <span x-text="session ? session + ' available' : 'Available now'"></span>
-                                    </template>
-                                </span>
-                                <span class="pb-fish-total-num" :class="{ 'is-zero': fish.remaining_kg <= 0 }"
-                                      x-text="fish.remaining_kg > 0 ? kg(fish.remaining_kg) : 'Sold out'"></span>
+                                <span x-text="fish.batches.length > 1 ? 'Total available (' + fish.batches.length + ' batches)' : 'Available now'"></span>
+                                <span class="pb-fish-total-num" x-text="kg(fish.remaining_kg)"></span>
                             </div>
                         </section>
                     </template>
@@ -756,8 +726,7 @@
                             <th>Fish Type</th>
                             <th>Quality Class</th>
                             <th>Vendor / Stall</th>
-                            <th class="vpm-th-right">AM Left</th>
-                            <th class="vpm-th-right">PM Left</th>
+                            <th class="vpm-th-right">Batches</th>
                             <th class="vpm-th-right">Total Available</th>
                             <th class="vpm-th-right">Price per kg</th>
                         </tr>
@@ -765,7 +734,7 @@
                     <tbody>
                         <template x-if="tableRows.length === 0">
                             <tr>
-                                <td colspan="7">
+                                <td colspan="6">
                                     <x-empty-state icon="bi-fish"
                                                    title="No confirmed prices found for today"
                                                    text="Nothing matches your current filters." />
@@ -794,12 +763,10 @@
                                         <x-badge variant="neutral" class="ml-1">Stall <span x-text="row.vendor.stall"></span></x-badge>
                                     </div>
                                 </td>
-                                <td class="vpm-td-right vpm-cell-muted" x-text="row.fish.am_kg > 0 ? kg(row.fish.am_kg) : '—'"></td>
-                                <td class="vpm-td-right vpm-cell-muted" x-text="row.fish.pm_kg > 0 ? kg(row.fish.pm_kg) : '—'"></td>
+                                <td class="vpm-td-right vpm-cell-muted" x-text="row.fish.batches.length"></td>
                                 <td class="vpm-td-right">
-                                    <span class="font-semibold"
-                                          :class="row.fish.remaining_kg <= 0 ? 'pb-stock-low' : 'pb-stock-ok'"
-                                          x-text="row.fish.remaining_kg > 0 ? kg(row.fish.remaining_kg) : 'Sold out'"></span>
+                                    <span class="font-semibold pb-stock-ok"
+                                          x-text="kg(row.fish.remaining_kg)"></span>
                                 </td>
                                 <td class="vpm-td-right">
                                     <span class="text-[15px] font-bold text-slate-900" x-text="priceText(row.fish)"></span>
@@ -827,7 +794,7 @@
 {{-- ═══════════════════════════════════════════════════════════
      ALPINE.JS — CLIENT-SIDE FILTERING / SORTING / VIEW
      The vendor cards are built in PriceboardController; this only narrows
-     and reorders them, and re-totals a fish when one session is picked.
+     and reorders them.
 ═══════════════════════════════════════════════════════════════ --}}
 <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
 <script>
@@ -851,10 +818,9 @@
             search: '',
             sortBy: 'vendor',
             classFilter: '',
-            session: '',
             view: 'vendor',
 
-            // Vendor cards after search, class and session filters, re-totalled.
+            // Vendor cards after the search and class filters.
             get vendors() {
                 const q = this.search.trim().toLowerCase();
 
@@ -864,19 +830,7 @@
 
                     const fish = vendor.fish
                         .filter(f => !this.classFilter || f.quality_class === this.classFilter)
-                        .filter(f => !q || vendorHit || f.fish_name.toLowerCase().includes(q))
-                        .map(f => {
-                            const lines = this.session ? f.lines.filter(l => l.session === this.session) : f.lines;
-                            const prices = lines.map(l => l.price_per_kg);
-                            return {
-                                ...f,
-                                lines,
-                                remaining_kg: sum(lines, 'remaining_kg'),
-                                min_price: Math.min(...prices),
-                                max_price: Math.max(...prices),
-                            };
-                        })
-                        .filter(f => f.lines.length > 0);
+                        .filter(f => !q || vendorHit || f.fish_name.toLowerCase().includes(q));
 
                     return { ...vendor, fish, remaining_kg: sum(fish, 'remaining_kg') };
                 }).filter(v => v.fish.length > 0);

@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'My Inventory')
-@section('subtitle', 'Daily Fish Entry · Vendor View')
+@section('subtitle', 'Fish Batches · Vendor View')
 
 @push('styles')
 <style>
@@ -39,61 +39,91 @@
         margin-bottom: 6px;
         letter-spacing: 0.01em;
     }
-    .status-pending   { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
-    .status-confirmed { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
-    .status-rejected  { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
-
-    /* AM / PM picker: two large tap targets rather than a dropdown, because
-       vendors log entries on a phone at the stall. */
-    .session-option { position: relative; cursor: pointer; }
-    .session-option input { position: absolute; opacity: 0; pointer-events: none; }
-    .session-option span {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
-        padding: 9px 10px;
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        font-size: 13px;
-        font-weight: 700;
-        color: #475569;
-        background: white;
-        transition: border-color 0.15s, background 0.15s, color 0.15s;
+    .th-cell {
+        padding: 12px 16px;
+        color: #94a3b8;
+        font-weight: 600;
+        font-size: 10.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        white-space: nowrap;
     }
-    .session-option small { font-size: 11px; font-weight: 500; color: #94a3b8; }
-    .session-option:hover span { border-color: #93c5fd; }
-    .session-option input:focus-visible + span { box-shadow: 0 0 0 3px rgba(96,165,250,0.25); }
-    .session-option input:checked + span { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; }
-    .session-option input:checked + span small { color: #3b82f6; }
+    .batch-row { border-bottom: 1px solid #f1f5f9; transition: background 0.1s; }
+    .batch-row:hover { background: #f8faff; }
+    .batch-row.is-stale { background: #fef2f2; }
+
+    /* State pills */
+    .state-pill {
+        display: inline-flex; align-items: center; gap: 4px;
+        padding: 3px 10px; border-radius: 999px;
+        font-size: 10.5px; font-weight: 600; white-space: nowrap;
+    }
+    .state-pending     { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+    .state-on_sale     { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+    .state-sold_out    { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+    .state-stale       { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+    .state-rejected    { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+    .state-written_off { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+
+    /* Days on the stall out of the freshness window, e.g. "1d / 3d" */
+    .days-pill {
+        display: inline-block; padding: 2px 8px; border-radius: 6px;
+        font-size: 11px; font-weight: 700; white-space: nowrap;
+        background: #f1f5f9; color: #475569;
+    }
+    .days-pill.is-last  { background: #fffbeb; color: #b45309; }
+    .days-pill.is-stale { background: #fee2e2; color: #b91c1c; }
+
+    /* ⋮ batch menu, positioned against the viewport so the scrolling table
+       cannot clip it */
+    .kebab-btn {
+        width: 30px; height: 30px; border-radius: 8px;
+        display: inline-flex; align-items: center; justify-content: center;
+        color: #64748b; border: 1px solid transparent; background: transparent; cursor: pointer;
+    }
+    .kebab-btn:hover, .kebab-btn[aria-expanded="true"] { background: #f1f5f9; border-color: #e2e8f0; color: #1e293b; }
+    #batchMenu {
+        position: fixed; z-index: 60; width: 220px;
+        background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+        box-shadow: 0 12px 32px rgba(15,23,42,0.16); padding: 6px;
+    }
+    .menu-item {
+        width: 100%; display: flex; align-items: center; gap: 8px;
+        padding: 8px 10px; border-radius: 8px; font-size: 12.5px; font-weight: 600;
+        color: #334155; background: none; border: 0; cursor: pointer; text-align: left;
+    }
+    .menu-item:hover { background: #f1f5f9; }
+    .menu-item.is-danger { color: #b91c1c; }
+    .menu-item.is-danger:hover { background: #fef2f2; }
+    .menu-stat {
+        display: flex; justify-content: space-between; align-items: baseline;
+        padding: 7px 10px; font-size: 12px; color: #64748b;
+    }
+    .menu-stat strong { color: #0f172a; font-size: 13px; }
+    .menu-sep { height: 1px; background: #f1f5f9; margin: 4px 2px; }
+
+    .existing-batches {
+        border: 1px solid #fde68a; background: #fffbeb; color: #92400e;
+        border-radius: 10px; padding: 10px 12px; font-size: 11.5px; line-height: 1.5;
+    }
+    .existing-batches ul { margin: 6px 0 8px; padding-left: 16px; list-style: disc; }
 </style>
 @endpush
 
 @section('content')
 
 @php
-    // The Add Stock dialog posts stock_kg / released_kg too. When it is the one
-    // that bounced, those old values belong to the dialog, not to this form.
-    $addStockFailed = (bool) old('add_stock_entry');
-    $formOld = fn (string $key) => $addStockFailed ? null : old($key);
+    $releaseFailed  = (bool) old('release_entry');
+    $writeOffFailed = (bool) old('write_off_entry');
+    $formOld = fn (string $key) => ($releaseFailed || $writeOffFailed) ? null : old($key);
+    $freshness = \App\Models\VendorInventory::freshnessDays();
 @endphp
 
 {{-- ── Flash Messages ───────────────────────────────────────────── --}}
-@if(session('success'))
-<div class="mb-5 flex items-center gap-3 px-4 py-3 rounded-xl text-[13.5px] bg-success-50"
-     style="border: 1px solid #a7f3d0; color: #065f46">
-    <x-icon name="bi-check-circle-fill" size="base" class="flex-shrink-0 text-success-500" />
-    <span class="font-medium">{{ session('success') }}</span>
-    <button onclick="this.parentElement.remove()"
-            class="ml-auto hover:opacity-60 transition-opacity" style="color: #34d399;">
-        <x-icon name="bi-x-lg" size="md" />
-    </button>
-</div>
-@endif
+<x-alert />
 
-@if($errors->any())
-<div class="mb-5 px-4 py-3 rounded-xl text-[13px] bg-danger-50 border border-danger-200 text-danger-800"
-    >
+@if($errors->any() && ! $releaseFailed && ! $writeOffFailed)
+<div class="mb-5 px-4 py-3 rounded-xl text-[13px] bg-danger-50 border border-danger-200 text-danger-800">
     <div class="flex items-center gap-2 font-semibold mb-1.5 text-[13.5px]">
         <x-icon name="bi-exclamation-circle-fill" class="flex-shrink-0 text-danger-500" />
         Please correct the following:
@@ -106,61 +136,19 @@
 </div>
 @endif
 
-{{-- ── Today's Stats ────────────────────────────────────────────── --}}
+{{-- ── Stats ────────────────────────────────────────────────────── --}}
 <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-
-    {{-- Total Stock --}}
-    <div class="stat-card bg-white rounded-xl p-4 border border-slate-100 shadow-card"
-        >
-        <p class="text-slate-400 font-semibold text-[10px] uppercase tracking-[0.07em]"
-          >Today's Stock</p>
-        <p class="text-slate-800 font-bold mt-1 leading-[1]" style="font-size: 24px">
-            {{ number_format($totalStockToday, 1) }}
-        </p>
-        <p class="text-slate-400 mt-0.5 text-[10.5px]">kg submitted</p>
-    </div>
-
-    {{-- Pending --}}
-    <div class="stat-card bg-white rounded-xl p-4 border border-slate-100 shadow-card"
-        >
-        <p class="text-slate-400 font-semibold text-[10px] uppercase tracking-[0.07em]"
-          >Pending</p>
-        <p class="font-bold mt-1 leading-[1] text-warning-600" style="font-size: 24px">
-            {{ $pendingCount }}
-        </p>
-        <p class="text-slate-400 mt-0.5 text-[10.5px]">awaiting review</p>
-    </div>
-
-    {{-- Confirmed --}}
-    <div class="stat-card bg-white rounded-xl p-4 border border-slate-100 shadow-card"
-        >
-        <p class="text-slate-400 font-semibold text-[10px] uppercase tracking-[0.07em]"
-          >Confirmed</p>
-        <p class="font-bold mt-1 leading-[1] text-success-600" style="font-size: 24px">
-            {{ $confirmedCount }}
-        </p>
-        <p class="text-slate-400 mt-0.5 text-[10.5px]">published to board</p>
-    </div>
-
-    {{-- Rejected --}}
-    <div class="stat-card bg-white rounded-xl p-4 border border-slate-100 shadow-card"
-        >
-        <p class="text-slate-400 font-semibold text-[10px] uppercase tracking-[0.07em]"
-          >Rejected</p>
-        <p class="font-bold mt-1 leading-[1] text-danger-600" style="font-size: 24px">
-            {{ $rejectedCount }}
-        </p>
-        <p class="text-slate-400 mt-0.5 text-[10.5px]">not published</p>
-    </div>
-
+    <x-stat-card label="Remaining Stock" :value="$remainingKg" unit="kg" tone="neutral" />
+    <x-stat-card label="Batches on Sale" :value="$onSaleCount" decimals="0" tone="success" />
+    <x-stat-card label="Pending" :value="$pendingCount" decimals="0" tone="warning" />
+    <x-stat-card label="Stale" :value="$staleCount" decimals="0" :tone="$staleCount > 0 ? 'danger' : 'neutral'" />
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
-    {{-- ── Submit New Entry Form (left column) ─────────────────── --}}
+    {{-- ── Submit a Batch (left column) ────────────────────────── --}}
     <div class="lg:col-span-1">
-        <div class="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-card"
-            >
+        <div class="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-card">
 
             <div class="px-5 py-4 border-b border-slate-100"
                  style="background: linear-gradient(135deg, #0f2d5e, #0a1f3c);">
@@ -170,15 +158,13 @@
                         <x-icon name="bi-plus-circle-fill" size="base" class="text-blue-300" />
                     </div>
                     <div>
-                        <h2 class="text-white font-bold text-[13.5px]">Log New Entry</h2>
-                        <p class="text-blue-300 text-[11px] mt-px">
-                            {{ now()->format('l, F j, Y') }}
-                        </p>
+                        <h2 class="text-white font-bold text-[13.5px]">Submit a Batch</h2>
+                        <p class="text-blue-300 text-[11px] mt-px">{{ now()->format('l, F j, Y') }}</p>
                     </div>
                 </div>
             </div>
 
-            <form method="POST" action="{{ route('vendor.inventory.store') }}" class="px-5 py-5">
+            <form method="POST" action="{{ route('vendor.inventory.store') }}" class="px-5 py-5" id="batchForm">
                 @csrf
 
                 <div class="space-y-4">
@@ -191,40 +177,9 @@
                         <select name="quality_class" id="qualityClassSelect" required class="form-input">
                             <option value="">— Select class —</option>
                             @foreach(\App\Models\FishType::QUALITY_CLASSES as $class)
-                                <option value="{{ $class }}"
-                                    {{ old('quality_class') == $class ? 'selected' : '' }}>
-                                    {{ $class }}
-                                </option>
+                                <option value="{{ $class }}" @selected($formOld('quality_class') == $class)>{{ $class }}</option>
                             @endforeach
                         </select>
-                    </div>
-
-                    {{-- Trading Session. Defaults to the half of the day it is now,
-                         so a vendor logging at dawn does not have to think about it. --}}
-                    @php
-                        $formSession = $addStockFailed ? null : old('market_session');
-                        $formSession ??= now()->hour < 12 ? 'AM' : 'PM';
-                    @endphp
-                    <div>
-                        <label class="form-label">
-                            Trading Session <span class="text-danger-500">*</span>
-                        </label>
-                        <div class="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Trading session">
-                            @foreach(\App\Models\VendorInventory::SESSIONS as $session)
-                                <label class="session-option">
-                                    <input type="radio" name="market_session" value="{{ $session }}"
-                                           @checked($formSession === $session) required>
-                                    <span>
-                                        <x-icon name="{{ $session === 'AM' ? 'bi-sunrise-fill' : 'bi-sunset-fill' }}" size="sm" />
-                                        {{ $session }}
-                                        <small>{{ $session === 'AM' ? 'Morning' : 'Afternoon' }}</small>
-                                    </span>
-                                </label>
-                            @endforeach
-                        </div>
-                        <p class="mt-1 text-slate-400 text-[11px]">
-                            You can log the same fish and class more than once today &mdash; each delivery is its own line.
-                        </p>
                     </div>
 
                     {{-- Fish Type (filtered by the selected quality class) --}}
@@ -237,11 +192,27 @@
                             @foreach($fishTypes as $fish)
                                 <option value="{{ $fish->id }}"
                                     data-quality-class="{{ $fish->quality_class }}"
-                                    {{ old('fish_type_id') == $fish->id ? 'selected' : '' }}>
+                                    @selected($formOld('fish_type_id') == $fish->id)>
                                     {{ $fish->name }}
                                 </option>
                             @endforeach
                         </select>
+                    </div>
+
+                    {{-- Already have this fish: shown by script when the chosen fish
+                         has batches on the stall or waiting for staff. --}}
+                    <div id="existingBatches" class="existing-batches hidden" role="status">
+                        <p class="font-semibold flex items-center gap-1.5">
+                            <x-icon name="bi-layers-fill" size="xs" />
+                            You already have <span id="existingFish"></span>:
+                            <span id="existingKg"></span> remaining
+                        </p>
+                        <ul id="existingList"></ul>
+                        <label class="flex items-start gap-2 font-semibold cursor-pointer text-amber-900">
+                            <input type="checkbox" name="confirm_new_batch" value="1" id="confirmNewBatch"
+                                   class="mt-0.5 w-4 h-4" @checked($formOld('confirm_new_batch'))>
+                            <span>Yes, submit this as <span id="nextBatchLabel">another batch</span>.</span>
+                        </label>
                     </div>
 
                     {{-- Price per kg --}}
@@ -258,15 +229,13 @@
                                    oninput="checkPriceGuide()"
                                    required class="form-input" style="padding-left: 28px;">
                         </div>
-                        <p class="mt-1 text-slate-400 text-[11px]" id="priceGuideHint"
-                           >Select a fish type to see its price guideline.</p>
+                        <p class="mt-1 text-slate-400 text-[11px]" id="priceGuideHint">Select a fish type to see its price guideline.</p>
 
                         {{-- Shown when the entered price is above the guideline --}}
                         <div id="priceGuideWarning" class="hidden mt-2">
                             <div class="flex items-start gap-1.5 rounded-lg px-2.5 py-2 text-[11px] leading-[1.45]"
                                  style="background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;">
-                                <span class="flex-shrink-0 mt-px" id="priceGuideWarningIcon"
-                                      title="Price exceeds the price guideline.">
+                                <span class="flex-shrink-0 mt-px" id="priceGuideWarningIcon" title="Price exceeds the price guideline.">
                                     <x-icon name="bi-exclamation-triangle-fill" size="xs" />
                                 </span>
                                 <span>
@@ -277,389 +246,265 @@
                         </div>
                     </div>
 
-                    {{-- Stock kg --}}
+                    {{-- Stock kg: everything brought is for sale --}}
                     <div>
                         <label class="form-label">
-                            Total Stock (kg) <span class="text-danger-500">*</span>
+                            Stock (kg) <span class="text-danger-500">*</span>
                         </label>
                         <div class="relative">
                             <input type="number" name="stock_kg" id="stockKgInput"
                                    value="{{ $formOld('stock_kg') }}"
-                                   step="0.1" min="0.1"
-                                   placeholder="0.0"
-                                   required class="form-input"
-                                   oninput="syncReleased()">
-                            <span class="absolute text-[12px] top-1/2 -translate-y-1/2 text-slate-400" style="right:12px">kg</span>
-                        </div>
-                        <p class="mt-1 text-slate-400 text-[11px]">Total fish you brought to the market today.</p>
-                    </div>
-
-                    {{-- Released kg --}}
-                    <div>
-                        <label class="form-label">
-                            Released for Sale (kg) <span class="text-danger-500">*</span>
-                        </label>
-                        <div class="relative">
-                            <input type="number" name="released_kg" id="releasedKgInput"
-                                   value="{{ $formOld('released_kg') }}"
-                                   step="0.1" min="0.1"
+                                   step="0.1" min="0.1" max="99999.99"
                                    placeholder="0.0"
                                    required class="form-input">
                             <span class="absolute text-[12px] top-1/2 -translate-y-1/2 text-slate-400" style="right:12px">kg</span>
                         </div>
-                        <p class="mt-1 text-slate-400 text-[11px]">Cannot exceed total stock above.</p>
+                        <p class="mt-1 text-slate-400 text-[11px]">All of it goes on sale once staff confirm the batch.</p>
                     </div>
 
                 </div>
 
                 <button type="submit"
-                        class="mt-6 w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-white font-semibold transition-colors text-[13.5px] bg-success-600"
-                       
-                        onmouseover="this.style.background='#047857'"
-                        onmouseout="this.style.background='#059669'">
+                        class="mt-6 w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-white font-semibold transition-colors text-[13.5px] bg-success-600 hover:bg-success-700">
                     <x-icon name="bi-send-fill" size="md" />
-                    Submit Entry
+                    Submit Batch
                 </button>
 
-                {{-- Note about locking --}}
                 <div class="mt-3 rounded-lg px-3 py-2.5 bg-surface-subtle border border-slate-200">
                     <p class="text-[11px] leading-[1.5] text-slate-500">
                         <x-icon name="bi-info-circle-fill" class="mr-1 text-slate-400" />
-                        New entries wait for <strong>staff confirmation</strong>; you can cancel one while it is pending.
-                        Once confirmed, use <strong>Add Stock</strong> on the line for more of the same fish &mdash;
-                        it goes live without another review.
+                        Each batch stays on sale for up to <strong>{{ $freshness }} days</strong> or until it sells out.
+                        Use <strong>⋮ → Release</strong> on a batch to record the kilograms you sold.
                     </p>
                 </div>
             </form>
         </div>
     </div>
 
-    {{-- ── Today's Entries Table (right column) ────────────────── --}}
+    {{-- ── Batches (right column) ──────────────────────────────── --}}
     <div class="lg:col-span-2">
-        <div class="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-card"
-            >
+        <div class="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-card">
 
             <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
                 <div>
-                    <h2 class="text-slate-700 font-bold text-[13.5px]">Today's Entries</h2>
+                    <h2 class="text-slate-700 font-bold text-[13.5px]">My Batches</h2>
                     <p class="text-slate-400 text-[11px] mt-px">
-                        {{ now()->format('F j, Y') }} · {{ $todayEntries->count() }} {{ Str::plural('entry', $todayEntries->count()) }}
+                        Today's submissions and every batch still on your stall &middot;
+                        {{ $batches->count() }} {{ Str::plural('batch', $batches->count()) }}
                     </p>
-                </div>
-                <div class="flex items-center gap-2">
-                    <a href="{{ route('vendor.my-stock.index') }}"
-                       class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11.5px] font-semibold text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors"
-                       style="text-decoration:none">
-                        <x-icon name="bi-boxes" size="2xs" /> My Stock
-                    </a>
-                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-semibold text-[11px] bg-brand-50 text-brand-600 border border-brand-200"
-                         >
-                        <x-icon name="bi-calendar-day" size="2xs" />
-                        Today
-                    </span>
                 </div>
             </div>
 
-            @if($todayEntries->isEmpty())
+            @if($batches->isEmpty())
             <div class="flex flex-col items-center justify-center py-14 text-center">
-                <div class="w-12 h-12 rounded-full flex items-center justify-center mb-3 bg-surface-subtle"
-                    >
+                <div class="w-12 h-12 rounded-full flex items-center justify-center mb-3 bg-surface-subtle">
                     <x-icon name="bi-inbox" size="2xl" class="text-slate-300" />
                 </div>
-                <p class="text-slate-500 font-semibold text-[13px]">No entries yet today</p>
-                <p class="text-slate-400 mt-1 text-[12px]">
-                    Use the form on the left to log your first entry.
-                </p>
+                <p class="text-slate-500 font-semibold text-[13px]">No batches on your stall</p>
+                <p class="text-slate-400 mt-1 text-[12px]">Use the form on the left to submit your first batch.</p>
             </div>
             @else
             <div class="overflow-x-auto">
-                <table class="w-full" style="border-collapse: collapse; min-width: 680px;">
+                <table class="w-full" style="border-collapse: collapse; min-width: 720px;">
                     <thead>
                         <tr class="bg-surface-subtle" style="border-bottom: 1px solid #f1f5f9">
-                            <th class="text-left px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
-                               >Fish Type</th>
-                            <th class="text-left px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
-                               >Class</th>
-                            <th class="text-center px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
-                               >Session</th>
-                            <th class="text-right px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
-                               >Price/kg</th>
-                            <th class="text-right px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
-                               >Stock</th>
-                            <th class="text-right px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
-                               >Released</th>
-                            <th class="text-center px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
-                               >Status</th>
-                            <th class="text-center px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
-                               >Action</th>
-                        </tr>
-                     </thead>
-                     <tbody>
-                         @foreach($todayEntries as $entry)
-                         <tr style="border-bottom: 1px solid #f8fafc; transition: background 0.1s;"
-                             onmouseover="this.style.background='#f8faff'"
-                             onmouseout="this.style.background='transparent'">
-
-                             <td class="px-4 py-3">
-                                 <div class="flex items-center gap-2">
-                                     <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-brand-50"
-                                         >
-                                         <x-icon name="bi-water" size="sm" class="text-blue-500" />
-                                     </div>
-                                     <span class="text-slate-700 font-semibold text-[13px]">
-                                         {{ $entry->fishType->name }}
-                                     </span>
-                                 </div>
-                             </td>
-
-                             <td class="px-4 py-3">
-                                 <span class="text-[12px] text-slate-500" style="font-weight: 500">
-                                     {{ $entry->quality_class }}
-                                 </span>
-                             </td>
-
-                             <td class="px-4 py-3 text-center">
-                                 <x-session-badge :session="$entry->session()" />
-                             </td>
-
-                             <td class="px-4 py-3 text-right">
-                                 <span class="font-semibold text-slate-700 text-[13px]">
-                                     ₱{{ number_format($entry->price_per_kg, 2) }}
-                                 </span>
-                             </td>
-
-                             <td class="px-4 py-3 text-right">
-                                 <span class="text-slate-600 text-[12.5px]">
-                                     {{ number_format($entry->stock_kg, 1) }} kg
-                                 </span>
-                             </td>
-
-                             <td class="px-4 py-3 text-right">
-                                 <span class="text-slate-600 text-[12.5px]">
-                                     {{ number_format($entry->released_kg, 1) }} kg
-                                 </span>
-                             </td>
-
-                             <td class="px-4 py-3 text-center">
-                                 @if($entry->status === 'pending')
-                                     <span class="status-pending inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-semibold text-[10.5px]"
-                                          >
-                                         <x-icon name="bi-clock" size="2xs" /> Pending
-                                     </span>
-                                 @elseif($entry->status === 'confirmed')
-                                     <span class="status-confirmed inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-semibold text-[10.5px]"
-                                          >
-                                         <x-icon name="bi-check-circle-fill" size="2xs" /> Confirmed
-                                     </span>
-                                 @else
-                                     <span class="status-rejected inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-semibold text-[10.5px]"
-                                          >
-                                         <x-icon name="bi-x-circle-fill" size="2xs" /> Rejected
-                                     </span>
-                                 @endif
-                             </td>
-
-                             <td class="px-4 py-3 text-center">
-                                 @if($entry->status === 'pending')
-                                 <form method="POST" action="{{ route('vendor.inventory.destroy', $entry) }}"
-                                       onsubmit="return confirm('Are you sure you want to cancel this entry?')">
-                                     @csrf
-                                     @method('DELETE')
-                                     <button type="submit"
-                                             class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-semibold transition-colors text-[10.5px] bg-danger-50 text-danger-800 border border-danger-200"
-                                            
-                                             onmouseover="this.style.background='#fee2e2'"
-                                             onmouseout="this.style.background='#fef2f2'">
-                                         <x-icon name="bi-x-lg" size="2xs" /> Cancel
-                                     </button>
-                                 </form>
-                                 @elseif($entry->canAddStock())
-                                     @include('vendor.partials.add-stock-button', ['entry' => $entry])
-                                 @else
-                                 <span class="text-slate-300 text-[11px]" title="{{ $entry->addStockBlocker() }}">&mdash;</span>
-                                 @endif
-                             </td>
-
-                         </tr>
-                         @endforeach
-                    </tbody>
-                </table>
-            </div>
-            @endif
-
-        </div>
-
-        {{-- ── Recent Entries (past 7 days) ─────────────────────── --}}
-        @if($recentEntries->isNotEmpty())
-        <div class="mt-5 bg-white rounded-xl border border-slate-100 overflow-hidden shadow-card"
-            >
-
-            <div class="px-5 py-4 border-b border-slate-100">
-                <h2 class="text-slate-700 font-bold text-[13.5px]">Past 7 Days</h2>
-                <p class="text-slate-400 text-[11px] mt-px">
-                    Read-only historical entries &mdash; locked after submission day.
-                    Leftover fish is resubmitted from
-                    <a href="{{ route('vendor.my-stock.index') }}" class="text-brand-600 font-semibold hover:underline">My Stock</a>.
-                </p>
-            </div>
-
-            <div class="overflow-x-auto">
-                <table class="w-full" style="border-collapse: collapse; min-width: 680px;">
-                    <thead>
-                        <tr class="bg-surface-subtle" style="border-bottom: 1px solid #f1f5f9">
-                            <th class="text-left px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
-                               >Date</th>
-                            <th class="text-left px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
-                               >Fish Type</th>
-                            <th class="text-left px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
-                               >Class</th>
-                            <th class="text-center px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
-                               >Session</th>
-                            <th class="text-right px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
-                               >Price/kg</th>
-                            <th class="text-right px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
-                               >Stock</th>
-                            <th class="text-right px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
-                               >Remaining</th>
-                            <th class="text-center px-4 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
-                               >Status</th>
+                            <th class="th-cell text-left">Fish / Batch</th>
+                            <th class="th-cell text-left">Class</th>
+                            <th class="th-cell text-right">Price/kg</th>
+                            <th class="th-cell text-right">Stock</th>
+                            <th class="th-cell text-right">Remaining</th>
+                            <th class="th-cell text-center">Days</th>
+                            <th class="th-cell text-center">Status</th>
+                            <th class="th-cell text-center"><span class="sr-only">Actions</span></th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach($recentEntries as $entry)
-                        <tr style="border-bottom: 1px solid #f8fafc; {{ $entry->isStale() ? 'background:#fef2f2;' : 'opacity: 0.85;' }} transition: background 0.1s;"
-                            onmouseover="this.style.background='#fef2f2'; this.style.opacity='1'"
-                            onmouseout="this.style.background='{{ $entry->isStale() ? '#fef2f2' : 'transparent' }}'; this.style.opacity='{{ $entry->isStale() ? '1' : '0.85' }}'">
-
-                            <td class="px-4 py-3">
-                                <span class="text-slate-500 text-[12px]">
-                                    {{ $entry->entry_date->format('M j') }}
-                                </span>
-                            </td>
-
-                            <td class="px-4 py-3">
-                                <span class="text-slate-700 font-medium text-[13px]">
-                                    {{ $entry->fishType->name }}
-                                </span>
-                            </td>
-
-                            <td class="px-4 py-3">
-                                <span class="text-slate-500 text-[12px]">{{ $entry->quality_class }}</span>
-                            </td>
-
-                            <td class="px-4 py-3 text-center">
-                                <x-session-badge :session="$entry->session()" />
-                            </td>
-
-                            <td class="px-4 py-3 text-right">
-                                <span class="text-slate-700 text-[12.5px]">
-                                    ₱{{ number_format($entry->price_per_kg, 2) }}
-                                </span>
-                            </td>
-
-                            <td class="px-4 py-3 text-right">
-                                <span class="text-slate-500 text-[12px]">
-                                    {{ number_format($entry->stock_kg, 1) }} kg
-                                </span>
-                            </td>
-
-                            {{-- Remaining = released − declared sold. Unsold stock that has
-                                 aged past the freshness window is flagged in red with its age,
-                                 so it is impossible to miss on a list of old entries. --}}
-                            <td class="px-4 py-3 text-right">
-                                @php
-                                    $isStale = $entry->isStale();
-                                    // Built outside the markup: a `>` inside {{ }} within an
-                                    // HTML attribute makes Blade terminate the echo early and
-                                    // emit broken PHP.
-                                    $staleTitle = $isStale
-                                        ? '₱' . number_format((float) $entry->getRemainingStockValue(), 2)
-                                            . ' of unsold stock held for ' . $entry->getAgeInDays() . ' days'
-                                        : '';
-                                @endphp
-                                @if($isStale)
-                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-danger-50 text-danger-700"
-                                          style="border:1px solid #fecaca" title="{{ $staleTitle }}">
-                                        <x-icon name="bi-exclamation-octagon-fill" size="2xs" />
-                                        {{ number_format($entry->getRemainingStock(), 1) }} kg
-                                        <span class="font-normal">· {{ $entry->getAgeInDays() }}d</span>
-                                    </span>
-                                @else
-                                    <span class="text-slate-600 text-[12px] font-semibold">
-                                        {{ number_format($entry->getRemainingStock(), 1) }} kg
-                                    </span>
-                                @endif
-                            </td>
-
-                            <td class="px-4 py-3 text-center">
-                                @if($entry->status === 'confirmed')
-                                    <span class="status-confirmed inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-semibold text-[10.5px]"
-                                         >
-                                        <x-icon name="bi-check-circle-fill" size="2xs" /> Confirmed
-                                    </span>
-                                @elseif($entry->status === 'rejected')
-                                    <span class="status-rejected inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-semibold text-[10.5px]"
-                                         >
-                                        <x-icon name="bi-x-circle-fill" size="2xs" /> Rejected
-                                    </span>
-                                @else
-                                    <span class="status-pending inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-semibold text-[10.5px]"
-                                         >
-                                        <x-icon name="bi-clock" size="2xs" /> Pending
-                                    </span>
-                                @endif
-                            </td>
-
-                        </tr>
+                        @foreach($batches as $entry)
+                            @include('vendor.partials.batch-row', ['entry' => $entry, 'showDate' => false])
                         @endforeach
                     </tbody>
                 </table>
             </div>
+            @endif
+        </div>
 
+        {{-- ── Closed batches (past 7 days) ─────────────────────── --}}
+        @if($history->isNotEmpty())
+        <div class="mt-5 bg-white rounded-xl border border-slate-100 overflow-hidden shadow-card">
+            <div class="px-5 py-4 border-b border-slate-100">
+                <h2 class="text-slate-700 font-bold text-[13.5px]">Closed Batches &middot; Past 7 Days</h2>
+                <p class="text-slate-400 text-[11px] mt-px">Sold out, written off or rejected.</p>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full" style="border-collapse: collapse; min-width: 720px;">
+                    <thead>
+                        <tr class="bg-surface-subtle" style="border-bottom: 1px solid #f1f5f9">
+                            <th class="th-cell text-left">Fish / Batch</th>
+                            <th class="th-cell text-left">Class</th>
+                            <th class="th-cell text-right">Price/kg</th>
+                            <th class="th-cell text-right">Stock</th>
+                            <th class="th-cell text-right">Sold</th>
+                            <th class="th-cell text-center">Days</th>
+                            <th class="th-cell text-center">Status</th>
+                            <th class="th-cell"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($history as $entry)
+                            @include('vendor.partials.batch-row', ['entry' => $entry, 'showDate' => true, 'closed' => true])
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
         </div>
         @endif
-
     </div>
 </div>
 
-@include('vendor.partials.add-stock-modal')
+{{-- ── ⋮ Batch menu (one, shared by every row) ─────────────────── --}}
+<div id="batchMenu" class="hidden" role="menu">
+    <button type="button" class="menu-item" data-menu="release" role="menuitem">
+        <x-icon name="bi-cart-check-fill" size="sm" class="text-success-600" /> Release (record sale)
+    </button>
+    <div class="menu-sep" data-menu="release-sep"></div>
+    <div class="menu-stat"><span>Total sold</span><strong id="menuSold"></strong></div>
+    <div class="menu-stat"><span>Remaining</span><strong id="menuRemaining"></strong></div>
+    <div class="menu-sep" data-menu="extra-sep"></div>
+    <button type="button" class="menu-item is-danger" data-menu="write-off" role="menuitem">
+        <x-icon name="bi-trash3-fill" size="sm" /> Write off (stale)
+    </button>
+    <button type="button" class="menu-item is-danger" data-menu="cancel" role="menuitem">
+        <x-icon name="bi-x-circle-fill" size="sm" /> Cancel batch
+    </button>
+</div>
+
+{{-- ── Release modal: record kilograms sold ─────────────────────── --}}
+<div id="releaseModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4"
+     role="dialog" aria-modal="true" aria-labelledby="releaseTitle"
+     style="background: rgba(15,23,42,0.55); backdrop-filter: blur(4px)"
+     onclick="if (event.target === this) closeModal('releaseModal')">
+    <div class="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-modal">
+        <div class="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-success-50">
+                    <x-icon name="bi-cart-check-fill" size="lg" class="text-success-600" />
+                </div>
+                <div class="min-w-0">
+                    <h3 id="releaseTitle" class="text-slate-800 font-bold text-[15px]">Release</h3>
+                    <p id="releaseSubtitle" class="text-slate-400 text-[11.5px] mt-0.5 truncate"></p>
+                </div>
+            </div>
+            <button type="button" onclick="closeModal('releaseModal')" aria-label="Close"
+                    class="w-7 h-7 rounded-full flex items-center justify-center hover:bg-slate-100 text-slate-400">
+                <x-icon name="bi-x-lg" size="sm" />
+            </button>
+        </div>
+        <form id="releaseForm" method="POST" class="px-5 py-5 space-y-4">
+            @csrf
+            <input type="hidden" name="release_entry" id="releaseEntry">
+
+            @if($releaseFailed && $errors->has('release_kg'))
+                <div class="rounded-lg px-3 py-2.5 text-[12px] bg-danger-50 border border-danger-200 text-danger-800">
+                    {{ $errors->first('release_kg') }}
+                </div>
+            @endif
+
+            <div class="grid grid-cols-2 gap-2 text-[12px]">
+                <div class="rounded-lg bg-surface-subtle border border-slate-200 px-3 py-2">
+                    <p class="text-slate-400 text-[10px] font-semibold uppercase tracking-[0.06em]">Sold so far</p>
+                    <p id="releaseSold" class="text-slate-700 font-bold"></p>
+                </div>
+                <div class="rounded-lg bg-surface-subtle border border-slate-200 px-3 py-2">
+                    <p class="text-slate-400 text-[10px] font-semibold uppercase tracking-[0.06em]">Remaining</p>
+                    <p id="releaseRemaining" class="text-slate-700 font-bold"></p>
+                </div>
+            </div>
+
+            <div>
+                <label class="form-label" for="releaseKg">Kilograms sold <span class="text-danger-500">*</span></label>
+                <div class="relative">
+                    <input type="number" name="release_kg" id="releaseKg" class="form-input"
+                           step="0.01" min="0.01" placeholder="0.0" required>
+                    <span class="absolute text-[12px] top-1/2 -translate-y-1/2 text-slate-400" style="right:12px">kg</span>
+                </div>
+                <p class="mt-1 text-slate-400 text-[11px]">This is taken off the batch's remaining stock and the public price board.</p>
+            </div>
+
+            <div class="flex items-center justify-end gap-2 pt-1">
+                <button type="button" onclick="closeModal('releaseModal')" class="vpm-btn vpm-btn-secondary vpm-btn-sm">Cancel</button>
+                <button type="submit" class="vpm-btn vpm-btn-success vpm-btn-sm">
+                    <x-icon name="bi-check2" size="xs" /> Release
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{-- ── Write-off modal ──────────────────────────────────────────── --}}
+<div id="writeOffModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4"
+     role="dialog" aria-modal="true" aria-labelledby="writeOffTitle"
+     style="background: rgba(15,23,42,0.55); backdrop-filter: blur(4px)"
+     onclick="if (event.target === this) closeModal('writeOffModal')">
+    <div class="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-modal">
+        <div class="px-5 py-4 border-b border-slate-100">
+            <h3 id="writeOffTitle" class="text-slate-800 font-bold text-[15px]">Write off this batch?</h3>
+            <p id="writeOffSubtitle" class="text-slate-400 text-[11.5px] mt-0.5"></p>
+        </div>
+        <form id="writeOffForm" method="POST" class="px-5 py-5 space-y-4">
+            @csrf
+            <input type="hidden" name="write_off_entry" id="writeOffEntry">
+            @if($writeOffFailed && $errors->any())
+                <div class="rounded-lg px-3 py-2.5 text-[12px] bg-danger-50 border border-danger-200 text-danger-800">{{ $errors->first() }}</div>
+            @endif
+            <p class="text-[12px] text-slate-600">
+                The remaining <strong id="writeOffKg"></strong> is past the {{ $freshness }}-day freshness window.
+                Writing it off removes it from your remaining stock.
+            </p>
+            <div>
+                <label class="form-label" for="writeOffReason">Reason (optional)</label>
+                <input type="text" name="reason" id="writeOffReason" maxlength="255" class="form-input" placeholder="e.g. Spoiled">
+            </div>
+            <div class="flex items-center justify-end gap-2">
+                <button type="button" onclick="closeModal('writeOffModal')" class="vpm-btn vpm-btn-secondary vpm-btn-sm">Keep</button>
+                <button type="submit" class="vpm-btn vpm-btn-danger vpm-btn-sm">Write off</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{-- Cancel a pending batch: submitted from the ⋮ menu --}}
+<form id="cancelForm" method="POST" class="hidden">
+    @csrf
+    @method('DELETE')
+</form>
 
 @endsection
 
 @push('scripts')
 <script>
-    // Auto-fill released_kg when stock_kg is entered
-    function syncReleased() {
-        const stock    = document.getElementById('stockKgInput').value;
-        const released = document.getElementById('releasedKgInput');
-        if (!released.value || parseFloat(released.value) > parseFloat(stock)) {
-            released.value = stock;
-        }
-    }
-
-    // Filter the fish type dropdown based on the chosen quality class
+    // ── Submission form ─────────────────────────────────────────────
     const qcSelect    = document.getElementById('qualityClassSelect');
     const fishSelect  = document.getElementById('fishTypeSelect');
     const allFishOpts = Array.from(fishSelect.options).filter(o => o.value !== '');
 
     // Active price guidelines, keyed by "<fish_type_id>_<quality class>"
     const PRICE_GUIDES  = {!! json_encode($priceGuides) !!};
+    // What the vendor already has of each fish, keyed the same way
+    const EXISTING      = @json($existingBatches);
+
     const priceInput    = document.getElementById('pricePerKgInput');
     const guideHint     = document.getElementById('priceGuideHint');
     const guideWarning  = document.getElementById('priceGuideWarning');
     const guideWarnText = document.getElementById('priceGuideWarningText');
     const guideWarnIcon = document.getElementById('priceGuideWarningIcon');
-    const peso = (n) => '₱' + Number(n).toLocaleString('en-PH', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    });
+    const peso = (n) => '₱' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const kg   = (n) => Number(n).toLocaleString('en-PH', { minimumFractionDigits: 1, maximumFractionDigits: 2 }) + ' kg';
 
     function filterFishTypes() {
         const selectedClass = qcSelect.value;
         const previousValue = fishSelect.value;
 
         fishSelect.innerHTML = '<option value="">— Select fish type —</option>';
-
         allFishOpts.forEach(opt => {
             if (!selectedClass || opt.dataset.qualityClass === selectedClass) {
                 fishSelect.add(opt.cloneNode(true));
@@ -670,13 +515,36 @@
         fishSelect.value = hasPrevious ? previousValue : '';
 
         checkPriceGuide();
+        showExistingBatches();
+    }
+
+    // "You already have Bammer: 15 kg remaining" + the confirm tick-box
+    function showExistingBatches() {
+        const box     = document.getElementById('existingBatches');
+        const confirm = document.getElementById('confirmNewBatch');
+        const opt     = fishSelect.options[fishSelect.selectedIndex];
+        const info    = fishSelect.value ? EXISTING[fishSelect.value + '_' + (opt?.dataset.qualityClass || qcSelect.value)] : null;
+
+        box.classList.toggle('hidden', !info);
+        confirm.required = !!info;
+        if (!info) { confirm.checked = false; return; }
+
+        document.getElementById('existingFish').textContent = opt.textContent.trim();
+        document.getElementById('existingKg').textContent = kg(info.remaining);
+        document.getElementById('nextBatchLabel').textContent = 'Batch ' + info.next_batch;
+
+        const list = document.getElementById('existingList');
+        list.innerHTML = '';
+        info.batches.forEach(b => {
+            const li = document.createElement('li');
+            li.textContent = b.label + ' — ' + kg(b.kg) + ' (' + b.status + ')';
+            list.appendChild(li);
+        });
     }
 
     // Flags the price red + shows the warning when it is above the guideline
     function checkPriceGuide() {
-        const guide = fishSelect.value
-            ? PRICE_GUIDES[fishSelect.value + '_' + qcSelect.value]
-            : undefined;
+        const guide = fishSelect.value ? PRICE_GUIDES[fishSelect.value + '_' + qcSelect.value] : undefined;
         const price = parseFloat(priceInput.value);
 
         if (!guide) {
@@ -688,26 +556,130 @@
             return;
         }
 
-        guideHint.textContent = 'Guideline: Cheap ≤ ' + peso(guide.cheap)
-            + ' · Moderate ≤ ' + peso(guide.moderate) + ' per kg.';
+        guideHint.textContent = 'Guideline: Cheap ≤ ' + peso(guide.cheap) + ' · Moderate ≤ ' + peso(guide.moderate) + ' per kg.';
 
         const isOver = Number.isFinite(price) && price > guide.moderate;
-
         priceInput.classList.toggle('is-over-guide', isOver);
         guideWarning.classList.toggle('hidden', !isOver);
 
         if (isOver) {
             guideWarnText.textContent = ' The guideline for this fish and quality class is up to '
-                + peso(guide.moderate) + ' per kg. You may still submit, but staff '
-                + 'will see this as an expensive price.';
-            guideWarnIcon.setAttribute('title', 'Price exceeds the price guideline (max '
-                + peso(guide.moderate) + ' per kg).');
+                + peso(guide.moderate) + ' per kg. You may still submit, but staff will see this as an expensive price.';
+            guideWarnIcon.setAttribute('title', 'Price exceeds the price guideline (max ' + peso(guide.moderate) + ' per kg).');
         }
     }
 
     qcSelect.addEventListener('change', filterFishTypes);
     fishSelect.addEventListener('change', checkPriceGuide);
+    fishSelect.addEventListener('change', showExistingBatches);
     filterFishTypes(); // run once so old() input is preserved after validation errors
-    checkPriceGuide();
+
+    // ── Modals ──────────────────────────────────────────────────────
+    function openModal(id) {
+        const el = document.getElementById(id);
+        el.classList.remove('hidden');
+        el.classList.add('flex');
+    }
+    function closeModal(id) {
+        const el = document.getElementById(id);
+        el.classList.add('hidden');
+        el.classList.remove('flex');
+    }
+
+    // ── ⋮ Batch menu ────────────────────────────────────────────────
+    const menu = document.getElementById('batchMenu');
+    let menuBtn = null;
+
+    function closeMenu() {
+        menu.classList.add('hidden');
+        menuBtn?.setAttribute('aria-expanded', 'false');
+        menuBtn = null;
+    }
+
+    function openBatchMenu(btn) {
+        if (menuBtn === btn) { closeMenu(); return; }
+        closeMenu();
+        menuBtn = btn;
+        const d = btn.dataset;
+
+        document.getElementById('menuSold').textContent = kg(d.sold);
+        document.getElementById('menuRemaining').textContent = kg(d.remaining);
+
+        const show = (key, on) => menu.querySelectorAll('[data-menu="' + key + '"]').forEach(el => el.classList.toggle('hidden', !on));
+        show('release', d.canRelease === '1');
+        show('release-sep', d.canRelease === '1');
+        show('write-off', d.canWriteOff === '1');
+        show('cancel', !!d.cancelUrl);
+        show('extra-sep', d.canWriteOff === '1' || !!d.cancelUrl);
+
+        menu.classList.remove('hidden');
+        const r = btn.getBoundingClientRect();
+        const top = (r.bottom + 6 + menu.offsetHeight > window.innerHeight) ? r.top - menu.offsetHeight - 6 : r.bottom + 6;
+        menu.style.top  = Math.max(8, top) + 'px';
+        menu.style.left = Math.max(8, r.right - menu.offsetWidth) + 'px';
+        btn.setAttribute('aria-expanded', 'true');
+    }
+
+    function openRelease(d) {
+        document.getElementById('releaseForm').action = d.releaseUrl;
+        document.getElementById('releaseEntry').value = d.id;
+        document.getElementById('releaseSubtitle').textContent = d.label;
+        document.getElementById('releaseSold').textContent = kg(d.sold);
+        document.getElementById('releaseRemaining').textContent = kg(d.remaining);
+        const input = document.getElementById('releaseKg');
+        input.max = d.remaining;
+        openModal('releaseModal');
+        setTimeout(() => input.focus(), 50);
+    }
+
+    function openWriteOff(d) {
+        document.getElementById('writeOffForm').action = d.writeOffUrl;
+        document.getElementById('writeOffEntry').value = d.id;
+        document.getElementById('writeOffSubtitle').textContent = d.label;
+        document.getElementById('writeOffKg').textContent = kg(d.remaining);
+        openModal('writeOffModal');
+    }
+
+    menu.addEventListener('click', e => {
+        const item = e.target.closest('[data-menu]');
+        if (!item || !menuBtn) return;
+        const d = { ...menuBtn.dataset };
+        closeMenu();
+
+        if (item.dataset.menu === 'release') openRelease(d);
+        if (item.dataset.menu === 'write-off') openWriteOff(d);
+        if (item.dataset.menu === 'cancel' && confirm('Cancel ' + d.label + '? It has not been confirmed yet.')) {
+            const form = document.getElementById('cancelForm');
+            form.action = d.cancelUrl;
+            form.submit();
+        }
+    });
+
+    document.addEventListener('click', e => {
+        if (!menu.classList.contains('hidden') && !menu.contains(e.target) && !e.target.closest('.kebab-btn')) closeMenu();
+    });
+    window.addEventListener('scroll', closeMenu, true);
+    window.addEventListener('resize', closeMenu);
+    document.addEventListener('keydown', e => {
+        if (e.key !== 'Escape') return;
+        closeMenu();
+        closeModal('releaseModal');
+        closeModal('writeOffModal');
+    });
+
+    // Reopen the dialog the server just refused, on the same batch.
+    @if($releaseFailed || $writeOffFailed)
+    (function () {
+        const id  = @json((int) old('release_entry', old('write_off_entry')));
+        const btn = document.querySelector('.kebab-btn[data-id="' + id + '"]');
+        if (!btn) return;
+        @if($releaseFailed)
+            openRelease(btn.dataset);
+            document.getElementById('releaseKg').value = @json(old('release_kg'));
+        @else
+            openWriteOff(btn.dataset);
+        @endif
+    })();
+    @endif
 </script>
 @endpush

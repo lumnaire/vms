@@ -21,6 +21,33 @@ class ArimaServiceTest extends TestCase
         return [100, 101, 103, 102, 105, 104, 108, 107, 111, 110];
     }
 
+    /**
+     * A price creeping up about 1% a day must read as upward. The old label
+     * compared forecast day 3 with forecast day 1 — only two days apart — so a
+     * ±2% band needed a 1%-a-day move just to register and real series were
+     * always "stable". The label now compares against the last 7 actual days.
+     */
+    public function test_a_steady_climb_is_labelled_upward(): void
+    {
+        $series = [];
+        for ($i = 0; $i < 30; $i++) {
+            $series[] = 200 * (1.01 ** $i) + (($i % 2) ? 0.6 : -0.6);
+        }
+
+        $this->assertSame('upward', $this->arima->project($series)[0]['trend']);
+        $this->assertSame('downward', $this->arima->project(array_reverse($series))[0]['trend']);
+    }
+
+    public function test_a_flat_series_is_labelled_stable(): void
+    {
+        $series = [];
+        for ($i = 0; $i < 30; $i++) {
+            $series[] = 150 + (($i % 2) ? 1 : -1);
+        }
+
+        $this->assertSame('stable', $this->arima->project($series)[0]['trend']);
+    }
+
     public function test_it_skips_series_below_the_minimum_history(): void
     {
         $this->assertSame([], $this->arima->project([]));
@@ -162,7 +189,9 @@ class ArimaServiceTest extends TestCase
         $this->assertSame(112.35, $out[2]['min']);
         $this->assertSame(117.55, $out[2]['max']);
 
-        $this->assertSame('stable', $out[0]['trend']);
+        // Day 3 (114.95) vs the average of the last 7 real days (106.71): +7.7%.
+        $this->assertSame(106.71, $params['trend_baseline']);
+        $this->assertSame('upward', $out[0]['trend']);
     }
 
     /**

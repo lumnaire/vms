@@ -7,11 +7,7 @@
 
 @section('content')
 
-<x-alert class="mb-5" />
-
-@if($errors->any() && ! old('add_stock_entry'))
-    <x-alert variant="error" :message="$errors->first()" class="mb-5" />
-@endif
+<x-alert />
 
 {{-- ── Welcome Banner ──────────────────────────────────────── --}}
 <div class="rounded-xl p-5 mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 overflow-hidden relative"
@@ -109,7 +105,7 @@
                 <p class="text-slate-800 font-bold mt-1 text-[28px] leading-[1]">
                     {{ number_format($remainingStock ?? 0, 1) }} <span class="text-[14px] font-semibold text-slate-400">kg</span>
                 </p>
-                <p class="text-slate-400 mt-1 text-[11px]">Left over from today's confirmed entries</p>
+                <p class="text-slate-400 mt-1 text-[11px]">Across every batch still on sale</p>
             </div>
             <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
                  style="background: #fdf4ff;">
@@ -136,8 +132,8 @@
             <p class="text-[11.5px] text-danger-700 mt-0.5">
                 {{ number_format((float) $staleEntries->sum(fn($e) => $e->getRemainingStock()), 1) }} kg unsold,
                 ₱{{ number_format((float) $staleTotalValue, 2) }} at risk.
-                Open <a href="{{ route('vendor.my-stock.index') }}" class="underline font-semibold hover:text-danger-900">My Stock</a>
-                to resubmit what is still fresh, or report the rest as written off.
+                Open <a href="{{ route('vendor.inventory.index') }}" class="underline font-semibold hover:text-danger-900">My Inventory</a>
+                and use <strong>⋮ → Write off</strong> on each stale batch.
             </p>
         </div>
     </div>
@@ -158,6 +154,7 @@
                 <tr style="border-bottom:1px solid #f1f5f9">
                     <td class="px-5 py-2.5 text-[12.5px] font-semibold text-danger-800">
                         {{ $item->fishType?->name ?? 'Unknown' }}
+                        <span class="block text-[11px] font-normal text-danger-600">{{ $item->batchLabel() }}</span>
                     </td>
                     <td class="px-4 py-2.5 text-[12px]">
                         <x-quality-badge :quality="$item->quality_class" />
@@ -166,7 +163,7 @@
                     <td class="px-4 py-2.5 text-right">
                         <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-danger-50 text-danger-700"
                               style="border:1px solid #fecaca">
-                            <i class="bi bi-clock-history"></i> {{ $item->getAgeInDays() }}d
+                            <i class="bi bi-clock-history"></i> {{ $item->ageLabel() }}
                         </span>
                     </td>
                     <td class="px-4 py-2.5 text-right text-[12.5px] font-bold text-danger-700">
@@ -184,7 +181,7 @@
     @if($staleHiddenCount > 0)
     <div class="px-4 py-2.5 text-[11px] text-danger-700" style="border-top:1px solid #fecaca">
         Showing the {{ $staleShownEntries->count() }} oldest of {{ $staleTotal }} —
-        <a href="{{ route('vendor.my-stock.index') }}" class="underline font-semibold hover:text-danger-900">
+        <a href="{{ route('vendor.inventory.index') }}" class="underline font-semibold hover:text-danger-900">
             {{ $staleHiddenCount }} more
         </a>
         on My Stock.
@@ -197,7 +194,7 @@
 <div class="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-card">
     <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
         <div>
-            <h2 class="text-slate-700 font-bold text-[13.5px]">Today's Submissions</h2>
+            <h2 class="text-slate-700 font-bold text-[13.5px]">Today's Batches</h2>
             <p class="text-slate-400 text-[11px] mt-px">
                 {{ now()->setTimezone('Asia/Manila')->format('F j, Y') }}
             </p>
@@ -231,17 +228,15 @@
                         <th class="px-5 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
                            >Quality</th>
                         <th class="px-5 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
-                           >Session</th>
-                        <th class="px-5 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
                            >Price / kg</th>
                         <th class="px-5 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
                            >Stock (kg)</th>
                         <th class="px-5 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
-                           >Left (kg)</th>
+                           >Remaining</th>
                         <th class="px-5 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
                            >Status</th>
-                        <th class="px-5 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em] text-center"
-                           >Action</th>
+                        <th class="px-5 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
+                           >Days</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-50">
@@ -249,12 +244,10 @@
                     <tr class="hover:bg-slate-50 transition-colors">
                         <td class="px-5 py-3 text-slate-700 font-medium text-[12.5px]">
                             {{ $item->fishType->name ?? '—' }}
+                            <span class="block text-[11px] text-slate-400 font-normal">{{ $item->batchLabel() }}</span>
                         </td>
                         <td class="px-5 py-3 text-slate-500 text-[12px]">
                             {{ $item->quality_class }}
-                        </td>
-                        <td class="px-5 py-3">
-                            <x-session-badge :session="$item->session()" />
                         </td>
                         <td class="px-5 py-3 text-slate-700 text-[12px]">
                             ₱{{ number_format($item->price_per_kg, 2) }}
@@ -262,7 +255,7 @@
                         <td class="px-5 py-3 text-slate-700 text-[12px]">
                             {{ number_format($item->stock_kg, 1) }} kg
                         </td>
-                        {{-- Released minus declared sold, the same figure the price board shows. --}}
+                        {{-- Stock minus what the vendor released as sold, the same figure the price board shows. --}}
                         <td class="px-5 py-3 text-[12px] font-semibold {{ $item->isConfirmed() ? 'text-slate-700' : 'text-slate-300' }}">
                             {{ $item->isConfirmed() ? number_format($item->getRemainingStock(), 1) . ' kg' : '—' }}
                         </td>
@@ -284,13 +277,7 @@
                                 </span>
                             @endif
                         </td>
-                        <td class="px-5 py-3 text-center">
-                            @if($item->canAddStock())
-                                @include('vendor.partials.add-stock-button', ['entry' => $item])
-                            @else
-                                <span class="text-slate-300 text-[11px]" title="{{ $item->addStockBlocker() }}">&mdash;</span>
-                            @endif
-                        </td>
+                        <td class="px-5 py-3 text-slate-500 text-[11.5px] font-semibold whitespace-nowrap">{{ $item->ageLabel() }}</td>
                     </tr>
                     @endforeach
                 </tbody>
@@ -300,6 +287,5 @@
 
 </div>
 
-@include('vendor.partials.add-stock-modal')
 
 @endsection

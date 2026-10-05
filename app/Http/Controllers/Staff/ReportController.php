@@ -3,69 +3,70 @@
 namespace App\Http\Controllers\Staff;
 
 use App\Http\Controllers\Controller;
-use App\Models\FishType;
+use App\Models\ActivityLog;
 use App\Models\Report;
-use App\Models\VendorInventory;
+use App\Services\SupplyReport;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
+/**
+ * Staff supply reports: confirmed fish supply per day, month or year, previewed
+ * on screen and downloaded as a PDF.
+ */
 class ReportController extends Controller
 {
     public function index(Request $request)
     {
-        $reportDate = $request->input('date', today()->toDateString());
-        $fishTypes = FishType::where('is_active', true)->orderBy('name')->get();
+        $report = $this->resolve($request);
 
-        // Confirmed entries for the selected date
-        $confirmedEntries = VendorInventory::with(['vendor.vendorProfile', 'fishType'])
-            ->where('status', 'confirmed')
-            ->whereDate('entry_date', $reportDate)
-            ->orderBy('fish_type_id')
-            ->orderBy('quality_class')
-            ->get();
+        return view('staff.reports', ['report' => $report] + $report->build());
+    }
 
-        // Group by fish type → quality class for the price summary table
-        $summaryByType = $confirmedEntries
-            ->groupBy(fn ($e) => $e->fishType->name.'|||'.$e->quality_class);
+    public function pdf(Request $request)
+    {
+        $report = $this->resolve($request);
+        $data = $report->build();
 
-        // Market-wide totals for the day
-        $totalStockKg = $confirmedEntries->sum('stock_kg');
-        $totalVendors = $confirmedEntries->pluck('vendor_id')->unique()->count();
-        $totalEntries = $confirmedEntries->count();
+        // Archive a snapshot of what was handed out. report_type is an enum that
+        // predates the period split, so the period lives in the data.
+        Report::create([
+            'generated_by' => Auth::id(),
+            'report_type' => 'supply_summary',
+            'report_date' => $report->start->toDateString(),
+            'report_data' => [
+                'period' => $report->period,
+                'label' => $report->label(),
+                'totals' => $data['totals'],
+                'by_fish' => $data['byFish']->all(),
+            ],
+        ]);
 
-        // Archive this report snapshot to the DB (upsert so refreshing doesn't duplicate)
-        if ($confirmedEntries->isNotEmpty()) {
-            Report::updateOrCreate(
-                [
-                    'generated_by' => Auth::id(),
-                    'report_type' => 'daily_price',
-                    'report_date' => $reportDate,
-                ],
-                [
-                    'report_data' => [
-                        'total_stock_kg' => $totalStockKg,
-                        'total_vendors' => $totalVendors,
-                        'total_entries' => $totalEntries,
-                        'summary_by_type' => $summaryByType->map(fn ($g) => $g->map(fn ($e) => [
-                            'vendor' => $e->vendor?->name,
-                            'fish_type' => $e->fishType?->name,
-                            'quality_class' => $e->quality_class,
-                            'price_per_kg' => $e->price_per_kg,
-                            'stock_kg' => $e->stock_kg,
-                        ]))->toArray(),
-                    ],
-                ]
-            );
-        }
+        ActivityLog::create([
+            'user_id' => Auth::id(),
+            'action' => 'generate_report',
+            'description' => 'Generated '.strtolower($report->title()).' for '.$report->label().'.',
+        ]);
 
-        return view('staff.reports', compact(
-            'reportDate',
-            'confirmedEntries',
-            'summaryByType',
-            'totalStockKg',
-            'totalVendors',
-            'totalEntries',
-            'fishTypes',
-        ));
+        return Pdf::loadView('staff.reports-pdf', [
+            'report' => $report,
+            'generatedBy' => Auth::user(),
+            'generatedAt' => now(),
+        ] + $data)
+            ->setPaper('a4', 'portrait')
+            ->download($report->filename());
+    }
+
+    private function resolve(Request $request): SupplyReport
+    {
+        $period = $request->input('period', 'daily');
+
+        $value = match ($period) {
+            'monthly' => $request->input('month'),
+            'yearly' => $request->input('year'),
+            default => $request->input('date'),
+        };
+
+        return SupplyReport::for($period, $value);
     }
 }

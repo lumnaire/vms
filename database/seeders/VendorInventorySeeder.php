@@ -5,11 +5,10 @@ namespace Database\Seeders;
 use App\Models\FishType;
 use App\Models\User;
 use App\Models\VendorInventory;
-use App\Models\VendorSaleReport;
-use App\Models\VendorSaleReportItem;
 use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -35,13 +34,15 @@ class VendorInventorySeeder extends Seeder
 {
     public function run(): void
     {
-        // MySQL refuses to TRUNCATE a table that a foreign key points at, and
-        // vendor_sale_report_items references vendor_inventories. Declarations
-        // are derived from the entries below, so clearing them here is correct:
-        // a reseeded inventory invalidates every report built on top of it.
+        // MySQL refuses to TRUNCATE a table that a foreign key points at, and the
+        // retired sale-report tables still reference vendor_inventories. They are
+        // no longer written, but a reseed must clear them along with the batches.
         Schema::disableForeignKeyConstraints();
-        VendorSaleReportItem::truncate();
-        VendorSaleReport::truncate();
+        foreach (['vendor_sale_report_items', 'vendor_sale_reports'] as $legacy) {
+            if (Schema::hasTable($legacy)) {
+                DB::table($legacy)->truncate();
+            }
+        }
         VendorInventory::truncate();
         Schema::enableForeignKeyConstraints();
 
@@ -188,9 +189,8 @@ class VendorInventorySeeder extends Seeder
                     $stockSeed = ($dayOfYear * 11 + $vIndex * 5 + strlen($fishName)) % 100;
                     $stockKg = round($stockMin + (($stockMax - $stockMin) * $stockSeed / 100), 1);
 
-                    // Released kg (portion put on display)
-                    $relPct = 0.6 + (($dayOfYear + $vIndex * 3) % 41) / 100; // 60-100%
-                    $releasedKg = max(0.5, round($stockKg * $relPct, 1));
+                    // Everything brought is for sale
+                    $releasedKg = $stockKg;
 
                     // Sold kg (70-95% of released)
                     $soldPct = 0.70 + ((($dayOfYear * 3 + $vIndex * 7 + strlen($fishName)) % 26) / 100);
@@ -240,6 +240,7 @@ class VendorInventorySeeder extends Seeder
                         'vendor_id' => $vendor->id,
                         'fish_type_id' => $fishType->id,
                         'quality_class' => $qualClass,
+                        'batch_no' => 1,
                         'price_per_kg' => $finalPrice,
                         'stock_kg' => $stockKg,
                         'released_kg' => $releasedKg,

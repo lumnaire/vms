@@ -126,11 +126,14 @@ return [
     |--------------------------------------------------------------------------
     |
     | Fractional band used to classify a series as upward/downward. A series
-    | is "upward" when the last projected value exceeds the first by more
-    | than this fraction, and "downward" when it falls further than it.
+    | is "upward" when the last projected value is more than this fraction
+    | above the average of the last `trend_baseline_days` actual days, and
+    | "downward" when it is more than this fraction below it.
     |
     */
 
     'trend_threshold' => 0.02,
+
+    'trend_baseline_days' => 7,
 
 ];

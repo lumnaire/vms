@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'ARIMA Forecasts')
-@section('subtitle', "{$horizon}-Day Supply, Demand & Price Projection · Virac Public Market")
+@section('subtitle', "{$horizon}-Day Price & Supply Projection · Virac Public Market")
 
 @push('styles')
 <style>
@@ -91,7 +91,7 @@
                 <option value="{{ $ft->id }}"
                         data-quality-class="{{ $ft->quality_class }}"
                         {{ $selectedFishTypeId == $ft->id ? 'selected' : '' }}>
-                    {{ $ft->name }}
+                    {{ $ft->name }}{{ $ft->has_forecast ? '' : ' · not enough data' }}
                 </option>
             @endforeach
         </select>
@@ -381,8 +381,9 @@
                 No forecast data available
             </p>
             <p class="text-slate-400 text-center mt-2 text-[12px] leading-[1.6]" style="max-width:300px">
-                ARIMA forecasts will appear once vendors submit and confirm
-                inventory entries for <strong>{{ $fishTypeName }}</strong>.
+                ARIMA needs at least {{ config('forecast.min_history') }} days of confirmed
+                batches for <strong>{{ $fishTypeName }}</strong> before it can forecast.
+                Fish marked "not enough data" in the list are waiting for that history.
             </p>
         </div>
     @endif
