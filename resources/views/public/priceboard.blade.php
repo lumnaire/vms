@@ -344,9 +344,6 @@
         .pb-vstallno-num { font-size: 1.05rem; font-weight: 800; margin-top: 3px; }
         .pb-vname { color: #fff; font-weight: 700; font-size: 0.98rem; line-height: 1.2; }
         .pb-vstall { color: rgb(255 255 255 / 0.72); font-size: 0.74rem; margin-top: 2px; }
-        .pb-vtotal { margin-left: auto; text-align: right; flex-shrink: 0; }
-        .pb-vtotal-num { color: #fff; font-size: 1.15rem; font-weight: 800; line-height: 1; }
-        .pb-vtotal-lbl { color: rgb(255 255 255 / 0.7); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.07em; margin-top: 3px; }
 
         .pb-fish { padding: 0.85rem 1.1rem; border-bottom: 1px solid var(--color-slate-100); }
         .pb-fish:last-child { border-bottom: 0; }
@@ -627,10 +624,6 @@
                         <div class="min-w-0">
                             <div class="pb-vname truncate" x-text="vendor.name"></div>
                             <div class="pb-vstall" x-text="vendor.fish.length + ' fish'"></div>
-                        </div>
-                        <div class="pb-vtotal">
-                            <div class="pb-vtotal-num" x-text="kg(vendor.remaining_kg)"></div>
-                            <div class="pb-vtotal-lbl">available</div>
                         </div>
                     </header>
 
