@@ -5,15 +5,18 @@ namespace App\Models;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
  * One batch of fish a vendor brought to the stall.
  *
- * Every submission is a batch. Submitting the same fish and quality class again on
- * the same day is the next batch (Batch 1, Batch 2, …), each with its own price,
- * stock and age. A batch stays on sale across days until it is sold out or passes
- * the freshness window, after which the vendor writes it off.
+ * Every submission is a batch. Submitting the same fish and quality class again
+ * while earlier batches of it are still on the stall is the next batch (Batch 1,
+ * Batch 2, …), even across days, each with its own price, stock and age. A batch
+ * stays on sale across days until it is sold out or reaches the freshness limit,
+ * when it expires (see expireOldBatches()).
  *
  * Stock and what is for sale are the same figure: released_kg is set to stock_kg
  * on submission. sold_kg is what the vendor has recorded as sold through Release,
@@ -71,12 +74,7 @@ class VendorInventory extends Model
 
     // ─── Scopes ──────────────────────────────────────────────────
 
-    /**
-     * Confirmed batches that still have fish left: what the vendor is selling.
-     *
-     * Includes stale batches, which are still on the vendor's stall until they are
-     * written off; the public board filters those out separately.
-     */
+    /** Confirmed batches that still have fish left: what the vendor is selling. */
     public function scopeOpen(Builder $query): Builder
     {
         return $query->where('status', 'confirmed')
@@ -88,13 +86,23 @@ class VendorInventory extends Model
 
     // ─── Batches ─────────────────────────────────────────────────
 
-    /** The number the next submission of this fish gets on that day. */
+    /**
+     * The number the next submission of this fish gets on that day.
+     *
+     * Numbering continues past every batch of this fish still on the stall or
+     * waiting for staff, whatever day it came in. Batches carry across days, so
+     * restarting at 1 each morning would put yesterday's Batch 1 and today's
+     * Batch 1 side by side on the board. Once all of them are gone, the next
+     * day starts again at Batch 1.
+     */
     public static function nextBatchNo(int $vendorId, int $fishTypeId, string $qualityClass, CarbonInterface $date): int
     {
         return (int) static::where('vendor_id', $vendorId)
             ->where('fish_type_id', $fishTypeId)
             ->where('quality_class', $qualityClass)
-            ->whereDate('entry_date', $date->toDateString())
+            ->where(fn (Builder $q) => $q->whereDate('entry_date', $date->toDateString())
+                ->orWhere('status', 'pending')
+                ->orWhere(fn (Builder $q) => $q->open()))
             ->max('batch_no') + 1;
     }
 
@@ -136,8 +144,11 @@ class VendorInventory extends Model
         return $this->carried_out_at !== null;
     }
 
-    /** The vendor wrote the batch off as unsellable. */
-    public function isDisposed(): bool
+    /**
+     * Reached the freshness limit unsold and was taken off the stall, or (legacy)
+     * written off by hand. The row is kept for supply reports and forecasts.
+     */
+    public function isExpired(): bool
     {
         return $this->disposed_at !== null;
     }
@@ -146,9 +157,9 @@ class VendorInventory extends Model
 
     public function getRemainingStock(): float
     {
-        // Written-off (or legacy carried) stock has left the stall even though
+        // Expired (or legacy carried) stock has left the stall even though
         // released_kg and sold_kg still describe the batch as it was.
-        if ($this->isCarriedOut() || $this->isDisposed()) {
+        if ($this->isCarriedOut() || $this->isExpired()) {
             return 0.0;
         }
 
@@ -181,17 +192,12 @@ class VendorInventory extends Model
         return $this->isConfirmed() && $this->hasRemainingStock();
     }
 
-    /** On the public board: open and still fresh. */
-    public function isOnBoard(): bool
-    {
-        return $this->isOpen() && ! $this->isStale();
-    }
-
-    // ─── Freshness ───────────────────────────────────────────────
+    // ─── Freshness countdown ─────────────────────────────────────
     //
     // A batch is measured from entry_date, the day it was submitted. It can be
-    // sold for `inventory.stale_after_days` days; on that day it turns stale,
-    // leaves the public board, and the vendor writes it off.
+    // sold for `inventory.stale_after_days` days. On the day it reaches that age
+    // with fish still on it, it expires: it leaves the vendor's tables and the
+    // public board, but the row stays for supply reports and forecasts.
 
     public static function freshnessDays(): int
     {
@@ -203,26 +209,65 @@ class VendorInventory extends Model
         return (int) $this->entry_date->copy()->startOfDay()->diffInDays(today()->startOfDay());
     }
 
-    /** "1d / 3d": days on the stall out of the days it can be sold. */
-    public function ageLabel(): string
+    /** Waiting for staff or on sale: the batches that count down to expiry. */
+    public function isCountingDown(): bool
     {
-        return $this->getAgeInDays().'d / '.self::freshnessDays().'d';
+        return $this->isPending() || $this->isOpen();
     }
 
-    /** Unsold confirmed stock that has been held too long to sell fresh. */
-    public function isStale(): bool
-    {
-        if (! $this->isConfirmed() || ! $this->hasRemainingStock()) {
-            return false;
-        }
-
-        return $this->getAgeInDays() >= self::freshnessDays();
-    }
-
-    /** Days of freshness left. Zero once stale. */
-    public function getDaysUntilStale(): int
+    /** Days until the batch expires. */
+    public function getDaysLeft(): int
     {
         return max(0, self::freshnessDays() - $this->getAgeInDays());
+    }
+
+    /** "2 days left" */
+    public function countdownLabel(): string
+    {
+        $days = $this->getDaysLeft();
+
+        return $days.' '.Str::plural('day', $days).' left';
+    }
+
+    /** The day the batch expires if it still has fish. */
+    public function expiresOn(): Carbon
+    {
+        return $this->entry_date->copy()->startOfDay()->addDays(self::freshnessDays());
+    }
+
+    /**
+     * Take every batch that reached the freshness limit off the stall.
+     *
+     * Confirmed batches with fish left are marked expired, not deleted: supply
+     * reports and forecasts read each confirmed batch's price and kilograms, so
+     * deleting them would erase that history. They leave the vendor's tables and
+     * the public board all the same. Pending batches staff never confirmed are
+     * part of no history, so those are deleted outright.
+     *
+     * Returns how many batches were taken off.
+     */
+    public static function expireOldBatches(): int
+    {
+        $cutoff = today()->subDays(self::freshnessDays())->toDateString();
+
+        $expired = static::query()->open()
+            ->whereDate('entry_date', '<=', $cutoff)
+            ->update(['disposed_at' => now(), 'disposed_reason' => 'Expired']);
+
+        $deleted = static::query()->where('status', 'pending')
+            ->whereDate('entry_date', '<=', $cutoff)
+            ->delete();
+
+        if ($expired + $deleted > 0) {
+            ActivityLog::create([
+                'user_id' => null,
+                'action' => 'expire_inventory',
+                'description' => "Took {$expired} unsold and {$deleted} unconfirmed "
+                    .Str::plural('batch', $expired + $deleted).' off the stall after '.self::freshnessDays().' days.',
+            ]);
+        }
+
+        return $expired + $deleted;
     }
 
     // ─── State ───────────────────────────────────────────────────
@@ -233,20 +278,17 @@ class VendorInventory extends Model
 
     public const STATE_ON_SALE = 'on_sale';
 
-    public const STATE_STALE = 'stale';
-
     public const STATE_SOLD_OUT = 'sold_out';
 
-    public const STATE_WRITTEN_OFF = 'written_off';
+    public const STATE_EXPIRED = 'expired';
 
     public function getStockState(): string
     {
         return match (true) {
             $this->isPending() => self::STATE_PENDING,
             $this->isRejected() => self::STATE_REJECTED,
-            $this->isDisposed() || $this->isCarriedOut() => self::STATE_WRITTEN_OFF,
+            $this->isExpired() || $this->isCarriedOut() => self::STATE_EXPIRED,
             $this->isSoldOut() => self::STATE_SOLD_OUT,
-            $this->isStale() => self::STATE_STALE,
             default => self::STATE_ON_SALE,
         };
     }
@@ -262,8 +304,8 @@ class VendorInventory extends Model
                 : 'Rejected batches cannot be sold.';
         }
 
-        if ($this->isDisposed() || $this->isCarriedOut()) {
-            return 'This batch has been written off.';
+        if ($this->isExpired() || $this->isCarriedOut()) {
+            return 'This batch has expired.';
         }
 
         if (! $this->hasRemainingStock()) {
@@ -304,35 +346,6 @@ class VendorInventory extends Model
         }
 
         $this->update(['sold_kg' => round((float) $this->sold_kg + $kg, 2)]);
-
-        return $this;
-    }
-
-    // ─── Write-off ───────────────────────────────────────────────
-
-    public function canWriteOff(): bool
-    {
-        return $this->isStale() && ! $this->isDisposed();
-    }
-
-    /**
-     * Clear a stale batch off the stall. Only stale stock qualifies, so fresh fish
-     * cannot be erased from the vendor's remaining stock.
-     *
-     * @throws ValidationException
-     */
-    public function writeOff(?string $reason = null): self
-    {
-        if (! $this->canWriteOff()) {
-            throw ValidationException::withMessages([
-                'write_off' => 'Only batches past the '.self::freshnessDays().'-day freshness window can be written off.',
-            ]);
-        }
-
-        $this->update([
-            'disposed_at' => now(),
-            'disposed_reason' => $reason ?: null,
-        ]);
 
         return $this;
     }

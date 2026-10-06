@@ -13,11 +13,11 @@ use Tests\TestCase;
  * Batches, release and the public board, end to end.
  *
  * The flow the market described: a vendor submits 15 kg of bammer (Batch 1),
- * later submits another 15 kg (Batch 2) after confirming they mean to, staff
- * approve each, and the consumer card lists both batches — each with its own
- * price and approval time — under one total of 30 kg. Release records what sold
- * and takes it off that total. A batch stays on sale across days until it sells
- * out or passes the freshness window.
+ * later submits another 15 kg (Batch 2) with only a reminder of what they
+ * already have, staff approve each, and the consumer card stacks both into one
+ * total of 30 kg. Release records what sold and takes it off that total. A batch
+ * stays on sale across days until it sells out or reaches the freshness limit,
+ * when it is deleted from the database.
  */
 class BatchStockTest extends TestCase
 {
@@ -94,26 +94,20 @@ class BatchStockTest extends TestCase
         $this->assertSame('pending', $entry->status);
     }
 
-    public function test_a_second_batch_of_the_same_fish_must_be_confirmed_and_becomes_batch_two(): void
+    public function test_a_second_batch_of_the_same_fish_needs_no_confirmation_and_becomes_batch_two(): void
     {
         $vendor = $this->makeUser('vendor');
         $fish = $this->makeFishType();
         $this->batch($vendor, $fish, 15);
 
-        // Without confirming, the vendor is told what they already have.
-        $this->submit($vendor, $fish, 15)
-            ->assertSessionHasErrors('confirm_new_batch');
-        $this->assertSame(1, VendorInventory::count());
-
-        $this->submit($vendor, $fish, 15, ['confirm_new_batch' => 1])
-            ->assertSessionHasNoErrors();
+        $this->submit($vendor, $fish, 15)->assertSessionHasNoErrors();
 
         $second = VendorInventory::latest('id')->first();
         $this->assertSame(2, $second->batch_no);
         $this->assertSame('pending', $second->status, 'Every batch goes to staff.');
     }
 
-    public function test_a_different_fish_needs_no_confirmation(): void
+    public function test_a_different_fish_starts_at_batch_one(): void
     {
         $vendor = $this->makeUser('vendor');
         $this->batch($vendor, $this->makeFishType('Bammer'), 15);
@@ -136,39 +130,110 @@ class BatchStockTest extends TestCase
         $this->assertSame(15.0, $existing[$key]['remaining']);
         $this->assertSame(2, $existing[$key]['next_batch']);
 
+        // A reminder only: nothing to tick before submitting.
         $html = $response->getContent();
-        $this->assertStringContainsString('name="confirm_new_batch"', $html);
+        $this->assertStringContainsString('id="existingBatches"', $html);
+        $this->assertStringNotContainsString('confirm_new_batch', $html);
         $this->assertStringNotContainsString('name="released_kg"', $html);
         $this->assertStringNotContainsString('market_session', $html);
     }
 
-    // ─── Monitoring days ─────────────────────────────────────────
+    /**
+     * Yesterday's Batch 1 is still on sale, so today's submission of the same fish
+     * is Batch 2, not a second Batch 1 sitting next to it on the board.
+     */
+    public function test_numbering_continues_past_batches_carried_over_from_yesterday(): void
+    {
+        $vendor = $this->makeUser('vendor');
+        $fish = $this->makeFishType();
+        $old = $this->batch($vendor, $fish, 10, price: 180, date: today()->subDay()->toDateString(), sold: 4);
+        $old->update(['confirmed_at' => now()->subDay()]);
 
-    public function test_earlier_batches_still_on_the_stall_are_monitored_with_their_age(): void
+        $this->submit($vendor, $fish, 15)->assertSessionHasNoErrors();
+
+        $new = VendorInventory::latest('id')->first();
+        $this->assertSame(2, $new->batch_no);
+
+        $new->update(['status' => 'confirmed', 'confirmed_at' => now()]);
+        $bammer = $this->get('/')->viewData('vendors')[0]['fish'][0];
+
+        $this->assertSame(21.0, $bammer['remaining_kg'], '6 kg left of yesterday plus 15 kg today.');
+        $this->assertSame([180.0, 200.0], [$bammer['min_price'], $bammer['max_price']]);
+    }
+
+    public function test_numbering_restarts_once_earlier_batches_are_gone(): void
+    {
+        $vendor = $this->makeUser('vendor');
+        $fish = $this->makeFishType();
+        $this->batch($vendor, $fish, 10, date: today()->subDay()->toDateString(), sold: 10);
+
+        $this->submit($vendor, $fish, 15)->assertSessionHasNoErrors();
+
+        $this->assertSame(1, VendorInventory::latest('id')->first()->batch_no);
+    }
+
+    // ─── Countdown and automatic deletion ────────────────────────
+
+    public function test_batches_on_the_stall_count_down_the_days_left(): void
     {
         $vendor = $this->makeUser('vendor');
         $fish = $this->makeFishType('Pusit');
         $old = $this->batch($vendor, $fish, 10, date: today()->subDay()->toDateString(), sold: 4);
-        $this->batch($vendor, $fish, 5, no: 1);
+        $this->batch($vendor, $fish, 5, no: 2);
 
         $response = $this->actingAs($vendor)->get('/vendor/inventory')->assertOk();
 
         $this->assertTrue($response->viewData('batches')->contains('id', $old->id));
         $limit = VendorInventory::freshnessDays();
-        $response->assertSee('1d / '.$limit.'d')->assertSee('0d / '.$limit.'d');
+        $response->assertSee(($limit - 1).' days left')->assertSee($limit.' days left');
     }
 
-    public function test_a_batch_turns_stale_at_the_freshness_limit(): void
+    /**
+     * At the limit an unsold batch leaves the vendor's tables and the board, but
+     * the row stays: supply reports and forecasts read its price and kilograms.
+     */
+    public function test_batches_reaching_the_limit_unsold_expire_but_stay_in_the_history(): void
     {
         $vendor = $this->makeUser('vendor');
         $limit = VendorInventory::freshnessDays();
+        $expiredOn = today()->subDays($limit)->toDateString();
 
-        $fresh = $this->batch($vendor, $this->makeFishType(), 10, date: today()->subDays($limit - 1)->toDateString());
-        $stale = $this->batch($vendor, $this->makeFishType('Pusit'), 10, date: today()->subDays($limit)->toDateString());
+        $lastDay = $this->batch($vendor, $this->makeFishType('Bammer'), 10, date: today()->subDays($limit - 1)->toDateString());
+        $unsold = $this->batch($vendor, $this->makeFishType('Pusit'), 10, date: $expiredOn, sold: 3);
+        $pending = $this->batch($vendor, $this->makeFishType('Hipon'), 10, date: $expiredOn, status: 'pending');
+        $soldOut = $this->batch($vendor, $this->makeFishType('Tulingan'), 10, date: $expiredOn, sold: 10);
 
-        $this->assertFalse($fresh->isStale());
-        $this->assertSame(1, $fresh->getDaysUntilStale());
-        $this->assertTrue($stale->isStale());
+        $this->assertSame(1, $lastDay->getDaysLeft());
+
+        // The first page of the day expires them, before anything is shown.
+        $response = $this->actingAs($vendor)->get('/vendor/inventory')->assertOk();
+
+        $this->assertTrue($unsold->fresh()->isExpired());
+        $this->assertSame(0.0, $unsold->fresh()->getRemainingStock());
+        $this->assertNull($pending->fresh(), 'Never confirmed, so nothing to keep.');
+        $this->assertFalse($lastDay->fresh()->isExpired());
+        $this->assertFalse($soldOut->fresh()->isExpired());
+
+        // Gone from both of the vendor's tables and from the board.
+        $this->assertSame([$lastDay->id], $response->viewData('batches')->pluck('id')->all());
+        $this->assertSame([$soldOut->id], $response->viewData('history')->pluck('id')->all());
+        $this->assertSame(['Bammer'], array_column($this->get('/')->viewData('vendors')[0]['fish'], 'fish_name'));
+
+        // Still supply on the day it came in.
+        $report = $this->actingAs($this->makeUser('staff'))->get('/staff/reports?period=daily&date='.$expiredOn);
+        $this->assertSame(20.0, $report->viewData('totals')['supply_kg']);
+        $this->assertDatabaseHas('activity_logs', ['action' => 'expire_inventory']);
+    }
+
+    public function test_the_expire_command_takes_old_batches_off_the_stall(): void
+    {
+        $vendor = $this->makeUser('vendor');
+        $old = $this->batch($vendor, $this->makeFishType(), 10,
+            date: today()->subDays(VendorInventory::freshnessDays())->toDateString());
+
+        $this->artisan('inventory:expire')->assertSuccessful();
+
+        $this->assertTrue($old->fresh()->isExpired());
     }
 
     // ─── Release (recording a sale) ──────────────────────────────
@@ -222,30 +287,50 @@ class BatchStockTest extends TestCase
             ->assertForbidden();
     }
 
-    // ─── Write-off ───────────────────────────────────────────────
+    // ─── Cancel ──────────────────────────────────────────────────
 
-    public function test_only_a_stale_batch_can_be_written_off(): void
+    public function test_a_pending_batch_can_be_cancelled_but_a_confirmed_one_cannot(): void
     {
         $vendor = $this->makeUser('vendor');
-        $fresh = $this->batch($vendor, $this->makeFishType(), 10);
-        $stale = $this->batch($vendor, $this->makeFishType('Pusit'), 10,
-            date: today()->subDays(VendorInventory::freshnessDays())->toDateString());
+        $fish = $this->makeFishType();
+        $confirmed = $this->batch($vendor, $fish, 10);
+        $pending = $this->batch($vendor, $fish, 5, no: 2, status: 'pending');
 
         $this->actingAs($vendor)->from('/vendor/inventory')
-            ->post("/vendor/inventory/{$fresh->id}/write-off")
-            ->assertSessionHasErrors('write_off');
+            ->delete("/vendor/inventory/{$pending->id}")
+            ->assertRedirect('/vendor/inventory')
+            ->assertSessionHas('success');
+        $this->assertNull($pending->fresh());
 
         $this->actingAs($vendor)->from('/vendor/inventory')
-            ->post("/vendor/inventory/{$stale->id}/write-off", ['reason' => 'Spoiled'])
-            ->assertSessionHasNoErrors();
+            ->delete("/vendor/inventory/{$confirmed->id}")
+            ->assertSessionHasErrors('cancel');
+        $this->assertNotNull($confirmed->fresh());
+    }
 
-        $this->assertNotNull($stale->fresh()->disposed_at);
-        $this->assertSame(0.0, $stale->fresh()->getRemainingStock());
+    /**
+     * The ⋮ menu hides the actions a batch does not offer with .hidden. The page's
+     * own unlayered .menu-item rule sets display, which beats Tailwind's layered
+     * utility, so the menu needs its own .hidden rule — without it "Cancel batch"
+     * showed on confirmed batches and posted DELETE to the inventory index.
+     */
+    public function test_the_batch_menu_only_offers_cancel_on_pending_batches(): void
+    {
+        $vendor = $this->makeUser('vendor');
+        $fish = $this->makeFishType();
+        $this->batch($vendor, $fish, 10);
+        $this->batch($vendor, $fish, 5, no: 2, status: 'pending');
+
+        $html = $this->actingAs($vendor)->get('/vendor/inventory')->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression('/#batchMenu \.hidden\s*\{\s*display:\s*none;?\s*\}/', $html);
+        preg_match_all('/data-cancel-url="([^"]*)"/', $html, $m);
+        $this->assertCount(1, array_filter($m[1]), 'Only the pending batch carries a cancel URL.');
     }
 
     // ─── Consumer board ──────────────────────────────────────────
 
-    public function test_board_lists_each_batch_with_its_price_and_adds_them_up(): void
+    public function test_board_stacks_every_batch_of_a_fish_into_one_total(): void
     {
         $vendor = $this->makeUser('vendor');
         $fish = $this->makeFishType();
@@ -253,15 +338,19 @@ class BatchStockTest extends TestCase
         $this->batch($vendor, $fish, 15, no: 2, price: 150);
         $this->batch($vendor, $fish, 9, no: 3, status: 'pending'); // not approved yet
 
-        $vendors = $this->get('/')->assertOk()->assertSee('Bammer')->viewData('vendors');
+        $response = $this->get('/')->assertOk()->assertSee('Bammer');
+        $vendors = $response->viewData('vendors');
 
         $this->assertCount(1, $vendors, 'One card per vendor.');
         $bammer = $vendors[0]['fish'][0];
-        $this->assertCount(2, $bammer['batches']);
-        $this->assertSame([200.0, 150.0], array_column($bammer['batches'], 'price_per_kg'));
         $this->assertSame(30.0, $bammer['remaining_kg']);
-        $this->assertNotNull($bammer['batches'][0]['approved']);
+        $this->assertSame([150.0, 200.0], [$bammer['min_price'], $bammer['max_price']]);
+        $this->assertArrayNotHasKey('batches', $bammer, 'No per-batch rows on the consumer card.');
+        $this->assertArrayNotHasKey('fish_image', $bammer);
         $this->assertArrayNotHasKey('am_kg', $bammer);
+
+        // The card is headed by the stall number, not a vendor icon.
+        $response->assertSee('Stall No.')->assertDontSee('pb-vavatar')->assertDontSee('pb-thumb');
     }
 
     public function test_release_comes_off_the_board_total(): void
@@ -276,7 +365,7 @@ class BatchStockTest extends TestCase
         $this->assertSame(20.0, $this->get('/')->viewData('vendors')[0]['fish'][0]['remaining_kg']);
     }
 
-    public function test_board_carries_fresh_batches_across_days_but_drops_stale_and_sold_out_ones(): void
+    public function test_board_carries_fresh_batches_across_days_but_drops_expired_and_sold_out_ones(): void
     {
         $vendor = $this->makeUser('vendor');
         $limit = VendorInventory::freshnessDays();
@@ -324,6 +413,8 @@ class BatchStockTest extends TestCase
         $daily = $this->actingAs($staff)->get('/staff/reports?period=daily&date='.today()->toDateString())->assertOk();
         $this->assertSame(15.0, $daily->viewData('totals')['supply_kg']);
         $this->assertSame(1, $daily->viewData('totals')['batches']);
+        // Filters preview on change; there is no Preview button.
+        $daily->assertDontSee('bi-eye')->assertSee('Download PDF');
 
         $this->actingAs($staff)->get('/staff/reports?period=monthly&month='.today()->format('Y-m'))
             ->assertOk()->assertSee('Monthly Supply Report');

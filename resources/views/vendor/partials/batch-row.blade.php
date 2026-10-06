@@ -8,7 +8,6 @@
 @php
     $closed    = $closed ?? false;
     $state     = $entry->getStockState();
-    $isStale   = $state === \App\Models\VendorInventory::STATE_STALE;
     $remaining = $entry->getRemainingStock();
     $label     = ($entry->fishType?->name ?? 'Fish') . ' · ' . $entry->batchLabel();
 
@@ -16,19 +15,14 @@
         'pending'     => ['bi-clock', 'Pending'],
         'rejected'    => ['bi-x-circle-fill', 'Rejected'],
         'on_sale'     => ['bi-check-circle-fill', 'On sale'],
-        'stale'       => ['bi-exclamation-octagon-fill', 'Stale'],
         'sold_out'    => ['bi-bag-check-fill', 'Sold out'],
-        'written_off' => ['bi-trash3', 'Written off'],
+        'expired'     => ['bi-trash3', 'Expired'],
     ][$state];
 
-    // Only batches that are actually on the stall count down.
-    $counting = in_array($state, ['on_sale', 'stale'], true);
-    $daysClass = $isStale ? 'is-stale' : ($counting && $entry->getDaysUntilStale() <= 1 ? 'is-last' : '');
-    $daysTitle = $counting
-        ? ($isStale ? 'Past the freshness window — write it off.' : $entry->getDaysUntilStale() . ' day(s) of freshness left.')
-        : '';
+    // Batches waiting for staff or on sale count down to automatic removal.
+    $counting = $entry->isCountingDown();
 @endphp
-<tr class="batch-row {{ $isStale ? 'is-stale' : '' }}">
+<tr class="batch-row">
     <td class="px-4 py-3">
         <div class="flex items-center gap-2.5">
             <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-brand-50">
@@ -46,7 +40,7 @@
     <td class="px-4 py-3 text-[12px] text-slate-500">{{ $entry->quality_class }}</td>
     <td class="px-4 py-3 text-right text-[13px] font-semibold text-slate-700">₱{{ number_format((float) $entry->price_per_kg, 2) }}</td>
     <td class="px-4 py-3 text-right text-[12.5px] text-slate-600">{{ number_format((float) $entry->stock_kg, 1) }} kg</td>
-    <td class="px-4 py-3 text-right text-[12.5px] font-semibold {{ $isStale ? 'text-danger-700' : 'text-slate-800' }}">
+    <td class="px-4 py-3 text-right text-[12.5px] font-semibold text-slate-800">
         @if($closed)
             {{ number_format($entry->getSoldKg(), 1) }} kg
         @elseif($entry->isConfirmed())
@@ -56,7 +50,12 @@
         @endif
     </td>
     <td class="px-4 py-3 text-center">
-        <span class="days-pill {{ $daysClass }}" title="{{ $daysTitle }}">{{ $entry->ageLabel() }}</span>
+        @if($counting)
+            <span class="days-pill {{ $entry->getDaysLeft() <= 1 ? 'is-last' : '' }}"
+                  title="Removed automatically on {{ $entry->expiresOn()->format('M j') }} if not sold out.">{{ $entry->countdownLabel() }}</span>
+        @else
+            <span class="text-slate-300">&mdash;</span>
+        @endif
     </td>
     <td class="px-4 py-3 text-center">
         <span class="state-pill state-{{ $state }}">
@@ -74,8 +73,6 @@
                     data-remaining="{{ $entry->isConfirmed() ? $remaining : (float) $entry->stock_kg }}"
                     data-can-release="{{ $entry->canRelease() ? '1' : '0' }}"
                     data-release-url="{{ route('vendor.inventory.release', $entry) }}"
-                    data-can-write-off="{{ $entry->canWriteOff() ? '1' : '0' }}"
-                    data-write-off-url="{{ route('vendor.inventory.write-off', $entry) }}"
                     data-cancel-url="{{ $entry->isPending() ? route('vendor.inventory.destroy', $entry) : '' }}">
                 <x-icon name="bi-three-dots-vertical" size="sm" />
             </button>

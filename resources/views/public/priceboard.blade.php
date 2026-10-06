@@ -303,35 +303,12 @@
             color: #fff;
         }
 
-        /* Fish thumbnail with gradient fallback. */
-        .pb-thumb {
-            width: 36px;
-            height: 36px;
-            border-radius: var(--radius-control);
-            object-fit: cover;
-            border: 1px solid var(--color-slate-200);
-            flex-shrink: 0;
-        }
-        .pb-thumb-fallback {
-            width: 36px;
-            height: 36px;
-            border-radius: var(--radius-control);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            background-image: linear-gradient(135deg, var(--color-navy-800), var(--color-brand-600));
-            color: rgb(255 255 255 / 0.85);
-            font-size: 14px;
-        }
-        .pb-thumb-lg { width: 38px; height: 38px; }
-
         .pb-stock-low  { color: var(--color-danger-600); }
         .pb-stock-ok   { color: var(--color-slate-700); }
 
         /* ── Vendor cards ────────────────────────────────────────────────
-           One card per vendor, listing every fish they sell today. Each fish
-           shows each batch (its own price and approval time) and the total left. */
+           One card per vendor, headed by the stall number, listing every fish
+           they sell. Several batches of the same fish stack into one total. */
         .pb-vgrid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
@@ -349,20 +326,22 @@
             padding: 0.9rem 1.1rem;
             background-image: linear-gradient(135deg, var(--color-navy-800), var(--color-brand-600));
         }
-        .pb-vavatar {
-            width: 40px;
-            height: 40px;
+        .pb-vstallno {
+            min-width: 52px;
+            padding: 5px 8px;
             border-radius: var(--radius-control);
             background: rgb(255 255 255 / 0.16);
             border: 1px solid rgb(255 255 255 / 0.28);
             color: #fff;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            font-weight: 700;
-            font-size: 0.85rem;
             flex-shrink: 0;
+            line-height: 1;
         }
+        .pb-vstallno-lbl { font-size: 0.58rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: rgb(255 255 255 / 0.75); }
+        .pb-vstallno-num { font-size: 1.05rem; font-weight: 800; margin-top: 3px; }
         .pb-vname { color: #fff; font-weight: 700; font-size: 0.98rem; line-height: 1.2; }
         .pb-vstall { color: rgb(255 255 255 / 0.72); font-size: 0.74rem; margin-top: 2px; }
         .pb-vtotal { margin-left: auto; text-align: right; flex-shrink: 0; }
@@ -378,22 +357,6 @@
         .pb-fish-price-num { font-size: 1.05rem; font-weight: 800; color: var(--color-slate-900); line-height: 1; }
         .pb-fish-price-unit { font-size: 0.7rem; color: var(--color-slate-400); }
 
-        .pb-lines { margin: 0.6rem 0 0; padding: 0; list-style: none; display: grid; gap: 4px; }
-        .pb-line {
-            display: grid;
-            grid-template-columns: auto 1fr auto;
-            align-items: center;
-            gap: 0.6rem;
-            font-size: 0.8rem;
-            color: var(--color-slate-600);
-            padding: 4px 8px;
-            border-radius: var(--radius-control);
-            background: var(--color-surface-subtle);
-        }
-                .pb-line-kg { font-weight: 700; color: var(--color-slate-800); }
-                .pb-line-meta { color: var(--color-slate-700); font-size: 0.72rem; font-weight: 600; white-space: nowrap; }
-        .pb-line-price { color: var(--color-slate-900); font-weight: 800; }
-
         .pb-fish-total {
             display: flex;
             align-items: baseline;
@@ -408,7 +371,6 @@
         .pb-fish-total-num { font-size: 0.95rem; font-weight: 800; color: var(--color-success-700); }
         .pb-fish-total-num.is-zero { color: var(--color-danger-600); }
 
-        .pb-batch-pill { font-size: 0.66rem; padding: 1px 7px; justify-content: center; white-space: nowrap; }
         .pb-soldout-tag {
             font-size: 0.66rem;
             font-weight: 700;
@@ -643,7 +605,7 @@
 
     <p class="pb-legend">
         <x-icon name="bi-info-circle" />
-        Quantities are what is <strong>still for sale</strong> right now. Each batch shows its own price and the time staff approved it.
+        Quantities are what is <strong>still for sale</strong> right now.
     </p>
 
     {{-- ── VENDOR CARDS ────────────────────────────────────── --}}
@@ -658,13 +620,13 @@
             <template x-for="vendor in vendors" :key="vendor.id">
                 <article class="vpm-card pb-vcard">
                     <header class="pb-vhead">
-                        <div class="pb-vavatar" x-text="initials(vendor.name)"></div>
+                        <div class="pb-vstallno">
+                            <span class="pb-vstallno-lbl">Stall No.</span>
+                            <span class="pb-vstallno-num" x-text="vendor.stall"></span>
+                        </div>
                         <div class="min-w-0">
                             <div class="pb-vname truncate" x-text="vendor.name"></div>
-                            <div class="pb-vstall">
-                                Stall <span x-text="vendor.stall"></span>
-                                &bull; <span x-text="vendor.fish.length + ' fish'"></span>
-                            </div>
+                            <div class="pb-vstall" x-text="vendor.fish.length + ' fish'"></div>
                         </div>
                         <div class="pb-vtotal">
                             <div class="pb-vtotal-num" x-text="kg(vendor.remaining_kg)"></div>
@@ -675,12 +637,6 @@
                     <template x-for="fish in vendor.fish" :key="fish.key">
                         <section class="pb-fish" :class="{ 'is-soldout': fish.remaining_kg <= 0 }">
                             <div class="pb-fish-head">
-                                <template x-if="fish.fish_image">
-                                    <img :src="fish.fish_image" :alt="fish.fish_name" class="pb-thumb">
-                                </template>
-                                <template x-if="!fish.fish_image">
-                                    <div class="pb-thumb-fallback"><x-icon name="bi-fish" /></div>
-                                </template>
                                 <div class="min-w-0">
                                     <div class="pb-fish-name" x-text="fish.fish_name"></div>
                                     <span :class="qualityClass(fish.quality_class)" class="mt-1 inline-block" x-text="fish.quality_class"></span>
@@ -691,22 +647,9 @@
                                 </div>
                             </div>
 
-                            {{-- Every batch of this fish: its own kg left, price and approval time --}}
-                            <ul class="pb-lines">
-                                <template x-for="batch in fish.batches" :key="batch.id">
-                                    <li class="pb-line">
-                                        <span class="vpm-badge vpm-badge-neutral pb-batch-pill" x-text="batch.label"></span>
-                                        <span class="pb-line-kg" x-text="kg(batch.remaining_kg)"></span>
-                                        <span class="pb-line-meta">
-                                            <span class="pb-line-price" x-text="peso(batch.price_per_kg)"></span>
-                                            <span x-show="batch.approved" x-text="' · ' + batch.approved"></span>
-                                        </span>
-                                    </li>
-                                </template>
-                            </ul>
-
+                            {{-- Every batch of this fish stacked into one total --}}
                             <div class="pb-fish-total">
-                                <span x-text="fish.batches.length > 1 ? 'Total available (' + fish.batches.length + ' batches)' : 'Available now'"></span>
+                                <span>Available now</span>
                                 <span class="pb-fish-total-num" x-text="kg(fish.remaining_kg)"></span>
                             </div>
                         </section>
@@ -726,7 +669,6 @@
                             <th>Fish Type</th>
                             <th>Quality Class</th>
                             <th>Vendor / Stall</th>
-                            <th class="vpm-th-right">Batches</th>
                             <th class="vpm-th-right">Total Available</th>
                             <th class="vpm-th-right">Price per kg</th>
                         </tr>
@@ -734,7 +676,7 @@
                     <tbody>
                         <template x-if="tableRows.length === 0">
                             <tr>
-                                <td colspan="6">
+                                <td colspan="5">
                                     <x-empty-state icon="bi-fish"
                                                    title="No confirmed prices found for today"
                                                    text="Nothing matches your current filters." />
@@ -744,15 +686,7 @@
                         <template x-for="row in tableRows" :key="row.vendor.id + '_' + row.fish.key">
                             <tr>
                                 <td>
-                                    <div class="flex items-center gap-2.5">
-                                        <template x-if="row.fish.fish_image">
-                                            <img :src="row.fish.fish_image" :alt="row.fish.fish_name" class="pb-thumb">
-                                        </template>
-                                        <template x-if="!row.fish.fish_image">
-                                            <div class="pb-thumb-fallback"><x-icon name="bi-fish" /></div>
-                                        </template>
-                                        <span class="vpm-cell-strong" x-text="row.fish.fish_name"></span>
-                                    </div>
+                                    <span class="vpm-cell-strong" x-text="row.fish.fish_name"></span>
                                 </td>
                                 <td>
                                     <span :class="qualityClass(row.fish.quality_class)" x-text="row.fish.quality_class"></span>
@@ -763,7 +697,6 @@
                                         <x-badge variant="neutral" class="ml-1">Stall <span x-text="row.vendor.stall"></span></x-badge>
                                     </div>
                                 </td>
-                                <td class="vpm-td-right vpm-cell-muted" x-text="row.fish.batches.length"></td>
                                 <td class="vpm-td-right">
                                     <span class="font-semibold pb-stock-ok"
                                           x-text="kg(row.fish.remaining_kg)"></span>
@@ -873,10 +806,6 @@
                  same single source of truth <x-quality-badge> uses. --}}
             qualityClass(cls) {
                 return QUALITY_TONES[cls] || 'vpm-quality vpm-quality-neutral';
-            },
-
-            initials(name) {
-                return name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
             },
         };
     }

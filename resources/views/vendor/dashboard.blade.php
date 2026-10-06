@@ -116,80 +116,6 @@
 
 </div>
 
-{{-- ── Stale Stock Alert ──────────────────────────────────────────
-     Unsold fish held for days is a loss for the vendor and a health risk in
-     the market. Anything at or past the freshness window is called out here in
-     red, with what it is costing, rather than disappearing into a total. --}}
-@if($staleEntries->isNotEmpty())
-<div class="rounded-xl overflow-hidden mb-4" style="border:1px solid #fecaca">
-    <div class="px-4 py-3 flex items-start gap-3 bg-danger-50">
-        <x-icon name="bi-exclamation-octagon-fill" size="md" class="flex-shrink-0 mt-0.5 text-danger-600" />
-        <div class="min-w-0 flex-1">
-            <p class="text-[13px] font-bold text-danger-800">
-                {{ $staleTotal }} item{{ $staleTotal === 1 ? '' : 's' }} of unsold stock
-                {{ $staleTotal === 1 ? 'is' : 'are' }} {{ config('inventory.stale_after_days') }}+ days old
-            </p>
-            <p class="text-[11.5px] text-danger-700 mt-0.5">
-                {{ number_format((float) $staleEntries->sum(fn($e) => $e->getRemainingStock()), 1) }} kg unsold,
-                ₱{{ number_format((float) $staleTotalValue, 2) }} at risk.
-                Open <a href="{{ route('vendor.inventory.index') }}" class="underline font-semibold hover:text-danger-900">My Inventory</a>
-                and use <strong>⋮ → Write off</strong> on each stale batch.
-            </p>
-        </div>
-    </div>
-    <div class="overflow-x-auto" style="background:#fff">
-        <table style="width:100%; border-collapse:collapse; min-width:640px">
-            <thead>
-                <tr class="bg-surface-subtle" style="border-bottom:1px solid #f1f5f9">
-                    <th class="text-left text-slate-400 font-semibold px-5 py-2.5 text-[10.5px] uppercase tracking-[0.07em]">Fish</th>
-                    <th class="text-left text-slate-400 font-semibold px-4 py-2.5 text-[10.5px] uppercase tracking-[0.07em]">Quality</th>
-                    <th class="text-left text-slate-400 font-semibold px-4 py-2.5 text-[10.5px] uppercase tracking-[0.07em]">Entry Date</th>
-                    <th class="text-right text-slate-400 font-semibold px-4 py-2.5 text-[10.5px] uppercase tracking-[0.07em]">Age</th>
-                    <th class="text-right text-slate-400 font-semibold px-4 py-2.5 text-[10.5px] uppercase tracking-[0.07em]">Remaining</th>
-                    <th class="text-right text-slate-400 font-semibold px-5 py-2.5 text-[10.5px] uppercase tracking-[0.07em]">Value</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach($staleShownEntries as $item)
-                <tr style="border-bottom:1px solid #f1f5f9">
-                    <td class="px-5 py-2.5 text-[12.5px] font-semibold text-danger-800">
-                        {{ $item->fishType?->name ?? 'Unknown' }}
-                        <span class="block text-[11px] font-normal text-danger-600">{{ $item->batchLabel() }}</span>
-                    </td>
-                    <td class="px-4 py-2.5 text-[12px]">
-                        <x-quality-badge :quality="$item->quality_class" />
-                    </td>
-                    <td class="px-4 py-2.5 text-[12px] text-slate-500">{{ $item->entry_date->format('M j, Y') }}</td>
-                    <td class="px-4 py-2.5 text-right">
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-danger-50 text-danger-700"
-                              style="border:1px solid #fecaca">
-                            <i class="bi bi-clock-history"></i> {{ $item->ageLabel() }}
-                        </span>
-                    </td>
-                    <td class="px-4 py-2.5 text-right text-[12.5px] font-bold text-danger-700">
-                        {{ number_format($item->getRemainingStock(), 2) }} kg
-                    </td>
-                    <td class="px-5 py-2.5 text-right text-[12.5px] font-bold text-danger-700">
-                        ₱{{ number_format($item->getRemainingStockValue(), 2) }}
-                    </td>
-                </tr>
-                @endforeach
-            </tbody>
-        </table>
-    </div>
-
-    @if($staleHiddenCount > 0)
-    <div class="px-4 py-2.5 text-[11px] text-danger-700" style="border-top:1px solid #fecaca">
-        Showing the {{ $staleShownEntries->count() }} oldest of {{ $staleTotal }} —
-        <a href="{{ route('vendor.inventory.index') }}" class="underline font-semibold hover:text-danger-900">
-            {{ $staleHiddenCount }} more
-        </a>
-        on My Stock.
-    </div>
-    @endif
-</div>
-@endif
-
 {{-- ── Today's Inventory Table ──────────────────────────────── --}}
 <div class="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-card">
     <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
@@ -236,7 +162,7 @@
                         <th class="px-5 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
                            >Status</th>
                         <th class="px-5 py-3 text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]"
-                           >Days</th>
+                           >Days Left</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-50">
@@ -277,7 +203,7 @@
                                 </span>
                             @endif
                         </td>
-                        <td class="px-5 py-3 text-slate-500 text-[11.5px] font-semibold whitespace-nowrap">{{ $item->ageLabel() }}</td>
+                        <td class="px-5 py-3 text-slate-500 text-[11.5px] font-semibold whitespace-nowrap">{{ $item->isCountingDown() ? $item->countdownLabel() : '—' }}</td>
                     </tr>
                     @endforeach
                 </tbody>

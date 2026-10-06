@@ -21,7 +21,8 @@ class InventoryController extends Controller
 
         // Batches to monitor: everything submitted today, plus every earlier batch
         // still on the stall. Fish stays on sale across days until it is sold out
-        // or goes stale, so yesterday's batch with 4 kg left belongs here too.
+        // or reaches the freshness limit and expires, so yesterday's batch with
+        // 4 kg left belongs here too.
         $batches = VendorInventory::with('fishType')
             ->where('vendor_id', $vendorId)
             ->where(fn (Builder $q) => $q->whereDate('entry_date', today())->orWhere(fn (Builder $q) => $q->open()))
@@ -33,9 +34,11 @@ class InventoryController extends Controller
             ])
             ->values();
 
-        // Closed batches from the past week: sold out, written off or rejected.
+        // Closed batches from the past week: sold out or rejected. Expired batches
+        // are kept in the database for reports but gone from the vendor's view.
         $history = VendorInventory::with('fishType')
             ->where('vendor_id', $vendorId)
+            ->whereNull('disposed_at')
             ->whereDate('entry_date', '<', today())
             ->whereDate('entry_date', '>=', today()->subDays(7))
             ->whereNotIn('id', $batches->pluck('id'))
@@ -45,13 +48,12 @@ class InventoryController extends Controller
 
         $open = $batches->filter(fn ($b) => $b->isOpen());
         $remainingKg = (float) $open->sum(fn ($b) => $b->getRemainingStock());
-        $onSaleCount = $open->reject(fn ($b) => $b->isStale())->count();
+        $onSaleCount = $open->count();
         $pendingCount = $batches->filter(fn ($b) => $b->isPending())->count();
-        $staleCount = $open->filter(fn ($b) => $b->isStale())->count();
 
-        // For the form: what this vendor already has of each fish, so submitting the
-        // same fish again shows "you have 15 kg — this will be Batch 2" before it is
-        // sent. Keyed by fish type + quality class.
+        // For the form: what this vendor already has of each fish, so choosing the
+        // same fish again shows a reminder, "you have 15 kg — this will be Batch 2".
+        // Keyed by fish type + quality class.
         $existingBatches = $batches
             ->filter(fn ($b) => $b->isOpen() || ($b->isPending() && $b->entry_date->isToday()))
             ->groupBy(fn ($b) => $b->fish_type_id.'_'.$b->quality_class)
@@ -61,7 +63,7 @@ class InventoryController extends Controller
                 'batches' => $group->map(fn ($b) => [
                     'label' => $b->batchLabel().($b->entry_date->isToday() ? '' : ' ('.$b->entry_date->format('M j').')'),
                     'kg' => $b->isPending() ? (float) $b->stock_kg : $b->getRemainingStock(),
-                    'status' => $b->isPending() ? 'pending' : ($b->isStale() ? 'stale' : 'on sale'),
+                    'status' => $b->isPending() ? 'pending' : 'on sale',
                 ])->values(),
             ]);
 
@@ -82,7 +84,6 @@ class InventoryController extends Controller
             'remainingKg',
             'onSaleCount',
             'pendingCount',
-            'staleCount',
             'existingBatches',
             'priceGuides',
         ));
@@ -119,26 +120,8 @@ class InventoryController extends Controller
         $vendorId = Auth::id();
         $fishName = FishType::find($request->fish_type_id)?->name ?? 'Unknown';
 
-        // Submitting a fish the vendor already has on the stall (or waiting for
-        // staff) makes a second batch, which is allowed — but it has to be meant.
-        // The form shows what is already there and asks the vendor to confirm.
-        $existing = VendorInventory::where('vendor_id', $vendorId)
-            ->where('fish_type_id', $request->fish_type_id)
-            ->where('quality_class', $request->quality_class)
-            ->where(fn (Builder $q) => $q->open()->orWhere(
-                fn (Builder $q) => $q->where('status', 'pending')->whereDate('entry_date', today())
-            ))
-            ->get();
-
-        if ($existing->isNotEmpty() && ! $request->boolean('confirm_new_batch')) {
-            $left = $existing->filter(fn ($b) => $b->isOpen())->sum(fn ($b) => $b->getRemainingStock());
-
-            return back()->withInput()->withErrors([
-                'confirm_new_batch' => "You already have {$fishName} ("
-                    .number_format($left, 1).' kg remaining). Confirm that this is another batch.',
-            ]);
-        }
-
+        // Submitting a fish the vendor already has makes the next batch. The form
+        // only reminds them of what is already there; nothing to confirm.
         $entry = VendorInventory::create([
             'vendor_id' => $vendorId,
             'fish_type_id' => $request->fish_type_id,
@@ -195,29 +178,6 @@ class InventoryController extends Controller
                 : 'This batch is now sold out.');
 
         return back()->with('success', $message);
-    }
-
-    // ─── Write off a stale batch ──────────────────────────────────
-    public function writeOff(Request $request, VendorInventory $inventory)
-    {
-        abort_if($inventory->vendor_id !== Auth::id(), 403);
-
-        $request->validate(['reason' => ['nullable', 'string', 'max:255']]);
-
-        $kg = $inventory->getRemainingStock();
-        $inventory->writeOff($request->input('reason'));
-
-        $label = ($inventory->fishType?->name ?? 'Fish').' '.$inventory->batchLabel();
-
-        ActivityLog::create([
-            'user_id' => Auth::id(),
-            'action' => 'dispose_stock',
-            'description' => 'Wrote off '.number_format($kg, 2)." kg of {$label} from "
-                .$inventory->entry_date->format('M j, Y').', held '.$inventory->getAgeInDays().' days'
-                .($request->filled('reason') ? ': '.$request->input('reason') : '.'),
-        ]);
-
-        return back()->with('success', number_format($kg, 2)." kg of {$label} written off.");
     }
 
     // ─── Cancel a pending batch ───────────────────────────────────

@@ -5,6 +5,7 @@
 //  Add the 'role' middleware alias inside ->withMiddleware()
 // ─────────────────────────────────────────────────────────────────
 
+use App\Http\Middleware\ExpireOldBatches;
 use App\Http\Middleware\RoleMiddleware;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
@@ -23,6 +24,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => RoleMiddleware::class,
         ]);
 
+        // Take batches that reached the freshness limit off the stall before any page shows them.
+        $middleware->web(append: [ExpireOldBatches::class]);
+
     })
     ->withSchedule(function (Schedule $schedule) {
         // Generate ARIMA forecasts every day at midnight
@@ -30,6 +34,9 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Lock previous-day inventory entries every day at 00:05
         $schedule->command('inventory:lock')->dailyAt('00:05');
+
+        // Take unsold batches that reached the freshness limit off the stall
+        $schedule->command('inventory:expire')->dailyAt('00:02');
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

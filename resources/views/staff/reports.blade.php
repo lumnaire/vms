@@ -5,7 +5,7 @@
 
 @section('content')
 
-{{-- ── Period picker ───────────────────────────────────────────── --}}
+{{-- ── Period picker: the preview reloads as soon as a filter changes ── --}}
 <form method="GET" action="{{ route('staff.reports.index') }}" id="reportForm"
       class="bg-white rounded-xl border border-slate-100 shadow-card p-4 mb-5 flex flex-wrap items-end gap-3">
 
@@ -36,9 +36,6 @@
     </x-filter-field>
 
     <div class="flex items-center gap-2 ml-auto">
-        <button type="submit" class="vpm-btn vpm-btn-secondary">
-            <x-icon name="bi-eye" size="sm" /> Preview
-        </button>
         <button type="submit" formaction="{{ route('staff.reports.pdf') }}" class="vpm-btn vpm-btn-primary">
             <x-icon name="bi-file-earmark-pdf-fill" size="sm" /> Download PDF
         </button>
@@ -146,17 +143,34 @@
 
 @push('scripts')
 <script>
-    // Period buttons switch which date input the form sends.
+    // Every filter change reloads the preview; there is no Preview button.
+    // form.submit() goes to the form's own action (the preview), not the PDF.
     (function () {
         const form = document.getElementById('reportForm');
         const input = document.getElementById('periodInput');
+        const preview = () => form.submit();
 
+        // Period buttons switch which date input the form sends.
         form.querySelectorAll('[data-period]').forEach(btn => {
             btn.addEventListener('click', () => {
+                if (input.value === btn.dataset.period) return;
                 input.value = btn.dataset.period;
                 form.querySelectorAll('[data-period]').forEach(b => b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'));
                 form.querySelectorAll('[data-for]').forEach(f => f.classList.toggle('hidden', f.dataset.for !== btn.dataset.period));
+                preview();
             });
+        });
+
+        form.querySelectorAll('input[name="date"], input[name="month"]').forEach(el => {
+            el.addEventListener('change', () => el.value && preview());
+        });
+
+        // Typing a year: wait for all four digits and a short pause.
+        const year = form.querySelector('input[name="year"]');
+        let timer;
+        year.addEventListener('input', () => {
+            clearTimeout(timer);
+            if (/^\d{4}$/.test(year.value)) timer = setTimeout(preview, 500);
         });
     })();
 </script>

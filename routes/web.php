@@ -112,8 +112,6 @@ Route::middleware(['auth', 'role:vendor'])
 
         // ── Batch actions ─────────────────────────────────────────────
         // Release records kilograms sold from a confirmed batch, which comes off
-        // the batch's remaining stock and the public board. Write-off clears a
-        // batch that has passed its freshness window.
+        // the batch's remaining stock and the public board.
         Route::post('/inventory/{inventory}/release', [InventoryController::class, 'release'])->name('inventory.release');
-        Route::post('/inventory/{inventory}/write-off', [InventoryController::class, 'writeOff'])->name('inventory.write-off');
     });

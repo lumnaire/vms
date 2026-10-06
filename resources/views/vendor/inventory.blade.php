@@ -50,7 +50,6 @@
     }
     .batch-row { border-bottom: 1px solid #f1f5f9; transition: background 0.1s; }
     .batch-row:hover { background: #f8faff; }
-    .batch-row.is-stale { background: #fef2f2; }
 
     /* State pills */
     .state-pill {
@@ -61,18 +60,16 @@
     .state-pending     { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
     .state-on_sale     { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
     .state-sold_out    { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
-    .state-stale       { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
     .state-rejected    { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
-    .state-written_off { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+    .state-expired     { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
 
-    /* Days on the stall out of the freshness window, e.g. "1d / 3d" */
+    /* Countdown to automatic deletion, e.g. "2 days left" */
     .days-pill {
         display: inline-block; padding: 2px 8px; border-radius: 6px;
         font-size: 11px; font-weight: 700; white-space: nowrap;
         background: #f1f5f9; color: #475569;
     }
     .days-pill.is-last  { background: #fffbeb; color: #b45309; }
-    .days-pill.is-stale { background: #fee2e2; color: #b91c1c; }
 
     /* ⋮ batch menu, positioned against the viewport so the scrolling table
        cannot clip it */
@@ -87,6 +84,10 @@
         background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
         box-shadow: 0 12px 32px rgba(15,23,42,0.16); padding: 6px;
     }
+    /* openBatchMenu() hides the actions a batch does not offer with .hidden.
+       These rules are unlayered, so they outrank Tailwind's .hidden utility:
+       without the second rule every action showed on every batch, and "Cancel
+       batch" on a confirmed one posted to an empty URL. */
     .menu-item {
         width: 100%; display: flex; align-items: center; gap: 8px;
         padding: 8px 10px; border-radius: 8px; font-size: 12.5px; font-weight: 600;
@@ -101,6 +102,7 @@
     }
     .menu-stat strong { color: #0f172a; font-size: 13px; }
     .menu-sep { height: 1px; background: #f1f5f9; margin: 4px 2px; }
+    #batchMenu .hidden { display: none; }
 
     .existing-batches {
         border: 1px solid #fde68a; background: #fffbeb; color: #92400e;
@@ -113,16 +115,15 @@
 @section('content')
 
 @php
-    $releaseFailed  = (bool) old('release_entry');
-    $writeOffFailed = (bool) old('write_off_entry');
-    $formOld = fn (string $key) => ($releaseFailed || $writeOffFailed) ? null : old($key);
+    $releaseFailed = (bool) old('release_entry');
+    $formOld = fn (string $key) => $releaseFailed ? null : old($key);
     $freshness = \App\Models\VendorInventory::freshnessDays();
 @endphp
 
 {{-- ── Flash Messages ───────────────────────────────────────────── --}}
 <x-alert />
 
-@if($errors->any() && ! $releaseFailed && ! $writeOffFailed)
+@if($errors->any() && ! $releaseFailed)
 <div class="mb-5 px-4 py-3 rounded-xl text-[13px] bg-danger-50 border border-danger-200 text-danger-800">
     <div class="flex items-center gap-2 font-semibold mb-1.5 text-[13.5px]">
         <x-icon name="bi-exclamation-circle-fill" class="flex-shrink-0 text-danger-500" />
@@ -137,11 +138,10 @@
 @endif
 
 {{-- ── Stats ────────────────────────────────────────────────────── --}}
-<div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+<div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
     <x-stat-card label="Remaining Stock" :value="$remainingKg" unit="kg" tone="neutral" />
     <x-stat-card label="Batches on Sale" :value="$onSaleCount" decimals="0" tone="success" />
     <x-stat-card label="Pending" :value="$pendingCount" decimals="0" tone="warning" />
-    <x-stat-card label="Stale" :value="$staleCount" decimals="0" :tone="$staleCount > 0 ? 'danger' : 'neutral'" />
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -199,8 +199,9 @@
                         </select>
                     </div>
 
-                    {{-- Already have this fish: shown by script when the chosen fish
-                         has batches on the stall or waiting for staff. --}}
+                    {{-- Already have this fish: a reminder shown by script when the
+                         chosen fish has batches on the stall or waiting for staff.
+                         Nothing to tick; submitting makes the next batch. --}}
                     <div id="existingBatches" class="existing-batches hidden" role="status">
                         <p class="font-semibold flex items-center gap-1.5">
                             <x-icon name="bi-layers-fill" size="xs" />
@@ -208,11 +209,9 @@
                             <span id="existingKg"></span> remaining
                         </p>
                         <ul id="existingList"></ul>
-                        <label class="flex items-start gap-2 font-semibold cursor-pointer text-amber-900">
-                            <input type="checkbox" name="confirm_new_batch" value="1" id="confirmNewBatch"
-                                   class="mt-0.5 w-4 h-4" @checked($formOld('confirm_new_batch'))>
-                            <span>Yes, submit this as <span id="nextBatchLabel">another batch</span>.</span>
-                        </label>
+                        <p class="font-semibold text-amber-900">
+                            This will be submitted as <span id="nextBatchLabel">another batch</span>.
+                        </p>
                     </div>
 
                     {{-- Price per kg --}}
@@ -273,7 +272,7 @@
                 <div class="mt-3 rounded-lg px-3 py-2.5 bg-surface-subtle border border-slate-200">
                     <p class="text-[11px] leading-[1.5] text-slate-500">
                         <x-icon name="bi-info-circle-fill" class="mr-1 text-slate-400" />
-                        Each batch stays on sale for up to <strong>{{ $freshness }} days</strong> or until it sells out.
+                        Unsold batches are <strong>removed automatically after {{ $freshness }} days</strong>.
                         Use <strong>⋮ → Release</strong> on a batch to record the kilograms you sold.
                     </p>
                 </div>
@@ -313,7 +312,7 @@
                             <th class="th-cell text-right">Price/kg</th>
                             <th class="th-cell text-right">Stock</th>
                             <th class="th-cell text-right">Remaining</th>
-                            <th class="th-cell text-center">Days</th>
+                            <th class="th-cell text-center">Days Left</th>
                             <th class="th-cell text-center">Status</th>
                             <th class="th-cell text-center"><span class="sr-only">Actions</span></th>
                         </tr>
@@ -333,7 +332,7 @@
         <div class="mt-5 bg-white rounded-xl border border-slate-100 overflow-hidden shadow-card">
             <div class="px-5 py-4 border-b border-slate-100">
                 <h2 class="text-slate-700 font-bold text-[13.5px]">Closed Batches &middot; Past 7 Days</h2>
-                <p class="text-slate-400 text-[11px] mt-px">Sold out, written off or rejected.</p>
+                <p class="text-slate-400 text-[11px] mt-px">Sold out or rejected.</p>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full" style="border-collapse: collapse; min-width: 720px;">
@@ -344,7 +343,7 @@
                             <th class="th-cell text-right">Price/kg</th>
                             <th class="th-cell text-right">Stock</th>
                             <th class="th-cell text-right">Sold</th>
-                            <th class="th-cell text-center">Days</th>
+                            <th class="th-cell text-center">Days Left</th>
                             <th class="th-cell text-center">Status</th>
                             <th class="th-cell"></th>
                         </tr>
@@ -370,9 +369,6 @@
     <div class="menu-stat"><span>Total sold</span><strong id="menuSold"></strong></div>
     <div class="menu-stat"><span>Remaining</span><strong id="menuRemaining"></strong></div>
     <div class="menu-sep" data-menu="extra-sep"></div>
-    <button type="button" class="menu-item is-danger" data-menu="write-off" role="menuitem">
-        <x-icon name="bi-trash3-fill" size="sm" /> Write off (stale)
-    </button>
     <button type="button" class="menu-item is-danger" data-menu="cancel" role="menuitem">
         <x-icon name="bi-x-circle-fill" size="sm" /> Cancel batch
     </button>
@@ -440,38 +436,6 @@
     </div>
 </div>
 
-{{-- ── Write-off modal ──────────────────────────────────────────── --}}
-<div id="writeOffModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4"
-     role="dialog" aria-modal="true" aria-labelledby="writeOffTitle"
-     style="background: rgba(15,23,42,0.55); backdrop-filter: blur(4px)"
-     onclick="if (event.target === this) closeModal('writeOffModal')">
-    <div class="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-modal">
-        <div class="px-5 py-4 border-b border-slate-100">
-            <h3 id="writeOffTitle" class="text-slate-800 font-bold text-[15px]">Write off this batch?</h3>
-            <p id="writeOffSubtitle" class="text-slate-400 text-[11.5px] mt-0.5"></p>
-        </div>
-        <form id="writeOffForm" method="POST" class="px-5 py-5 space-y-4">
-            @csrf
-            <input type="hidden" name="write_off_entry" id="writeOffEntry">
-            @if($writeOffFailed && $errors->any())
-                <div class="rounded-lg px-3 py-2.5 text-[12px] bg-danger-50 border border-danger-200 text-danger-800">{{ $errors->first() }}</div>
-            @endif
-            <p class="text-[12px] text-slate-600">
-                The remaining <strong id="writeOffKg"></strong> is past the {{ $freshness }}-day freshness window.
-                Writing it off removes it from your remaining stock.
-            </p>
-            <div>
-                <label class="form-label" for="writeOffReason">Reason (optional)</label>
-                <input type="text" name="reason" id="writeOffReason" maxlength="255" class="form-input" placeholder="e.g. Spoiled">
-            </div>
-            <div class="flex items-center justify-end gap-2">
-                <button type="button" onclick="closeModal('writeOffModal')" class="vpm-btn vpm-btn-secondary vpm-btn-sm">Keep</button>
-                <button type="submit" class="vpm-btn vpm-btn-danger vpm-btn-sm">Write off</button>
-            </div>
-        </form>
-    </div>
-</div>
-
 {{-- Cancel a pending batch: submitted from the ⋮ menu --}}
 <form id="cancelForm" method="POST" class="hidden">
     @csrf
@@ -518,16 +482,14 @@
         showExistingBatches();
     }
 
-    // "You already have Bammer: 15 kg remaining" + the confirm tick-box
+    // Reminder: "You already have Bammer: 15 kg remaining"
     function showExistingBatches() {
-        const box     = document.getElementById('existingBatches');
-        const confirm = document.getElementById('confirmNewBatch');
-        const opt     = fishSelect.options[fishSelect.selectedIndex];
-        const info    = fishSelect.value ? EXISTING[fishSelect.value + '_' + (opt?.dataset.qualityClass || qcSelect.value)] : null;
+        const box  = document.getElementById('existingBatches');
+        const opt  = fishSelect.options[fishSelect.selectedIndex];
+        const info = fishSelect.value ? EXISTING[fishSelect.value + '_' + (opt?.dataset.qualityClass || qcSelect.value)] : null;
 
         box.classList.toggle('hidden', !info);
-        confirm.required = !!info;
-        if (!info) { confirm.checked = false; return; }
+        if (!info) return;
 
         document.getElementById('existingFish').textContent = opt.textContent.trim();
         document.getElementById('existingKg').textContent = kg(info.remaining);
@@ -608,9 +570,8 @@
         const show = (key, on) => menu.querySelectorAll('[data-menu="' + key + '"]').forEach(el => el.classList.toggle('hidden', !on));
         show('release', d.canRelease === '1');
         show('release-sep', d.canRelease === '1');
-        show('write-off', d.canWriteOff === '1');
         show('cancel', !!d.cancelUrl);
-        show('extra-sep', d.canWriteOff === '1' || !!d.cancelUrl);
+        show('extra-sep', !!d.cancelUrl);
 
         menu.classList.remove('hidden');
         const r = btn.getBoundingClientRect();
@@ -632,23 +593,14 @@
         setTimeout(() => input.focus(), 50);
     }
 
-    function openWriteOff(d) {
-        document.getElementById('writeOffForm').action = d.writeOffUrl;
-        document.getElementById('writeOffEntry').value = d.id;
-        document.getElementById('writeOffSubtitle').textContent = d.label;
-        document.getElementById('writeOffKg').textContent = kg(d.remaining);
-        openModal('writeOffModal');
-    }
-
     menu.addEventListener('click', e => {
         const item = e.target.closest('[data-menu]');
         if (!item || !menuBtn) return;
         const d = { ...menuBtn.dataset };
         closeMenu();
 
-        if (item.dataset.menu === 'release') openRelease(d);
-        if (item.dataset.menu === 'write-off') openWriteOff(d);
-        if (item.dataset.menu === 'cancel' && confirm('Cancel ' + d.label + '? It has not been confirmed yet.')) {
+        if (item.dataset.menu === 'release' && d.canRelease === '1') openRelease(d);
+        if (item.dataset.menu === 'cancel' && d.cancelUrl && confirm('Cancel ' + d.label + '? It has not been confirmed yet.')) {
             const form = document.getElementById('cancelForm');
             form.action = d.cancelUrl;
             form.submit();
@@ -664,21 +616,16 @@
         if (e.key !== 'Escape') return;
         closeMenu();
         closeModal('releaseModal');
-        closeModal('writeOffModal');
     });
 
     // Reopen the dialog the server just refused, on the same batch.
-    @if($releaseFailed || $writeOffFailed)
+    @if($releaseFailed)
     (function () {
-        const id  = @json((int) old('release_entry', old('write_off_entry')));
+        const id  = @json((int) old('release_entry'));
         const btn = document.querySelector('.kebab-btn[data-id="' + id + '"]');
         if (!btn) return;
-        @if($releaseFailed)
-            openRelease(btn.dataset);
-            document.getElementById('releaseKg').value = @json(old('release_kg'));
-        @else
-            openWriteOff(btn.dataset);
-        @endif
+        openRelease(btn.dataset);
+        document.getElementById('releaseKg').value = @json(old('release_kg'));
     })();
     @endif
 </script>
