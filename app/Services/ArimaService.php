@@ -109,32 +109,75 @@ class ArimaService
     }
 
     /**
-     * Aggregate the historical overlay shown behind the forecast on the chart.
-     * Shares the same metric definitions as buildSeries().
+     * The historical overlay shown behind the forecast on the chart: one point
+     * for every one of the last `history_chart_days` days (yesterday back), so
+     * the chart always shows that many dots. Shares the metric definitions of
+     * buildSeries().
      *
-     * @return Collection<string, float> date => value
+     * A day with no confirmed batch of the fish is filled and flagged:
+     *   supply — 0 kg, because nothing came in;
+     *   price  — the last known price, from earlier in the window or the most
+     *            recent batch before it. With no price at all yet, null (blank).
+     *
+     * Empty when the window has no confirmed batch at all, so a fish with no
+     * recent history does not draw a flat line of filled points.
+     *
+     * @return Collection<string, array{value: float|null, filled: bool}> date => point
      */
     public function historicalSeries(int $fishTypeId, string $quality, string $metric): Collection
     {
-        $lookback = config('forecast.history_chart_days');
+        $days = (int) config('forecast.history_chart_days');
+        $start = today()->subDays($days);
 
-        return VendorInventory::where('fish_type_id', $fishTypeId)
+        $base = fn () => VendorInventory::where('fish_type_id', $fishTypeId)
             ->where('quality_class', $quality)
-            ->where('status', 'confirmed')
+            ->where('status', 'confirmed');
+
+        $actual = $base()
             ->whereDate('entry_date', '<', today())
-            ->whereDate('entry_date', '>=', today()->subDays($lookback))
+            ->whereDate('entry_date', '>=', $start->toDateString())
             ->orderBy('entry_date')
             ->get()
             ->groupBy(fn ($e) => $e->entry_date->toDateString())
-            ->map(function ($entries) use ($metric) {
-                $value = match ($metric) {
-                    'price' => (float) $entries->avg('price_per_kg'),
-                    'supply' => (float) $entries->sum('stock_kg'),
-                    default => 0.0,
-                };
+            ->map(fn ($entries) => round(match ($metric) {
+                'price' => (float) $entries->avg('price_per_kg'),
+                'supply' => (float) $entries->sum('stock_kg'),
+                default => 0.0,
+            }, 2));
 
-                return round($value, 2);
-            });
+        if ($actual->isEmpty()) {
+            return collect();
+        }
+
+        // The price carried into the window from the last batch before it.
+        $lastPrice = null;
+        if ($metric === 'price') {
+            $lastDay = $base()->whereDate('entry_date', '<', $start->toDateString())
+                ->orderByDesc('entry_date')
+                ->first()?->entry_date->toDateString();
+            $lastPrice = $lastDay
+                ? round((float) $base()->whereDate('entry_date', $lastDay)->avg('price_per_kg'), 2)
+                : null;
+        }
+
+        $series = collect();
+        for ($date = $start->copy(); $date->lt(today()); $date->addDay()) {
+            $key = $date->toDateString();
+
+            if ($actual->has($key)) {
+                $series[$key] = ['value' => $actual[$key], 'filled' => false];
+                $lastPrice = $actual[$key];
+
+                continue;
+            }
+
+            $series[$key] = [
+                'value' => $metric === 'price' ? $lastPrice : 0.0,
+                'filled' => true,
+            ];
+        }
+
+        return $series;
     }
 
     // ─────────────────────────────────────────────────────────────

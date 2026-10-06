@@ -759,6 +759,67 @@ class MarketplaceFlowTest extends TestCase
      * and say which ones do not, rather than greet the supervisor with an empty
      * chart.
      */
+    /**
+     * The chart's historical line has exactly one dot per day of the 30-day
+     * window. A day with no batch is filled: 0 kg of supply, or the last known
+     * price (carried in from before the window when needed), flagged as filled.
+     */
+    public function test_forecast_history_has_one_point_for_each_of_the_last_30_days(): void
+    {
+        $fish = $this->makeFishType('Bangus', 'First Class');
+        $vendor = $this->makeUser('vendor');
+        $days = config('forecast.history_chart_days');
+        $this->assertSame(30, $days);
+
+        foreach ([40 => 90, 25 => 100, 10 => 120] as $ago => $price) {
+            VendorInventory::create([
+                'vendor_id' => $vendor->id,
+                'fish_type_id' => $fish->id,
+                'quality_class' => 'First Class',
+                'price_per_kg' => $price,
+                'stock_kg' => 10,
+                'released_kg' => 10,
+                'sold_kg' => 10,
+                'status' => 'confirmed',
+                'entry_date' => today()->subDays($ago),
+                'is_locked' => true,
+            ]);
+        }
+
+        $supervisor = $this->makeUser('supervisor');
+        $get = fn (string $metric) => $this->actingAs($supervisor)
+            ->get("/supervisor/forecasts?fish_type_id={$fish->id}&quality_class=First+Class&metric={$metric}")
+            ->assertOk()
+            ->viewData('historical');
+
+        $price = $get('price');
+        $this->assertCount(30, $price);
+        $this->assertSame(today()->subDays(30)->toDateString(), $price->keys()->first());
+        $this->assertSame(today()->subDay()->toDateString(), $price->keys()->last());
+        $this->assertSame(['value' => 90.0, 'filled' => true], $price[today()->subDays(30)->toDateString()]);
+        $this->assertSame(['value' => 100.0, 'filled' => false], $price[today()->subDays(25)->toDateString()]);
+        $this->assertSame(['value' => 100.0, 'filled' => true], $price[today()->subDays(24)->toDateString()]);
+        $this->assertSame(['value' => 120.0, 'filled' => true], $price[today()->subDay()->toDateString()]);
+        $this->assertSame(2, $price->where('filled', false)->count());
+
+        $supply = $get('supply');
+        $this->assertCount(30, $supply);
+        $this->assertSame(['value' => 0.0, 'filled' => true], $supply[today()->subDays(24)->toDateString()]);
+        $this->assertSame(['value' => 10.0, 'filled' => false], $supply[today()->subDays(10)->toDateString()]);
+    }
+
+    public function test_forecast_history_is_empty_without_a_batch_in_the_window(): void
+    {
+        $fish = $this->makeFishType('Bangus', 'First Class');
+
+        $historical = $this->actingAs($this->makeUser('supervisor'))
+            ->get("/supervisor/forecasts?fish_type_id={$fish->id}&quality_class=First+Class&metric=supply")
+            ->assertOk()
+            ->viewData('historical');
+
+        $this->assertCount(0, $historical);
+    }
+
     public function test_forecast_page_opens_on_a_fish_that_has_a_forecast(): void
     {
         $empty = $this->makeFishType('Agoot', 'First Class');

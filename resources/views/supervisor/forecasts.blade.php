@@ -49,8 +49,10 @@
     $maxForecast  = $hasForecasts ? $forecasts->max('predicted_value')           : null;
 
     /* ── Chart data arrays (PHP → JS) ────────────────────────── */
+    /* One point per day of the window; "filled" marks a day with no batch */
     $histLabels = $historical->keys()->values()->toArray();
-    $histVals   = $historical->values()->map(fn($v) => round((float)$v, 2))->values()->toArray();
+    $histVals   = $historical->values()->map(fn($p) => $p['value'] !== null ? round((float) $p['value'], 2) : null)->values()->toArray();
+    $histFilled = $historical->values()->map(fn($p) => $p['filled'])->values()->toArray();
 
     $fcLabels   = $forecasts->map(fn($f) => $f->forecast_date->format('Y-m-d'))->values()->toArray();
     $fcVals     = $forecasts->pluck('predicted_value')->map(fn($v) => (float)$v)->values()->toArray();
@@ -630,6 +632,7 @@
     const allLabels  = @json($allLabels);
     const histLabels = @json($histLabels);
     const histVals   = @json($histVals);
+    const histFilled = @json($histFilled);
     const fcLabels   = @json($fcLabels);
     const fcVals     = @json($fcVals);
     const fcMins     = @json($fcMins);
@@ -643,6 +646,7 @@
 
     // ── Build date-keyed maps for O(1) lookup ─────────────────
     const histMap   = Object.fromEntries(histLabels.map((d, i) => [d, histVals[i]]));
+    const filledSet = new Set(histLabels.filter((d, i) => histFilled[i]));
     const fcMap     = Object.fromEntries(fcLabels.map((d, i) => [d, fcVals[i]]));
     const fcMinMap  = Object.fromEntries(
         fcLabels.map((d, i) => [d, fcMins[i]]).filter(([, v]) => v !== null)
@@ -742,8 +746,9 @@
                     borderWidth: 2,
                     pointRadius: 2.5,
                     pointHoverRadius: 5,
-                    pointBackgroundColor: '#2563eb',
-                    pointBorderColor: '#ffffff',
+                    // Hollow dot on a day with no batch (0 kg / last price)
+                    pointBackgroundColor: allLabels.map(d => filledSet.has(d) ? '#ffffff' : '#2563eb'),
+                    pointBorderColor: allLabels.map(d => filledSet.has(d) ? '#2563eb' : '#ffffff'),
                     pointBorderWidth: 1.5,
                     tension: 0.35,
                     spanGaps: false,
@@ -802,7 +807,10 @@
                         },
                         label(item) {
                             const val = item.parsed.y.toFixed(2);
-                            return ` ${item.dataset.label}: ${prefix}${val} ${unit}`;
+                            const note = item.datasetIndex === 2 && filledSet.has(item.label)
+                                ? (isPrice ? ' (no batch – last price)' : ' (no batch)')
+                                : '';
+                            return ` ${item.dataset.label}: ${prefix}${val} ${unit}${note}`;
                         },
                         // Append CI range for forecast points
                         afterBody(items) {
