@@ -13,7 +13,7 @@
     .period { font-size: 12px; color: #334155; }
     .meta { font-size: 9px; color: #64748b; margin-top: 4px; }
     table { width: 100%; border-collapse: collapse; }
-    .stats td { width: 25%; border: 1px solid #e2e8f0; padding: 8px 10px; }
+    .stats td { width: 20%; border: 1px solid #e2e8f0; padding: 8px 10px; }
     .stat-label { font-size: 8.5px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
     .stat-value { font-size: 15px; font-weight: bold; color: #0f172a; margin-top: 2px; }
     h2 { font-size: 12.5px; color: #0f2d5e; margin: 18px 0 6px; }
@@ -49,6 +49,7 @@
         <td><div class="stat-label">Batches</div><div class="stat-value">{{ $totals['batches'] }}</div></td>
         <td><div class="stat-label">Vendors</div><div class="stat-value">{{ $totals['vendors'] }}</div></td>
         <td><div class="stat-label">Avg Price / kg</div><div class="stat-value">₱{{ number_format($totals['avg_price'], 2) }}</div></td>
+        <td><div class="stat-label">Pulled Out</div><div class="stat-value">{{ number_format($totals['pulled_out_kg'], 2) }} kg</div></td>
     </tr>
 </table>
 
@@ -124,6 +125,43 @@
         </tr>
         @endforeach
     </tbody>
+</table>
+@endif
+
+<h2>Released Stock (Pulled Out, Not Sold)</h2>
+@if($pullOuts->isEmpty())
+    <div class="empty">No vendor pulled out unsold stock in this period.</div>
+@else
+<table class="data">
+    <thead>
+        <tr>
+            <th>{{ $report->period === 'daily' ? 'Time' : 'Date' }}</th>
+            <th>Vendor</th>
+            <th>Fish</th>
+            <th>Batch</th>
+            <th class="r">Released (kg)</th>
+            <th>Reason</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach($pullOuts as $row)
+        <tr>
+            <td>{{ $row['when'] }}</td>
+            <td><strong>{{ $row['vendor'] }}</strong>@if($row['stall'])<span class="muted"> · Stall {{ $row['stall'] }}</span>@endif</td>
+            <td>{{ $row['fish'] }}@if($row['quality_class'])<span class="muted"> · {{ $row['quality_class'] }}</span>@endif</td>
+            <td>{{ $row['batch'] }}</td>
+            <td class="r">{{ number_format($row['kg'], 2) }}</td>
+            <td>{{ $row['reason'] ?? '—' }}</td>
+        </tr>
+        @endforeach
+    </tbody>
+    <tfoot>
+        <tr>
+            <td colspan="4">Total · {{ $totals['pull_outs'] }} {{ Str::plural('release', $totals['pull_outs']) }}</td>
+            <td class="r">{{ number_format($totals['pulled_out_kg'], 2) }}</td>
+            <td></td>
+        </tr>
+    </tfoot>
 </table>
 @endif
 

@@ -16,6 +16,7 @@
         'rejected'    => ['bi-x-circle-fill', 'Rejected'],
         'on_sale'     => ['bi-check-circle-fill', 'On sale'],
         'sold_out'    => ['bi-bag-check-fill', 'Sold out'],
+        'released'    => ['bi-box-arrow-right', 'Released'],
         'expired'     => ['bi-trash3', 'Expired'],
     ][$state];
 
@@ -43,6 +44,9 @@
     <td class="px-4 py-3 text-right text-[12.5px] font-semibold text-slate-800">
         @if($closed)
             {{ number_format($entry->getSoldKg(), 1) }} kg
+            @if($entry->getPulledOutKg() > 0)
+                <span class="block text-[11px] font-normal text-slate-400">+ {{ number_format($entry->getPulledOutKg(), 1) }} kg pulled out</span>
+            @endif
         @elseif($entry->isConfirmed())
             {{ number_format($remaining, 1) }} kg
         @else
@@ -70,6 +74,7 @@
                     data-id="{{ $entry->id }}"
                     data-label="{{ $label }}"
                     data-sold="{{ $entry->getSoldKg() }}"
+                    data-pulled="{{ $entry->getPulledOutKg() }}"
                     data-remaining="{{ $entry->isConfirmed() ? $remaining : (float) $entry->stock_kg }}"
                     data-can-release="{{ $entry->canRelease() ? '1' : '0' }}"
                     data-release-url="{{ route('vendor.inventory.release', $entry) }}"

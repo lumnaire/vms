@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\BatchRelease;
 use App\Models\VendorInventory;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -13,8 +14,9 @@ use Illuminate\Support\Collection;
  * of each fish came into the market, in how many batches, from how many vendors,
  * and at what prices.
  *
- * Supply only. What vendors sold is their own record (Release) and is
- * deliberately not part of a staff report.
+ * Plus every release of stock that was pulled out unsold, one line each, so
+ * fish that left the market without being sold is on record. What vendors
+ * sold is their own record and deliberately not part of a staff report.
  *
  * Used for both the on-screen preview and the PDF, so the two cannot disagree.
  */
@@ -106,10 +108,22 @@ class SupplyReport
             ->whereDate('entry_date', '<=', $this->end->toDateString())
             ->get();
 
+        // Pull-outs by when they happened, whichever day the batch came in.
+        $pullOuts = BatchRelease::with(['batch.fishType', 'vendor.vendorProfile'])
+            ->where('kind', BatchRelease::PULLED_OUT)
+            ->whereBetween('created_at', [$this->start, $this->end])
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
+
         return [
-            'totals' => $this->totals($batches),
+            'totals' => $this->totals($batches) + [
+                'pulled_out_kg' => round((float) $pullOuts->sum('kg'), 2),
+                'pull_outs' => $pullOuts->count(),
+            ],
             'byFish' => $this->byFish($batches),
             'breakdown' => $this->breakdown($batches),
+            'pullOuts' => $this->pullOuts($pullOuts),
         ];
     }
 
@@ -152,6 +166,20 @@ class SupplyReport
             })
             ->sortBy([['fish', 'asc'], ['quality_class', 'asc']])
             ->values();
+    }
+
+    private function pullOuts(Collection $releases): Collection
+    {
+        return $releases->map(fn (BatchRelease $r) => [
+            'when' => $r->created_at->format($this->period === 'daily' ? 'g:i A' : 'M j, g:i A'),
+            'vendor' => $r->vendor?->name ?? 'Unknown vendor',
+            'stall' => $r->vendor?->vendorProfile?->stall_number,
+            'fish' => $r->batch?->fishType?->name ?? 'Unknown',
+            'quality_class' => $r->batch?->quality_class,
+            'batch' => $r->batch?->batchLabel(),
+            'kg' => round((float) $r->kg, 2),
+            'reason' => $r->reason,
+        ])->values();
     }
 
     private function breakdown(Collection $batches): Collection

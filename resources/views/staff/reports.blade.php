@@ -50,11 +50,12 @@
     </div>
 </div>
 
-<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+<div class="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
     <x-stat-card tinted tone="brand"   label="Total Supply"     :value="$totals['supply_kg']" unit="kg" />
     <x-stat-card tinted tone="success" label="Batches"          :value="$totals['batches']" decimals="0" />
     <x-stat-card tinted tone="warning" label="Vendors"          :value="$totals['vendors']" decimals="0" />
     <x-stat-card tinted tone="neutral" label="Avg Price / kg"   :value="$totals['avg_price']" prefix="₱" />
+    <x-stat-card tinted tone="danger"  label="Pulled Out"       :value="$totals['pulled_out_kg']" unit="kg" />
 </div>
 
 <div class="grid grid-cols-1 xl:grid-cols-5 gap-5">
@@ -137,6 +138,53 @@
         </div>
         @endif
     </div>
+</div>
+
+{{-- Every release of stock pulled out unsold in this period --}}
+<div class="mt-5 bg-white rounded-xl border border-slate-100 shadow-card overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-100">
+        <h2 class="text-slate-700 font-bold text-[13.5px]">Released Stock (Pulled Out, Not Sold)</h2>
+        <p class="text-slate-400 text-[11px] mt-px">
+            {{ $totals['pull_outs'] }} {{ Str::plural('release', $totals['pull_outs']) }}
+            &middot; {{ number_format($totals['pulled_out_kg'], 2) }} kg
+        </p>
+    </div>
+    @if($pullOuts->isEmpty())
+        <x-empty-state icon="bi-box-arrow-right" title="No pull-outs" text="No vendor pulled out unsold stock in this period." />
+    @else
+    <div class="overflow-x-auto">
+        <table class="vpm-table">
+            <thead>
+                <tr>
+                    <th>{{ $report->period === 'daily' ? 'Time' : 'Date' }}</th>
+                    <th>Vendor</th>
+                    <th>Fish</th>
+                    <th>Batch</th>
+                    <th class="vpm-th-right">Released</th>
+                    <th>Reason</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($pullOuts as $row)
+                <tr>
+                    <td class="whitespace-nowrap">{{ $row['when'] }}</td>
+                    <td>
+                        <span class="vpm-cell-strong">{{ $row['vendor'] }}</span>
+                        @if($row['stall'])<span class="block text-[11px] text-slate-400">Stall {{ $row['stall'] }}</span>@endif
+                    </td>
+                    <td>
+                        {{ $row['fish'] }}
+                        @if($row['quality_class'])<span class="block text-[11px] text-slate-400">{{ $row['quality_class'] }}</span>@endif
+                    </td>
+                    <td class="vpm-cell-muted">{{ $row['batch'] }}</td>
+                    <td class="vpm-td-right font-semibold">{{ number_format($row['kg'], 2) }} kg</td>
+                    <td class="vpm-cell-muted">{{ $row['reason'] ?? '—' }}</td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+    @endif
 </div>
 
 @endsection

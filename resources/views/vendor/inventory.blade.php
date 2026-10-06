@@ -60,6 +60,16 @@
     .state-pending     { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
     .state-on_sale     { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
     .state-sold_out    { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+    .state-released    { background: #f5f3ff; color: #5b21b6; border: 1px solid #ddd6fe; }
+
+    /* Release modal: sold or pulled out */
+    .kind-option {
+        flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+        padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer;
+        font-size: 12.5px; font-weight: 600; color: #475569; background: #fff;
+    }
+    .kind-option:has(input:checked) { border-color: #60a5fa; background: #eff6ff; color: #1e3a8a; }
+    .kind-option input { accent-color: #2563eb; }
     .state-rejected    { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
     .state-expired     { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
 
@@ -273,7 +283,7 @@
                     <p class="text-[11px] leading-[1.5] text-slate-500">
                         <x-icon name="bi-info-circle-fill" class="mr-1 text-slate-400" />
                         Unsold batches are <strong>removed automatically after {{ $freshness }} days</strong>.
-                        Use <strong>⋮ → Release</strong> on a batch to record the kilograms you sold.
+                        Use <strong>⋮ → Release</strong> on a batch for kilograms you sold or pulled out unsold.
                     </p>
                 </div>
             </form>
@@ -332,7 +342,7 @@
         <div class="mt-5 bg-white rounded-xl border border-slate-100 overflow-hidden shadow-card">
             <div class="px-5 py-4 border-b border-slate-100">
                 <h2 class="text-slate-700 font-bold text-[13.5px]">Closed Batches &middot; Past 7 Days</h2>
-                <p class="text-slate-400 text-[11px] mt-px">Sold out or rejected.</p>
+                <p class="text-slate-400 text-[11px] mt-px">Sold out, released or rejected.</p>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full" style="border-collapse: collapse; min-width: 720px;">
@@ -363,10 +373,11 @@
 {{-- ── ⋮ Batch menu (one, shared by every row) ─────────────────── --}}
 <div id="batchMenu" class="hidden" role="menu">
     <button type="button" class="menu-item" data-menu="release" role="menuitem">
-        <x-icon name="bi-cart-check-fill" size="sm" class="text-success-600" /> Release (record sale)
+        <x-icon name="bi-box-arrow-right" size="sm" class="text-success-600" /> Release (sold / pull out)
     </button>
     <div class="menu-sep" data-menu="release-sep"></div>
     <div class="menu-stat"><span>Total sold</span><strong id="menuSold"></strong></div>
+    <div class="menu-stat"><span>Pulled out</span><strong id="menuPulled"></strong></div>
     <div class="menu-stat"><span>Remaining</span><strong id="menuRemaining"></strong></div>
     <div class="menu-sep" data-menu="extra-sep"></div>
     <button type="button" class="menu-item is-danger" data-menu="cancel" role="menuitem">
@@ -374,7 +385,7 @@
     </button>
 </div>
 
-{{-- ── Release modal: record kilograms sold ─────────────────────── --}}
+{{-- ── Release modal: kilograms sold or pulled out unsold ───────── --}}
 <div id="releaseModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4"
      role="dialog" aria-modal="true" aria-labelledby="releaseTitle"
      style="background: rgba(15,23,42,0.55); backdrop-filter: blur(4px)"
@@ -383,7 +394,7 @@
         <div class="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-3">
             <div class="flex items-center gap-3 min-w-0">
                 <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-success-50">
-                    <x-icon name="bi-cart-check-fill" size="lg" class="text-success-600" />
+                    <x-icon name="bi-box-arrow-right" size="lg" class="text-success-600" />
                 </div>
                 <div class="min-w-0">
                     <h3 id="releaseTitle" class="text-slate-800 font-bold text-[15px]">Release</h3>
@@ -399,16 +410,20 @@
             @csrf
             <input type="hidden" name="release_entry" id="releaseEntry">
 
-            @if($releaseFailed && $errors->has('release_kg'))
+            @if($releaseFailed && $errors->any())
                 <div class="rounded-lg px-3 py-2.5 text-[12px] bg-danger-50 border border-danger-200 text-danger-800">
-                    {{ $errors->first('release_kg') }}
+                    {{ $errors->first() }}
                 </div>
             @endif
 
-            <div class="grid grid-cols-2 gap-2 text-[12px]">
+            <div class="grid grid-cols-3 gap-2 text-[12px]">
                 <div class="rounded-lg bg-surface-subtle border border-slate-200 px-3 py-2">
-                    <p class="text-slate-400 text-[10px] font-semibold uppercase tracking-[0.06em]">Sold so far</p>
+                    <p class="text-slate-400 text-[10px] font-semibold uppercase tracking-[0.06em]">Sold</p>
                     <p id="releaseSold" class="text-slate-700 font-bold"></p>
+                </div>
+                <div class="rounded-lg bg-surface-subtle border border-slate-200 px-3 py-2">
+                    <p class="text-slate-400 text-[10px] font-semibold uppercase tracking-[0.06em]">Pulled out</p>
+                    <p id="releasePulled" class="text-slate-700 font-bold"></p>
                 </div>
                 <div class="rounded-lg bg-surface-subtle border border-slate-200 px-3 py-2">
                     <p class="text-slate-400 text-[10px] font-semibold uppercase tracking-[0.06em]">Remaining</p>
@@ -417,13 +432,36 @@
             </div>
 
             <div>
-                <label class="form-label" for="releaseKg">Kilograms sold <span class="text-danger-500">*</span></label>
+                <span class="form-label">Release as <span class="text-danger-500">*</span></span>
+                <div class="flex gap-2" role="radiogroup">
+                    <label class="kind-option">
+                        <input type="radio" name="release_kind" value="sold" checked> Sold
+                    </label>
+                    <label class="kind-option">
+                        <input type="radio" name="release_kind" value="pulled_out"> Pulled out (not sold)
+                    </label>
+                </div>
+            </div>
+
+            <div>
+                <div class="flex items-center justify-between gap-2">
+                    <label class="form-label" for="releaseKg">Kilograms <span class="text-danger-500">*</span></label>
+                    <button type="button" id="releaseAll" class="text-[11.5px] font-semibold text-brand-600 hover:underline mb-1.5">
+                        Release all remaining
+                    </button>
+                </div>
                 <div class="relative">
                     <input type="number" name="release_kg" id="releaseKg" class="form-input"
                            step="0.01" min="0.01" placeholder="0.0" required>
                     <span class="absolute text-[12px] top-1/2 -translate-y-1/2 text-slate-400" style="right:12px">kg</span>
                 </div>
                 <p class="mt-1 text-slate-400 text-[11px]">This is taken off the batch's remaining stock and the public price board.</p>
+            </div>
+
+            <div>
+                <label class="form-label" for="releaseReason">Reason (optional)</label>
+                <input type="text" name="release_reason" id="releaseReason" maxlength="255" class="form-input"
+                       placeholder="e.g. Spoiled, taken home">
             </div>
 
             <div class="flex items-center justify-end gap-2 pt-1">
@@ -565,6 +603,7 @@
         const d = btn.dataset;
 
         document.getElementById('menuSold').textContent = kg(d.sold);
+        document.getElementById('menuPulled').textContent = kg(d.pulled);
         document.getElementById('menuRemaining').textContent = kg(d.remaining);
 
         const show = (key, on) => menu.querySelectorAll('[data-menu="' + key + '"]').forEach(el => el.classList.toggle('hidden', !on));
@@ -586,9 +625,14 @@
         document.getElementById('releaseEntry').value = d.id;
         document.getElementById('releaseSubtitle').textContent = d.label;
         document.getElementById('releaseSold').textContent = kg(d.sold);
+        document.getElementById('releasePulled').textContent = kg(d.pulled);
+        document.querySelector('#releaseForm input[name="release_kind"][value="sold"]').checked = true;
+        document.getElementById('releaseReason').value = '';
         document.getElementById('releaseRemaining').textContent = kg(d.remaining);
         const input = document.getElementById('releaseKg');
+        input.value = '';
         input.max = d.remaining;
+        document.getElementById('releaseAll').onclick = () => { input.value = d.remaining; input.focus(); };
         openModal('releaseModal');
         setTimeout(() => input.focus(), 50);
     }
@@ -626,6 +670,9 @@
         if (!btn) return;
         openRelease(btn.dataset);
         document.getElementById('releaseKg').value = @json(old('release_kg'));
+        document.getElementById('releaseReason').value = @json(old('release_reason', ''));
+        const kind = document.querySelector('#releaseForm input[name="release_kind"][value="' + @json(old('release_kind', 'sold')) + '"]');
+        if (kind) kind.checked = true;
     })();
     @endif
 </script>

@@ -6,6 +6,7 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -19,8 +20,10 @@ use Illuminate\Validation\ValidationException;
  * when it expires (see expireOldBatches()).
  *
  * Stock and what is for sale are the same figure: released_kg is set to stock_kg
- * on submission. sold_kg is what the vendor has recorded as sold through Release,
- * so remaining stock is always released − sold.
+ * on submission. Release takes kilograms off it in one of two kinds: sold_kg is
+ * what the vendor recorded as sold, pulled_out_kg what they took off the stall
+ * unsold. Remaining stock is always released − sold − pulled out, and every
+ * release is also kept as a BatchRelease record.
  */
 class VendorInventory extends Model
 {
@@ -33,6 +36,7 @@ class VendorInventory extends Model
         'stock_kg',
         'released_kg',
         'sold_kg',
+        'pulled_out_kg',
         'status',
         'confirmed_by',
         'confirmed_at',
@@ -48,6 +52,7 @@ class VendorInventory extends Model
         'stock_kg' => 'decimal:2',
         'released_kg' => 'decimal:2',
         'sold_kg' => 'decimal:2',
+        'pulled_out_kg' => 'decimal:2',
         'confirmed_at' => 'datetime',
         'entry_date' => 'date',
         'is_locked' => 'boolean',
@@ -72,6 +77,11 @@ class VendorInventory extends Model
         return $this->belongsTo(User::class, 'confirmed_by');
     }
 
+    public function releases()
+    {
+        return $this->hasMany(BatchRelease::class);
+    }
+
     // ─── Scopes ──────────────────────────────────────────────────
 
     /** Confirmed batches that still have fish left: what the vendor is selling. */
@@ -81,7 +91,7 @@ class VendorInventory extends Model
             ->whereNull('disposed_at')
             // Legacy: stock handed to another day before carrying was removed.
             ->whereNull('carried_out_at')
-            ->whereColumn('sold_kg', '<', 'released_kg');
+            ->whereRaw('sold_kg + pulled_out_kg < released_kg');
     }
 
     // ─── Batches ─────────────────────────────────────────────────
@@ -163,7 +173,7 @@ class VendorInventory extends Model
             return 0.0;
         }
 
-        return round(max(0, (float) $this->released_kg - (float) $this->sold_kg), 2);
+        return round(max(0, (float) $this->released_kg - (float) $this->sold_kg - (float) $this->pulled_out_kg), 2);
     }
 
     public function hasRemainingStock(): bool
@@ -176,14 +186,22 @@ class VendorInventory extends Model
         return round((float) $this->sold_kg, 2);
     }
 
+    /** Kilograms released without being sold. */
+    public function getPulledOutKg(): float
+    {
+        return round((float) $this->pulled_out_kg, 2);
+    }
+
     public function getRemainingStockValue(): float
     {
         return round($this->getRemainingStock() * (float) $this->price_per_kg, 2);
     }
 
-    public function isSoldOut(): bool
+    /** Every kilogram has been released, sold or pulled out. */
+    public function isFullyReleased(): bool
     {
-        return (float) $this->released_kg > 0 && (float) $this->sold_kg >= (float) $this->released_kg;
+        return (float) $this->released_kg > 0
+            && (float) $this->sold_kg + (float) $this->pulled_out_kg >= (float) $this->released_kg;
     }
 
     /** Confirmed with fish left: on the vendor's stall. */
@@ -280,6 +298,9 @@ class VendorInventory extends Model
 
     public const STATE_SOLD_OUT = 'sold_out';
 
+    /** Nothing left, and at least part of it was pulled out rather than sold. */
+    public const STATE_RELEASED = 'released';
+
     public const STATE_EXPIRED = 'expired';
 
     public function getStockState(): string
@@ -288,12 +309,12 @@ class VendorInventory extends Model
             $this->isPending() => self::STATE_PENDING,
             $this->isRejected() => self::STATE_REJECTED,
             $this->isExpired() || $this->isCarriedOut() => self::STATE_EXPIRED,
-            $this->isSoldOut() => self::STATE_SOLD_OUT,
+            $this->isFullyReleased() => $this->getPulledOutKg() > 0 ? self::STATE_RELEASED : self::STATE_SOLD_OUT,
             default => self::STATE_ON_SALE,
         };
     }
 
-    // ─── Release (recording a sale) ──────────────────────────────
+    // ─── Release: sold or pulled out ─────────────────────────────
 
     /** Why kilograms cannot be released from this batch, or null when they can. */
     public function releaseBlocker(): ?string
@@ -301,7 +322,7 @@ class VendorInventory extends Model
         if (! $this->isConfirmed()) {
             return $this->isPending()
                 ? 'Wait for staff to confirm this batch first.'
-                : 'Rejected batches cannot be sold.';
+                : 'Rejected batches cannot be released.';
         }
 
         if ($this->isExpired() || $this->isCarriedOut()) {
@@ -309,7 +330,7 @@ class VendorInventory extends Model
         }
 
         if (! $this->hasRemainingStock()) {
-            return 'This batch is sold out.';
+            return 'Nothing is left in this batch.';
         }
 
         return null;
@@ -321,22 +342,27 @@ class VendorInventory extends Model
     }
 
     /**
-     * Record $kg of this batch as sold. It comes off the remaining stock, and so
-     * off the public board.
+     * Release $kg of this batch, either sold or pulled out unsold. Either way it
+     * comes off the remaining stock, and so off the public board, and is kept as
+     * its own BatchRelease record.
      *
      * @throws ValidationException
      */
-    public function release(float $kg): self
+    public function release(float $kg, string $kind = BatchRelease::SOLD, ?string $reason = null): BatchRelease
     {
         if ($blocker = $this->releaseBlocker()) {
             throw ValidationException::withMessages(['release_kg' => $blocker]);
+        }
+
+        if (! in_array($kind, BatchRelease::KINDS, true)) {
+            throw ValidationException::withMessages(['release_kind' => 'Choose whether the fish was sold or pulled out.']);
         }
 
         $kg = round($kg, 2);
         $remaining = $this->getRemainingStock();
 
         if ($kg < 0.01) {
-            throw ValidationException::withMessages(['release_kg' => 'Enter how many kilograms were sold.']);
+            throw ValidationException::withMessages(['release_kg' => 'Enter how many kilograms to release.']);
         }
 
         if ($kg > $remaining + 0.001) {
@@ -345,8 +371,17 @@ class VendorInventory extends Model
             ]);
         }
 
-        $this->update(['sold_kg' => round((float) $this->sold_kg + $kg, 2)]);
+        $column = $kind === BatchRelease::PULLED_OUT ? 'pulled_out_kg' : 'sold_kg';
 
-        return $this;
+        return DB::transaction(function () use ($column, $kg, $kind, $reason) {
+            $this->update([$column => round((float) $this->{$column} + $kg, 2)]);
+
+            return $this->releases()->create([
+                'vendor_id' => $this->vendor_id,
+                'kind' => $kind,
+                'kg' => $kg,
+                'reason' => $reason ?: null,
+            ]);
+        });
     }
 }

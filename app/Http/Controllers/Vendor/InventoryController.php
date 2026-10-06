@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Vendor;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Models\BatchRelease;
 use App\Models\FishType;
 use App\Models\PriceGuide;
 use App\Models\VendorInventory;
@@ -34,7 +35,7 @@ class InventoryController extends Controller
             ])
             ->values();
 
-        // Closed batches from the past week: sold out or rejected. Expired batches
+        // Closed batches from the past week: sold out, released or rejected. Expired batches
         // are kept in the database for reports but gone from the vendor's view.
         $history = VendorInventory::with('fishType')
             ->where('vendor_id', $vendorId)
@@ -148,34 +149,39 @@ class InventoryController extends Controller
             ->with('success', "{$fishName} {$entry->batchLabel()} submitted. Awaiting staff confirmation.");
     }
 
-    // ─── Release: record kilograms sold from a batch ──────────────
+    // ─── Release: kilograms sold or pulled out from a batch ───────
     public function release(Request $request, VendorInventory $inventory)
     {
         abort_if($inventory->vendor_id !== Auth::id(), 403);
 
         $request->validate([
             'release_kg' => ['required', 'numeric', 'min:0.01', 'max:99999.99'],
+            'release_kind' => ['nullable', 'in:'.implode(',', BatchRelease::KINDS)],
+            'release_reason' => ['nullable', 'string', 'max:255'],
         ], [
-            'release_kg.required' => 'Enter how many kilograms were sold.',
+            'release_kg.required' => 'Enter how many kilograms to release.',
             'release_kg.min' => 'Enter at least 0.01 kg.',
+            'release_kind.in' => 'Choose whether the fish was sold or pulled out.',
         ]);
 
         $kg = (float) $request->input('release_kg');
-        $inventory->release($kg);
+        $kind = $request->input('release_kind') ?: BatchRelease::SOLD;
+        $reason = $request->input('release_reason');
+        $inventory->release($kg, $kind, $reason);
 
         $label = ($inventory->fishType?->name ?? 'Fish').' '.$inventory->batchLabel();
+        $how = $kind === BatchRelease::PULLED_OUT ? 'pulled out (not sold)' : 'sold';
+        $left = $inventory->getRemainingStock();
 
         ActivityLog::create([
             'user_id' => Auth::id(),
-            'action' => 'release_stock',
-            'description' => 'Released (sold) '.number_format($kg, 2)." kg of {$label} — "
-                .number_format($inventory->getRemainingStock(), 2).' kg left.',
+            'action' => $kind === BatchRelease::PULLED_OUT ? 'pull_out_stock' : 'release_stock',
+            'description' => 'Released '.number_format($kg, 2)." kg of {$label} as {$how}"
+                .($reason ? " ({$reason})" : '').' — '.number_format($left, 2).' kg left.',
         ]);
 
-        $message = number_format($kg, 2)." kg of {$label} released as sold. "
-            .($inventory->hasRemainingStock()
-                ? number_format($inventory->getRemainingStock(), 2).' kg left.'
-                : 'This batch is now sold out.');
+        $message = number_format($kg, 2)." kg of {$label} released as {$how}. "
+            .($left > 0 ? number_format($left, 2).' kg left.' : 'Nothing is left in this batch.');
 
         return back()->with('success', $message);
     }

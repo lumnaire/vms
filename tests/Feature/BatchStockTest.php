@@ -2,7 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\ActivityLog;
+use App\Models\BatchRelease;
 use App\Models\FishType;
+use App\Models\Report;
 use App\Models\User;
 use App\Models\VendorInventory;
 use App\Models\VendorProfile;
@@ -287,6 +290,85 @@ class BatchStockTest extends TestCase
             ->assertForbidden();
     }
 
+    /**
+     * The client's example: Batch 1 has 4 kg left, Batch 2 has 2 kg, Batch 3 has
+     * 6 kg. The vendor releases every leftover without selling it; it comes off
+     * remaining stock and the board, and each release is on record.
+     */
+    public function test_leftover_stock_can_be_pulled_out_without_a_sale(): void
+    {
+        $vendor = $this->makeUser('vendor');
+        $fish = $this->makeFishType();
+        $b1 = $this->batch($vendor, $fish, 10, no: 1, sold: 6);
+        $b2 = $this->batch($vendor, $fish, 10, no: 2, sold: 8);
+        $b3 = $this->batch($vendor, $fish, 10, no: 3, sold: 4);
+        $this->assertSame(12.0, $this->get('/')->viewData('vendors')[0]['fish'][0]['remaining_kg']);
+
+        foreach ([[$b1, 4], [$b2, 2], [$b3, 6]] as [$batch, $kg]) {
+            $this->actingAs($vendor)->from('/vendor/inventory')
+                ->post("/vendor/inventory/{$batch->id}/release", [
+                    'release_kg' => $kg,
+                    'release_kind' => 'pulled_out',
+                    'release_reason' => 'Spoiled',
+                ])
+                ->assertSessionHasNoErrors();
+        }
+
+        foreach ([[$b1, 4.0, 6.0], [$b2, 2.0, 8.0], [$b3, 6.0, 4.0]] as [$batch, $pulled, $sold]) {
+            $batch->refresh();
+            $this->assertSame(0.0, $batch->getRemainingStock());
+            $this->assertSame($pulled, $batch->getPulledOutKg());
+            $this->assertSame($sold, $batch->getSoldKg(), 'A pull-out is not a sale.');
+            $this->assertSame(VendorInventory::STATE_RELEASED, $batch->getStockState());
+        }
+
+        $this->assertSame([], $this->get('/')->viewData('vendors')->all(), 'Gone from the board.');
+        $this->assertSame(3, BatchRelease::where('kind', 'pulled_out')->count());
+        $this->assertSame(3, ActivityLog::where('action', 'pull_out_stock')->count());
+        $this->assertStringContainsString('pulled out (not sold) (Spoiled)', ActivityLog::where('action', 'pull_out_stock')->first()->description);
+    }
+
+    public function test_a_sale_is_kept_as_a_release_record_too(): void
+    {
+        $vendor = $this->makeUser('vendor');
+        $entry = $this->batch($vendor, $this->makeFishType(), 15);
+
+        $this->actingAs($vendor)->post("/vendor/inventory/{$entry->id}/release", ['release_kg' => 5, 'release_kind' => 'sold']);
+
+        $this->assertSame(5.0, $entry->fresh()->getSoldKg());
+        $this->assertSame(0.0, $entry->fresh()->getPulledOutKg());
+        $this->assertDatabaseHas('batch_releases', ['vendor_inventory_id' => $entry->id, 'kind' => 'sold']);
+        $this->assertDatabaseHas('activity_logs', ['action' => 'release_stock']);
+    }
+
+    public function test_a_pull_out_cannot_exceed_what_is_left_or_use_an_unknown_kind(): void
+    {
+        $vendor = $this->makeUser('vendor');
+        $entry = $this->batch($vendor, $this->makeFishType(), 10, sold: 7);
+
+        $this->actingAs($vendor)->from('/vendor/inventory')
+            ->post("/vendor/inventory/{$entry->id}/release", ['release_kg' => 4, 'release_kind' => 'pulled_out'])
+            ->assertSessionHasErrors('release_kg');
+        $this->actingAs($vendor)->from('/vendor/inventory')
+            ->post("/vendor/inventory/{$entry->id}/release", ['release_kg' => 1, 'release_kind' => 'gift'])
+            ->assertSessionHasErrors('release_kind');
+
+        $this->assertSame(3.0, $entry->fresh()->getRemainingStock());
+        $this->assertSame(0, BatchRelease::count());
+    }
+
+    public function test_the_release_modal_offers_sold_or_pulled_out(): void
+    {
+        $vendor = $this->makeUser('vendor');
+        $this->batch($vendor, $this->makeFishType(), 10);
+
+        $this->actingAs($vendor)->get('/vendor/inventory')->assertOk()
+            ->assertSee('name="release_kind" value="sold"', false)
+            ->assertSee('name="release_kind" value="pulled_out"', false)
+            ->assertSee('Release all remaining')
+            ->assertSee('name="release_reason"', false);
+    }
+
     // ─── Cancel ──────────────────────────────────────────────────
 
     public function test_a_pending_batch_can_be_cancelled_but_a_confirmed_one_cannot(): void
@@ -425,6 +507,34 @@ class BatchStockTest extends TestCase
         $this->assertSame('application/pdf', $pdf->headers->get('content-type'));
         $this->assertStringStartsWith('%PDF', $pdf->getContent());
         $this->assertDatabaseHas('reports', ['report_type' => 'supply_summary']);
+    }
+
+    /** Pull-outs are on the staff report; sales stay the vendor's own record. */
+    public function test_supply_report_lists_each_pull_out_but_not_sales(): void
+    {
+        $vendor = $this->makeUser('vendor', 'Aling Rosa');
+        $fish = $this->makeFishType();
+        $b1 = $this->batch($vendor, $fish, 10, no: 1);
+        $b2 = $this->batch($vendor, $fish, 10, no: 2);
+        $b1->release(4, BatchRelease::PULLED_OUT, 'Spoiled');
+        $b2->release(2, BatchRelease::PULLED_OUT);
+        $b2->release(5, BatchRelease::SOLD);
+        $staff = $this->makeUser('staff');
+
+        $daily = $this->actingAs($staff)->get('/staff/reports?period=daily&date='.today()->toDateString())->assertOk();
+
+        $this->assertSame(6.0, $daily->viewData('totals')['pulled_out_kg']);
+        $this->assertSame(2, $daily->viewData('totals')['pull_outs']);
+        $this->assertSame([4.0, 2.0], $daily->viewData('pullOuts')->pluck('kg')->all());
+        $this->assertSame(['Batch 1', 'Batch 2'], $daily->viewData('pullOuts')->pluck('batch')->all());
+        $daily->assertSee('Released Stock (Pulled Out, Not Sold)')->assertSee('Spoiled');
+
+        $this->actingAs($staff)->get('/staff/reports?period=daily&date='.today()->subDay()->toDateString())
+            ->assertOk()->assertSee('No pull-outs');
+
+        $pdf = $this->actingAs($staff)->get('/staff/reports/pdf?period=daily&date='.today()->toDateString())->assertOk();
+        $this->assertStringStartsWith('%PDF', $pdf->getContent());
+        $this->assertEquals(6.0, Report::latest('id')->first()->report_data['totals']['pulled_out_kg']);
     }
 
     // ─── Removed features ────────────────────────────────────────

@@ -11,7 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 /**
- * Staff supply reports: confirmed fish supply per day, month or year, previewed
+ * Staff supply reports: confirmed fish supply and pulled-out releases per day, month or year, previewed
  * on screen and downloaded as a PDF.
  */
 class ReportController extends Controller
@@ -39,6 +39,7 @@ class ReportController extends Controller
                 'label' => $report->label(),
                 'totals' => $data['totals'],
                 'by_fish' => $data['byFish']->all(),
+                'pull_outs' => $data['pullOuts']->all(),
             ],
         ]);
 
