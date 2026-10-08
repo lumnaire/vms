@@ -64,26 +64,6 @@
         transition: background 0.15s;
     }
     .ft-btn-save:hover { background: #1e40af; }
-
-    /* Image upload */
-    .ft-img-dropzone {
-        border: 2px dashed #e2e8f0; border-radius: 10px;
-        padding: 14px 12px; text-align: center; cursor: pointer;
-        transition: border-color 0.15s, background 0.15s;
-        background: #fafafa; position: relative;
-    }
-    .ft-img-dropzone:hover { border-color: #93c5fd; background: #f0f9ff; }
-    .ft-img-dropzone input[type=file] {
-        position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%;
-    }
-    .ft-img-preview {
-        width: 72px; height: 72px; border-radius: 8px; object-fit: cover;
-        border: 2px solid #e2e8f0; display: block; margin: 0 auto 8px;
-    }
-    .ft-img-thumb {
-        width: 32px; height: 32px; border-radius: 8px; object-fit: cover;
-        border: 1px solid #e2e8f0; flex-shrink: 0;
-    }
     }
 </style>
 @endpush
@@ -160,16 +140,10 @@
                 <td class="px-5 py-3 text-slate-400 font-medium text-[13px]">{{ $index + 1 }}</td>
                 <td class="px-4 py-3">
                     <div class="flex items-center gap-3">
-                        @if($ft->image_path)
-                            <img src="{{ asset('storage/' . $ft->image_path) }}"
-                                 alt="{{ $ft->name }}"
-                                 class="ft-img-thumb">
-                        @else
-                            <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                                 style="background:linear-gradient(135deg,#0f2d5e,#1d4ed8);">
-                                <i class="bi bi-fish" style="color:#fff"></i>
-                            </div>
-                        @endif
+                        <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                             style="background:linear-gradient(135deg,#0f2d5e,#1d4ed8);">
+                            <i class="bi bi-fish" style="color:#fff"></i>
+                        </div>
                         <span class="font-semibold text-[13.5px] text-slate-700">
                             {{ $ft->name }}
                         </span>
@@ -200,7 +174,7 @@
             <div id="editModal{{ $ft->id }}" class="ft-modal-overlay hidden flex"
                  onclick="if(event.target===this) ftCloseModal('editModal{{ $ft->id }}')">
                 <div class="ft-modal-box">
-                    <form action="{{ route('supervisor.fish-types.update', $ft) }}" method="POST" enctype="multipart/form-data">
+                    <form action="{{ route('supervisor.fish-types.update', $ft) }}" method="POST">
                         @csrf @method('PUT')
                         <div class="ft-modal-header">
                             <div class="flex items-center gap-3">
@@ -210,7 +184,7 @@
                                 </div>
                                 <div>
                                     <p class="text-slate-800 font-bold text-[14px]">Edit Fish Type</p>
-                                    <p class="text-slate-400 text-[11px]">Update the name, class or photo of this fish type</p>
+                                    <p class="text-slate-400 text-[11px]">Update the name or class of this fish type</p>
                                 </div>
                             </div>
                             <button class="text-slate-400" type="button" onclick="ftCloseModal('editModal{{ $ft->id }}')"
@@ -247,31 +221,6 @@
                                 Changing the class moves this fish type's price brackets and
                                 inventory to the new class so they stay in step.
                             </p>
-
-                            <label class="ft-form-label" style="margin-top:14px;">Photo <span class="font-normal text-slate-400">(optional)</span></label>
-                            <div class="ft-img-dropzone" id="editDrop{{ $ft->id }}">
-                                <input type="file" name="image" accept="image/jpg,image/jpeg,image/png,image/webp"
-                                       onchange="ftPreviewImg(this, 'editPrev{{ $ft->id }}', 'editHint{{ $ft->id }}')">
-                                @if($ft->image_path)
-                                    <img id="editPrev{{ $ft->id }}"
-                                         class="ft-img-preview"
-                                         src="{{ asset('storage/' . $ft->image_path) }}"
-                                         alt="{{ $ft->name }}">
-                                    <p class="text-[11px] text-slate-400" id="editHint{{ $ft->id }}">Click to replace photo</p>
-                                @else
-                                    <img id="editPrev{{ $ft->id }}" class="ft-img-preview hidden" src="" alt="">
-                                    <i class="bi bi-image text-slate-300" style="display:block; margin-bottom:4px"></i>
-                                    <p class="text-[11px] text-slate-400" id="editHint{{ $ft->id }}">Click to upload a photo</p>
-                                @endif
-                                <p class="text-[10.5px] text-slate-300 mt-1">JPG, PNG, WEBP &middot; max 2 MB</p>
-                            </div>
-                            @if($ft->image_path)
-                                <label class="flex items-center gap-2 mt-2 cursor-pointer text-[12px] text-danger-500">
-                                    <input type="checkbox" name="remove_image" value="1"
-                                           onchange="ftToggleRemoveImg(this, 'editPrev{{ $ft->id }}', 'editHint{{ $ft->id }}')">
-                                    Remove current photo
-                                </label>
-                            @endif
                         </div>
                         <div class="ft-modal-footer">
                             <button type="button" class="ft-btn-cancel"
@@ -308,7 +257,7 @@
 <div id="addModal" class="ft-modal-overlay hidden flex"
      onclick="if(event.target===this) ftCloseModal('addModal')">
     <div class="ft-modal-box">
-        <form action="{{ route('supervisor.fish-types.store') }}" method="POST" enctype="multipart/form-data">
+        <form action="{{ route('supervisor.fish-types.store') }}" method="POST">
             @csrf
             <div class="ft-modal-header">
                 <div class="flex items-center gap-3">
@@ -318,7 +267,7 @@
                     </div>
                     <div>
                         <p class="text-slate-800 font-bold text-[14px]">Add New Fish Type</p>
-                        <p class="text-slate-400 text-[11px]">Enter the name and optional photo</p>
+                        <p class="text-slate-400 text-[11px]">Enter the name and quality class</p>
                     </div>
                 </div>
                 <button class="text-slate-400" type="button" onclick="ftCloseModal('addModal')"
@@ -356,16 +305,6 @@
                 @error('quality_class')
                     <p class="text-[11px] text-danger-600" style="margin-top:4px">{{ $message }}</p>
                 @enderror
-
-                <label class="ft-form-label" style="margin-top:14px;">Photo <span class="font-normal text-slate-400">(optional)</span></label>
-                <div class="ft-img-dropzone">
-                    <input type="file" name="image" accept="image/jpg,image/jpeg,image/png,image/webp"
-                           onchange="ftPreviewImg(this, 'addPrev', 'addHint')">
-                    <img id="addPrev" class="ft-img-preview hidden" src="" alt="">
-                    <i class="bi bi-image text-slate-300" id="addIcon" style="font-size:22px; display:block; margin-bottom:4px;"></i>
-                    <p id="addHint" class="text-slate-400 text-[11px]">Click to upload a photo</p>
-                    <p class="text-slate-300 mt-1 text-[10.5px]">JPG, PNG, WEBP &middot; max 2 MB</p>
-                </div>
             </div>
             <div class="ft-modal-footer">
                 <button type="button" class="ft-btn-cancel" onclick="ftCloseModal('addModal')">Cancel</button>
@@ -394,37 +333,6 @@
 
 @push('scripts')
 <script>
-    // ── Image preview helper ─────────────────────────────────────
-    function ftPreviewImg(input, previewId, hintId) {
-        const prev = document.getElementById(previewId);
-        const hint = document.getElementById(hintId);
-        if (input.files && input.files[0]) {
-            const reader = new FileReader();
-            reader.onload = e => {
-                prev.src = e.target.result;
-                prev.style.display = 'block';
-                if (hint) hint.textContent = 'Click to replace photo';
-                // hide the upload icon for the add modal
-                const icon = document.getElementById('addIcon');
-                if (icon) icon.style.display = 'none';
-            };
-            reader.readAsDataURL(input.files[0]);
-        }
-    }
-
-    // ── Remove image checkbox toggle ────────────────────────────
-    function ftToggleRemoveImg(checkbox, previewId, hintId) {
-        const prev = document.getElementById(previewId);
-        const hint = document.getElementById(hintId);
-        if (checkbox.checked) {
-            prev.style.opacity = '0.25';
-            if (hint) hint.textContent = 'Photo will be removed on save';
-        } else {
-            prev.style.opacity = '1';
-            if (hint) hint.textContent = 'Click to replace photo';
-        }
-    }
-
     // ── Modal helpers ────────────────────────────────────────────
     function ftOpenModal(id) {
         document.getElementById(id).style.display = 'flex';

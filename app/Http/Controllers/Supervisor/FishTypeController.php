@@ -7,7 +7,6 @@ use App\Models\FishType;
 use App\Models\PriceGuide;
 use App\Models\VendorInventory;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
@@ -15,7 +14,7 @@ use Illuminate\Support\Str;
  * FishTypeController
  *
  * Allows the Supervisor to add new fish types and edit their name, quality
- * class and photo. There is no activate/deactivate or delete action: a fish
+ * class. There is no activate/deactivate or delete action: a fish
  * type that exists is in use, and the only lifecycle rule is that editing one
  * keeps its price brackets and inventory in step with the new class.
  */
@@ -74,22 +73,15 @@ class FishTypeController extends Controller
         $request->validate([
             'name' => ['required', 'string', 'max:100', 'unique:fish_types,name'],
             'quality_class' => ['required', 'in:'.implode(',', FishType::QUALITY_CLASSES)],
-            'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
         ], [
             'name.unique' => 'A fish type with that name already exists.',
             'quality_class.required' => 'Please select a quality class.',
         ]);
 
-        $imagePath = null;
-        if ($request->hasFile('image')) {
-            $imagePath = $request->file('image')->store('fish-types', 'public');
-        }
-
         FishType::create([
             'name' => $this->normaliseName($request->name),
             'quality_class' => $request->quality_class,
             'is_active' => true,
-            'image_path' => $imagePath,
         ]);
 
         return redirect()->route('supervisor.fish-types.index')
@@ -104,8 +96,6 @@ class FishTypeController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => ['required', 'string', 'max:100', 'unique:fish_types,name,'.$fishType->id],
             'quality_class' => ['required', 'in:'.implode(',', FishType::QUALITY_CLASSES)],
-            'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
-            'remove_image' => ['nullable', 'boolean'],
         ], [
             'name.unique' => 'A fish type with that name already exists.',
             'quality_class.required' => 'Please select a quality class.',
@@ -121,28 +111,11 @@ class FishTypeController extends Controller
                 ->with('open_edit_modal', $fishType->id);
         }
 
-        $imagePath = $fishType->image_path;
-
-        if ($request->boolean('remove_image')) {
-            if ($imagePath) {
-                Storage::disk('public')->delete($imagePath);
-            }
-            $imagePath = null;
-        }
-
-        if ($request->hasFile('image')) {
-            if ($fishType->image_path) {
-                Storage::disk('public')->delete($fishType->image_path);
-            }
-            $imagePath = $request->file('image')->store('fish-types', 'public');
-        }
-
         $previousClass = $fishType->quality_class;
 
         $fishType->update([
             'name' => $this->normaliseName($request->name),
             'quality_class' => $request->quality_class,
-            'image_path' => $imagePath,
         ]);
 
         // A fish type owns its price brackets and its quality class is stored

@@ -395,19 +395,16 @@ class MarketplaceFlowTest extends TestCase
         $this->assertStringContainsString('A fish type with that name already exists.', $html);
     }
 
-    public function test_edit_modal_photo_hints_have_unique_ids(): void
+    public function test_fish_type_page_offers_no_photo_upload(): void
     {
-        $one = $this->makeFishType('Bangus');
-        $two = $this->makeFishType('Tilapia');
+        $this->makeFishType('Bangus');
         $supervisor = $this->makeUser('supervisor');
 
         $html = $this->actingAs($supervisor)->get('/supervisor/fish-types')
             ->assertOk()->getContent();
 
-        // ftPreviewImg() looks these up by id to swap the hint text.
-        $this->assertStringContainsString('id="editHint'.$one->id.'"', $html);
-        $this->assertStringContainsString('id="editHint'.$two->id.'"', $html);
-        $this->assertStringNotContainsString('editHintext-slate-400', $html);
+        $this->assertStringNotContainsString('type="file"', $html);
+        $this->assertStringNotContainsString('remove_image', $html);
     }
 
     /**
