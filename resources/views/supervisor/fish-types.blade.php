@@ -139,15 +139,9 @@
             <tr class="ft-table-row" style="border-bottom:1px solid #f1f5f9;">
                 <td class="px-5 py-3 text-slate-400 font-medium text-[13px]">{{ $index + 1 }}</td>
                 <td class="px-4 py-3">
-                    <div class="flex items-center gap-3">
-                        <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                             style="background:linear-gradient(135deg,#0f2d5e,#1d4ed8);">
-                            <i class="bi bi-fish" style="color:#fff"></i>
-                        </div>
-                        <span class="font-semibold text-[13.5px] text-slate-700">
-                            {{ $ft->name }}
-                        </span>
-                    </div>
+                    <span class="font-semibold text-[13.5px] text-slate-700">
+                        {{ $ft->name }}
+                    </span>
                 </td>
                 <td class="px-4 py-3">
                     @if($ft->quality_class)
