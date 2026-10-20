@@ -5,9 +5,6 @@
 
 @push('styles')
 <style>
-    .price-label-cheap    { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
-    .price-label-moderate { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
-    .price-label-expensive{ background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
     .progress-bar-track   { background: #f1f5f9; border-radius: 99px; overflow: hidden; height: 6px; }
     .progress-bar-fill    { border-radius: 99px; height: 100%; transition: width 0.5s ease; }
 </style>
@@ -113,26 +110,30 @@
         @foreach($pendingEntries as $entry)
         @php
             $guideKey = $entry->fish_type_id . '_' . $entry->quality_class;
-            $guide    = $priceGuides->get($guideKey);
+            // The tariff kept on the batch when it was submitted, else today's.
+            $tariff   = $entry->tariff_price !== null ? (float) $entry->tariff_price : ($tariffs[$guideKey] ?? null);
+            $cmp      = App\Models\PriceGuide::compare((float) $entry->price_per_kg, $tariff);
             $compPeers = $confirmedToday->get($guideKey, collect());
+            $peerTop  = $compPeers->sortByDesc('price_per_kg')->first();
 
             // This vendor's other lines of the same fish and class today.
             $siblings = $vendorLinesToday->get($entry->repeatKey(), collect())
                 ->reject(fn ($e) => $e->id === $entry->id);
             $siblingConfirmedKg = (float) $siblings->filter(fn ($e) => $e->isConfirmed())->sum('stock_kg');
 
-            // Price label
-            $priceLabel = null;
-            $priceLabelClass = '';
-            if ($guide) {
-                $priceLabel = $guide->getPriceLabel($entry->price_per_kg);
-                $priceLabelClass = match($priceLabel) {
-                    'Cheap'      => 'price-label-cheap',
-                    'Moderate'   => 'price-label-moderate',
-                    'Expensive'  => 'price-label-expensive',
-                    default      => '',
-                };
-            }
+            // Label for the approve dialog: the markup over the tariff
+            $priceLabel = match ($cmp['state'] ?? null) {
+                'above' => '+₱' . number_format($cmp['diff'], 2) . ' over tariff',
+                'below' => '₱' . number_format(abs($cmp['diff']), 2) . ' below tariff',
+                'at'    => 'At tariff',
+                default => null,
+            };
+            $priceLabelClass = match ($cmp['state'] ?? null) {
+                'above' => 'vpm-badge vpm-badge-warning',
+                'below' => 'vpm-badge vpm-badge-success',
+                'at'    => 'vpm-badge vpm-badge-neutral',
+                default => '',
+            };
         @endphp
 
         <div class="px-5 py-5" style="transition: background 0.1s;"
@@ -166,7 +167,7 @@
                     </div>
 
                     {{-- Entry data grid --}}
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
 
                         <div class="rounded-lg px-3 py-2.5 bg-surface-subtle border border-slate-200">
                             <p class="text-slate-400 text-[10px] font-semibold uppercase" style="letter-spacing: 0.06em">Fish Type</p>
@@ -179,14 +180,16 @@
                         </div>
 
                         <div class="rounded-lg px-3 py-2.5 bg-surface-subtle border border-slate-200">
-                            <p class="text-slate-400 text-[10px] font-semibold uppercase" style="letter-spacing: 0.06em">Price/kg</p>
-                            <div class="flex items-center gap-1.5 mt-0.5">
-                                <p class="text-slate-700 font-bold text-[14px]">₱{{ number_format($entry->price_per_kg, 2) }}</p>
-                                @if($priceLabel)
-                                <span class="{{ $priceLabelClass }} inline-flex px-1.5 py-0.5 rounded font-semibold"
-                                      style="font-size: 9.5px;">{{ $priceLabel }}</span>
-                                @endif
-                            </div>
+                            <p class="text-slate-400 text-[10px] font-semibold uppercase" style="letter-spacing: 0.06em">Tariff (standard)</p>
+                            <p class="font-semibold mt-0.5 text-[13px] {{ $tariff !== null ? 'text-slate-700' : 'text-slate-300' }}">
+                                {{ $tariff !== null ? '₱' . number_format($tariff, 2) : 'Not set' }}
+                            </p>
+                        </div>
+
+                        <div class="rounded-lg px-3 py-2.5 border {{ ($cmp['state'] ?? null) === 'above' ? 'bg-warning-50 border-warning-200' : 'bg-surface-subtle border-slate-200' }}">
+                            <p class="text-slate-400 text-[10px] font-semibold uppercase" style="letter-spacing: 0.06em">Vendor Price/kg</p>
+                            <p class="text-slate-700 font-bold text-[14px] mt-0.5">₱{{ number_format($entry->price_per_kg, 2) }}</p>
+                            <x-tariff-diff :comparison="$cmp" class="mt-0.5" align="start" empty="" />
                         </div>
 
                         <div class="rounded-lg px-3 py-2.5 bg-surface-subtle border border-slate-200">
@@ -197,6 +200,16 @@
                         </div>
 
                     </div>
+
+                    {{-- The vendor's reason for pricing above the tariff --}}
+                    @if($entry->price_note)
+                    <div class="mt-3 rounded-lg px-3 py-2.5 bg-surface-subtle border border-slate-200">
+                        <p class="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600">
+                            <x-icon name="bi-chat-left-text" size="xs" /> Vendor's reason for the markup
+                        </p>
+                        <p class="mt-1 text-[12px] text-slate-700">{{ $entry->price_note }}</p>
+                    </div>
+                    @endif
 
                     {{-- Another batch: the vendor's other batches of this fish today --}}
                     @if($siblings->isNotEmpty())
@@ -224,20 +237,16 @@
                     @endif
 
                     {{-- Price comparison row --}}
-                    @if($guide || $compPeers->isNotEmpty())
+                    @if($tariff !== null || $compPeers->isNotEmpty())
                     <div class="mt-3 rounded-lg px-3 py-2.5"
                          style="background: #f0f9ff; border: 1px solid #bae6fd;">
                         <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
 
-                            @if($guide)
+                            @if($tariff !== null)
                             <div class="flex items-center gap-1.5 text-info-600 text-[11px]">
                                 <i class="bi bi-tags-fill"></i>
-                                <span class="font-semibold">Guide:</span>
-                                <span>
-                                    Cheap ≤ ₱{{ number_format($guide->cheap_max, 2) }} ·
-                                    Moderate ≤ ₱{{ number_format($guide->moderate_max, 2) }} ·
-                                    Expensive > ₱{{ number_format($guide->moderate_max, 2) }}
-                                </span>
+                                <span class="font-semibold">Tariff:</span>
+                                <span>₱{{ number_format($tariff, 2) }}/kg</span>
                             </div>
                             @endif
 
@@ -251,6 +260,16 @@
                                     ({{ $compPeers->count() }} {{ Str::plural('vendor', $compPeers->count()) }})
                                 </span>
                             </div>
+                            @if($tariff !== null && $peerTop && (float) $peerTop->price_per_kg > $tariff)
+                            <div class="flex items-center gap-1.5 text-info-600 text-[11px]">
+                                <i class="bi bi-graph-up-arrow"></i>
+                                <span class="font-semibold">Highest markup today:</span>
+                                <span>
+                                    Stall {{ $peerTop->vendor?->vendorProfile?->stall_number ?? '—' }}
+                                    +₱{{ number_format((float) $peerTop->price_per_kg - $tariff, 2) }}
+                                </span>
+                            </div>
+                            @endif
                             @endif
 
                         </div>
@@ -420,7 +439,7 @@
         const labelEl = document.getElementById('mLabel');
         if (btn.dataset.label && btn.dataset.labelclass) {
             labelEl.textContent = btn.dataset.label;
-            labelEl.className   = btn.dataset.labelclass + ' inline-flex px-1.5 py-0.5 rounded font-semibold';
+            labelEl.className   = btn.dataset.labelclass;
             labelEl.style.display = '';
         } else {
             labelEl.style.display = 'none';

@@ -4,37 +4,28 @@ namespace App\Http\Controllers\Supervisor;
 
 use App\Http\Controllers\Controller;
 use App\Models\FishType;
-use App\Models\PriceGuide;
-use App\Models\VendorInventory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
 
 /**
  * FishTypeController
  *
  * Allows the Supervisor to add new fish types and edit their name, quality
- * class. There is no activate/deactivate or delete action: a fish
- * type that exists is in use, and the only lifecycle rule is that editing one
- * keeps its price brackets and inventory in step with the new class.
+ * class and English name. There is no activate/deactivate or delete action: a
+ * fish type that exists is in use, and the only lifecycle rule is that editing
+ * one keeps its tariff and inventory in step with the new class.
  */
 class FishTypeController extends Controller
 {
-    /**
-     * Title-cases a fish type name and squeezes internal whitespace, so that
-     * cosmetic variations cannot slip past the `unique` check and become two
-     * near-identical rows. Str::title() also capitalises after "(", which
-     * ucwords() does not.
-     */
     private function normaliseName(?string $name): string
     {
-        return Str::title(preg_replace('/\s+/u', ' ', trim((string) $name)));
+        return FishType::normaliseName($name);
     }
 
     // ─── List all fish types ──────────────────────────────────────
     public function index()
     {
-        $fishTypes = FishType::withCount('priceGuides')
+        $fishTypes = FishType::with('currentTariff')
             ->orderByRaw($this->classOrderSql())
             ->orderBy('name')
             ->get();
@@ -72,6 +63,7 @@ class FishTypeController extends Controller
 
         $request->validate([
             'name' => ['required', 'string', 'max:100', 'unique:fish_types,name'],
+            'english_name' => ['nullable', 'string', 'max:100'],
             'quality_class' => ['required', 'in:'.implode(',', FishType::QUALITY_CLASSES)],
         ], [
             'name.unique' => 'A fish type with that name already exists.',
@@ -80,6 +72,7 @@ class FishTypeController extends Controller
 
         FishType::create([
             'name' => $this->normaliseName($request->name),
+            'english_name' => trim((string) $request->english_name) ?: null,
             'quality_class' => $request->quality_class,
             'is_active' => true,
         ]);
@@ -95,6 +88,7 @@ class FishTypeController extends Controller
 
         $validator = Validator::make($request->all(), [
             'name' => ['required', 'string', 'max:100', 'unique:fish_types,name,'.$fishType->id],
+            'english_name' => ['nullable', 'string', 'max:100'],
             'quality_class' => ['required', 'in:'.implode(',', FishType::QUALITY_CLASSES)],
         ], [
             'name.unique' => 'A fish type with that name already exists.',
@@ -111,25 +105,13 @@ class FishTypeController extends Controller
                 ->with('open_edit_modal', $fishType->id);
         }
 
-        $previousClass = $fishType->quality_class;
-
         $fishType->update([
             'name' => $this->normaliseName($request->name),
-            'quality_class' => $request->quality_class,
+            'english_name' => trim((string) $request->english_name) ?: null,
         ]);
 
-        // A fish type owns its price brackets and its quality class is stored
-        // alongside them. Leaving them behind would orphan the brackets: the
-        // vendor price check and the staff Cheap/Moderate/Expensive label are
-        // both keyed on "<fish_type_id>_<quality class>", so a stale class
-        // makes every guide invisible to the features that consume it.
-        if ($previousClass !== $request->quality_class) {
-            PriceGuide::where('fish_type_id', $fishType->id)
-                ->update(['quality_class' => $request->quality_class]);
-
-            VendorInventory::where('fish_type_id', $fishType->id)
-                ->update(['quality_class' => $request->quality_class]);
-        }
+        // Its tariff versions and batches move to the new class with it.
+        $fishType->changeClass($request->quality_class);
 
         return redirect()->route('supervisor.fish-types.index')
             ->with('success', 'Fish type updated successfully.');

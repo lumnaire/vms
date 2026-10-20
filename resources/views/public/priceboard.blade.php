@@ -368,6 +368,11 @@
         .pb-fish-total-num { font-size: 0.95rem; font-weight: 800; color: var(--color-success-700); }
         .pb-fish-total-num.is-zero { color: var(--color-danger-600); }
 
+        /* Tariff line under each fish: the official price and the stall's markup. */
+        .pb-tariff { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.5rem; margin-top: 0.55rem; font-size: 0.72rem; color: var(--color-slate-500); }
+        .pb-tariff-val { font-weight: 700; color: var(--color-slate-700); }
+        .pb-note { margin-top: 0.4rem; font-size: 0.72rem; color: var(--color-slate-500); font-style: italic; }
+
         .pb-soldout-tag {
             font-size: 0.66rem;
             font-weight: 700;
@@ -541,6 +546,14 @@
                 <div class="pb-stat-lbl">Available Now</div>
             </div>
         </div>
+        <div class="pb-divider"></div>
+        <div class="pb-stat">
+            <div class="pb-stat-icon vpm-stat-icon-warning"><x-icon name="bi-graph-up-arrow" /></div>
+            <div>
+                <div class="pb-stat-val">{{ $stats['above_tariff'] }}</div>
+                <div class="pb-stat-lbl">Listings Above Tariff</div>
+            </div>
+        </div>
         <div class="pb-divider ml-auto d-none d-md-block"></div>
         <div class="text-[12.5px] text-slate-500">
             <x-icon name="bi-check-circle-fill" class="text-success-500" />
@@ -580,6 +593,9 @@
             <button :aria-pressed="view === 'table'" @click="view='table'" title="Table view">
                 <x-icon name="bi-list-ul" />
             </button>
+            <button :aria-pressed="view === 'compare'" @click="view='compare'" title="Tariff vs vendor prices">
+                <x-icon name="bi-arrow-left-right" /> <span class="text-[12px]">Tariff</span>
+            </button>
         </div>
 
         <span class="pb-result"
@@ -603,6 +619,7 @@
     <p class="pb-legend">
         <x-icon name="bi-info-circle" />
         Quantities are what is <strong>still for sale</strong> right now.
+        <strong>Tariff</strong> is the official price per kilo set by the market; the badge shows how far each stall's price is from it.
     </p>
 
     {{-- ── VENDOR CARDS ────────────────────────────────────── --}}
@@ -645,6 +662,16 @@
                                 <span>Available now</span>
                                 <span class="pb-fish-total-num" x-text="kg(fish.remaining_kg)"></span>
                             </div>
+
+                            {{-- Official tariff and this stall's difference from it --}}
+                            <div class="pb-tariff" x-show="fish.tariff !== null">
+                                <span>Tariff <span class="pb-tariff-val" x-text="peso(fish.tariff)"></span></span>
+                                <span :class="diffClass(fish.state)" x-text="diffText(fish)"></span>
+                                <template x-if="fish.top_markup">
+                                    <span class="vpm-badge vpm-badge-danger"><x-icon name="bi-arrow-up-circle-fill" size="2xs" /> Highest markup</span>
+                                </template>
+                            </div>
+                            <p class="pb-note" x-show="fish.note && fish.state === 'above'" x-text="'Vendor reason: ' + fish.note"></p>
                         </section>
                     </template>
                 </article>
@@ -664,12 +691,14 @@
                             <th>Vendor / Stall</th>
                             <th class="vpm-th-right">Total Available</th>
                             <th class="vpm-th-right">Price per kg</th>
+                            <th class="vpm-th-right">Tariff</th>
+                            <th class="vpm-th-right">Difference</th>
                         </tr>
                     </thead>
                     <tbody>
                         <template x-if="tableRows.length === 0">
                             <tr>
-                                <td colspan="5">
+                                <td colspan="7">
                                     <x-empty-state icon="bi-fish"
                                                    title="No confirmed prices found for today"
                                                    text="Nothing matches your current filters." />
@@ -697,6 +726,77 @@
                                 <td class="vpm-td-right">
                                     <span class="text-[15px] font-bold text-slate-900" x-text="priceText(row.fish)"></span>
                                     <span class="text-[11.5px] font-normal text-slate-400">/kg</span>
+                                </td>
+                                <td class="vpm-td-right vpm-num">
+                                    <span x-text="row.fish.tariff !== null ? peso(row.fish.tariff) : '—'"></span>
+                                </td>
+                                <td class="vpm-td-right">
+                                    <span x-show="row.fish.tariff !== null" :class="diffClass(row.fish.state)" x-text="diffText(row.fish)"></span>
+                                    <template x-if="row.fish.top_markup">
+                                        <span class="vpm-badge vpm-badge-danger ml-1">Highest</span>
+                                    </template>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {{-- ── TARIFF COMPARISON: one row per fish across every stall ── --}}
+    <div x-show="view === 'compare'">
+        <div class="vpm-card overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="vpm-table">
+                    <thead>
+                        <tr>
+                            <th>Fish Type</th>
+                            <th class="vpm-th-right">Tariff (standard)</th>
+                            <th class="vpm-th-right">Lowest at a Stall</th>
+                            <th class="vpm-th-right">Highest at a Stall</th>
+                            <th>Highest Markup</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-if="compareRows.length === 0">
+                            <tr>
+                                <td colspan="5">
+                                    <x-empty-state icon="bi-arrow-left-right"
+                                                   title="Nothing to compare"
+                                                   text="No fish on the board matches your current filters." />
+                                </td>
+                            </tr>
+                        </template>
+                        <template x-for="row in compareRows" :key="row.key">
+                            <tr>
+                                <td>
+                                    <span class="vpm-cell-strong" x-text="row.fish_name"></span>
+                                    <span class="vpm-cell-muted block" x-text="row.english_name || ''"></span>
+                                    <span :class="qualityClass(row.quality_class)" x-text="row.quality_class"></span>
+                                </td>
+                                <td class="vpm-td-right vpm-num">
+                                    <span class="font-bold text-slate-900" x-text="row.tariff !== null ? peso(row.tariff) : 'Not set'"></span>
+                                </td>
+                                <td class="vpm-td-right vpm-num">
+                                    <span class="font-semibold" x-text="peso(row.min)"></span>
+                                    <span class="vpm-cell-muted block" x-text="row.cheapest ? 'Stall ' + row.cheapest : ''"></span>
+                                </td>
+                                <td class="vpm-td-right vpm-num">
+                                    <span class="font-semibold" x-text="peso(row.max)"></span>
+                                    <span class="vpm-cell-muted block" x-text="row.stalls + (row.stalls === 1 ? ' stall' : ' stalls') + ' selling'"></span>
+                                </td>
+                                <td>
+                                    <template x-if="row.top">
+                                        <div>
+                                            <span class="vpm-badge vpm-badge-warning vpm-num" x-text="'+' + peso(row.top.diff) + ' (+' + row.top.pct.toFixed(1) + '%)'"></span>
+                                            <span class="text-slate-700 text-[12px] font-semibold ml-1" x-text="'Stall ' + row.top.stall"></span>
+                                            <p class="vpm-cell-muted italic mt-1" x-show="row.top.note" x-text="'Reason: ' + row.top.note"></p>
+                                        </div>
+                                    </template>
+                                    <template x-if="!row.top">
+                                        <span class="vpm-cell-muted" x-text="row.tariff !== null ? 'Every stall at or below tariff' : '—'"></span>
+                                    </template>
                                 </td>
                             </tr>
                         </template>
@@ -734,6 +834,7 @@
     );
 
     const BOARD_VENDORS = @json($vendors);
+    const BOARD_COMPARE = @json($comparison);
 
     function priceBoard() {
         const round2 = n => Math.round(n * 100) / 100;
@@ -774,6 +875,28 @@
 
             get tableRows() {
                 return this.vendors.flatMap(vendor => vendor.fish.map(fish => ({ vendor, fish })));
+            },
+
+            // Tariff comparison rows after the search and class filters.
+            get compareRows() {
+                const q = this.search.trim().toLowerCase();
+                return BOARD_COMPARE
+                    .filter(r => !this.classFilter || r.quality_class === this.classFilter)
+                    .filter(r => !q || r.fish_name.toLowerCase().includes(q)
+                        || (r.english_name || '').toLowerCase().includes(q)
+                        || (r.top && String(r.top.stall).toLowerCase().includes(q)));
+            },
+
+            // "+₱10.00 (+8.3%)", "₱5.00 below", "At tariff"
+            diffText(fish) {
+                if (fish.state === 'at') return 'At tariff';
+                const amount = this.peso(Math.abs(fish.diff));
+                const pct = Math.abs(fish.pct).toFixed(1) + '%';
+                return fish.state === 'above' ? '+' + amount + ' (+' + pct + ')' : amount + ' below (−' + pct + ')';
+            },
+
+            diffClass(state) {
+                return 'vpm-badge vpm-num ' + (state === 'above' ? 'vpm-badge-warning' : (state === 'below' ? 'vpm-badge-success' : 'vpm-badge-neutral'));
             },
 
             get listingCount() {

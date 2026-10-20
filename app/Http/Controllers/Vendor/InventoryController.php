@@ -11,6 +11,7 @@ use App\Models\VendorInventory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 
 class InventoryController extends Controller
 {
@@ -68,15 +69,9 @@ class InventoryController extends Controller
                 ])->values(),
             ]);
 
-        // Active price guidelines keyed by fish type + quality class, used by the
-        // live price check in the submit form
-        $priceGuides = PriceGuide::where('is_active', true)
-            ->get()
-            ->keyBy(fn ($g) => $g->fish_type_id.'_'.$g->quality_class)
-            ->map(fn ($g) => [
-                'cheap' => (float) $g->cheap_max,
-                'moderate' => (float) $g->moderate_max,
-            ]);
+        // Current tariffs keyed by fish type + quality class, used by the live
+        // tariff check in the submit form
+        $tariffs = PriceGuide::tariffMap();
 
         return view('vendor.inventory', compact(
             'fishTypes',
@@ -86,7 +81,7 @@ class InventoryController extends Controller
             'onSaleCount',
             'pendingCount',
             'existingBatches',
-            'priceGuides',
+            'tariffs',
         ));
     }
 
@@ -94,7 +89,7 @@ class InventoryController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'fish_type_id' => ['required', 'exists:fish_types,id'],
+            'fish_type_id' => ['required', Rule::exists('fish_types', 'id')->where('is_active', true)],
             'quality_class' => [
                 'required',
                 'in:'.implode(',', FishType::QUALITY_CLASSES),
@@ -107,19 +102,29 @@ class InventoryController extends Controller
             ],
             'price_per_kg' => ['required', 'numeric', 'min:0.01', 'max:99999.99'],
             'stock_kg' => ['required', 'numeric', 'min:0.1', 'max:99999.99'],
+            'price_note' => ['nullable', 'string', 'max:500'],
         ], [
             'fish_type_id.required' => 'Please select a fish type.',
-            'fish_type_id.exists' => 'Selected fish type is invalid.',
+            'fish_type_id.exists' => 'Selected fish type is invalid or no longer sold here.',
             'quality_class.required' => 'Please select a quality class.',
             'quality_class.in' => 'Invalid quality class selected.',
             'price_per_kg.required' => 'Price per kg is required.',
             'price_per_kg.min' => 'Price must be at least ₱0.01.',
             'stock_kg.required' => 'Stock quantity is required.',
             'stock_kg.min' => 'Stock must be at least 0.1 kg.',
+            'price_note.max' => 'Keep the reason under 500 characters.',
         ]);
 
         $vendorId = Auth::id();
         $fishName = FishType::find($request->fish_type_id)?->name ?? 'Unknown';
+
+        // The tariff in force now is kept on the batch, so its markup (the
+        // vendor's tubo) stays right after the tariff changes. Pricing above the
+        // tariff is allowed; the vendor's reason is kept only when it is above.
+        $tariff = PriceGuide::tariffFor((int) $request->fish_type_id, $request->quality_class);
+        $comparison = PriceGuide::compare((float) $request->price_per_kg, $tariff);
+        $isAbove = ($comparison['state'] ?? null) === 'above';
+        $note = $isAbove ? (trim((string) $request->input('price_note')) ?: null) : null;
 
         // Submitting a fish the vendor already has makes the next batch. The form
         // only reminds them of what is already there; nothing to confirm.
@@ -129,6 +134,8 @@ class InventoryController extends Controller
             'quality_class' => $request->quality_class,
             'batch_no' => VendorInventory::nextBatchNo($vendorId, (int) $request->fish_type_id, $request->quality_class, today()),
             'price_per_kg' => $request->price_per_kg,
+            'tariff_price' => $tariff,
+            'price_note' => $note,
             // What the vendor brings is what is for sale.
             'stock_kg' => $request->stock_kg,
             'released_kg' => $request->stock_kg,
@@ -142,11 +149,15 @@ class InventoryController extends Controller
             'user_id' => $vendorId,
             'action' => 'submit_inventory',
             'description' => "Submitted {$fishName} ({$request->quality_class}) {$entry->batchLabel()} — ₱"
-                .number_format($request->price_per_kg, 2).'/kg, '.$request->stock_kg.' kg.',
+                .number_format($request->price_per_kg, 2).'/kg, '.$request->stock_kg.' kg'
+                .($isAbove ? ', ₱'.number_format($comparison['diff'], 2).' above the ₱'.number_format($tariff, 2).' tariff' : '')
+                .'.',
         ]);
 
+        $tubo = $isAbove ? ' Your markup over the tariff: ₱'.number_format($comparison['diff'], 2).'/kg.' : '';
+
         return redirect()->route('vendor.inventory.index')
-            ->with('success', "{$fishName} {$entry->batchLabel()} submitted. Awaiting staff confirmation.");
+            ->with('success', "{$fishName} {$entry->batchLabel()} submitted. Awaiting staff confirmation.{$tubo}");
     }
 
     // ─── Release: kilograms sold or pulled out from a batch ───────

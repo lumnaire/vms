@@ -43,77 +43,122 @@
     </div>
 </div>
 
-{{-- ── Stat Cards ────────────────────────────────────────────── --}}
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+{{-- ── Sales and stock ───────────────────────────────────────── --}}
+<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-4">
+    <div class="vpm-card vpm-card-body">
+        <p class="vpm-stat-label">Sales today</p>
+        <p class="vpm-stat-value vpm-num">₱{{ number_format($salesToday, 2) }}</p>
+        <x-delta :change="$salesChange" label="vs yesterday" class="mt-1.5" />
+    </div>
+    <div class="vpm-card vpm-card-body">
+        <p class="vpm-stat-label">Sales this month</p>
+        <p class="vpm-stat-value vpm-num">₱{{ number_format($salesMonth['current'], 2) }}</p>
+        <x-delta :change="$salesMonth['change']" class="mt-1.5" />
+    </div>
+    <div class="vpm-card vpm-card-body">
+        <p class="vpm-stat-label">My tubo this month</p>
+        <p class="vpm-stat-value vpm-num">₱{{ number_format($tuboMonth['current'], 2) }}</p>
+        <p class="vpm-stat-foot">Your markup over the tariff on what you sold</p>
+    </div>
+    <div class="vpm-card vpm-card-body">
+        <p class="vpm-stat-label">Remaining Stock</p>
+        <p class="vpm-stat-value vpm-num">{{ number_format($remainingStock ?? 0, 1) }} <span class="vpm-stat-value-unit">kg</span></p>
+        <p class="vpm-stat-foot">Across every batch still on sale</p>
+    </div>
+</div>
 
-    {{-- Today's Submissions --}}
-    <div class="stat-card bg-white rounded-xl p-5 border border-slate-100 shadow-card">
-        <div class="flex items-start justify-between">
-            <div>
-                <p class="text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]">Today's Entries</p>
-                <p class="text-slate-800 font-bold mt-1 text-[28px] leading-[1]">
-                    {{ $todayEntries ?? 0 }}
-                </p>
-                <p class="text-slate-400 mt-1 text-[11px]">Items submitted today</p>
-            </div>
-            <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-brand-50"
-                >
-                <x-icon name="bi-clipboard2-data-fill" size="lg" class="text-blue-600" />
-            </div>
-        </div>
+<div class="grid grid-cols-3 gap-3 mb-5">
+    <x-stat-card tinted tone="brand" label="Today's Entries" :value="$todayEntries ?? 0" decimals="0" />
+    <x-stat-card tinted tone="success" label="Confirmed" :value="$confirmedEntries ?? 0" decimals="0" />
+    <x-stat-card tinted tone="warning" label="Pending" :value="$pendingEntries ?? 0" decimals="0" />
+</div>
+
+{{-- ── Charts ────────────────────────────────────────────────── --}}
+<div class="vpm-card px-4 py-3 mb-4 flex flex-wrap items-center justify-between gap-3">
+    <div>
+        <h2 class="vpm-section-title">My Sales</h2>
+        <p class="vpm-section-sub" id="vendorPeriodCaption">&nbsp;</p>
+    </div>
+    <div class="vpm-segment" id="vendorPeriods" role="group" aria-label="Period">
+        @foreach(App\Services\MarketAnalytics::PERIODS as $key => [$label])
+            <button type="button" data-period="{{ $key }}" aria-pressed="false">{{ $label }}</button>
+        @endforeach
+    </div>
+</div>
+
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
+    <x-card class="xl:col-span-2" title="My Sales (₱)" subtitle="What you recorded as sold × your price">
+        <div class="relative h-[270px]"><canvas id="vendorSalesChart" aria-label="My sales in pesos"></canvas></div>
+    </x-card>
+    <x-card title="Where My Stock Went" subtitle="Batches you submitted in the period">
+        <div class="relative h-[220px]"><canvas id="vendorOutcomeChart" aria-label="Sold, pulled out and expired stock"></canvas></div>
+        <p class="text-center mt-2">
+            <span class="vpm-stat-label">Sell-through</span>
+            <span class="text-slate-800 font-bold text-[18px] vpm-num block" id="sellThrough">—</span>
+            <span class="vpm-meta" id="vendorOnStall"></span>
+        </p>
+    </x-card>
+</div>
+
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-6">
+    <div class="vpm-card vpm-card-body">
+        <div class="flex items-center justify-between gap-2"><p class="vpm-stat-label">My best day</p><x-badge variant="warning">All-time high</x-badge></div>
+        @if($bestDay)
+            <p class="vpm-stat-value vpm-num">₱{{ number_format($bestDay['value'], 2) }}</p>
+            <p class="vpm-stat-foot">{{ $bestDay['date']->format('M j, Y') }}</p>
+        @else
+            <p class="vpm-stat-value text-slate-300">—</p>
+            <p class="vpm-stat-foot">Use ⋮ → Release on a batch to record sales</p>
+        @endif
+        <div class="relative h-[120px] mt-3"><canvas id="vendorTuboChart" aria-label="My tubo in pesos"></canvas></div>
+        <p class="vpm-meta text-center">Tubo (markup over tariff) per period</p>
     </div>
 
-    {{-- Confirmed --}}
-    <div class="stat-card bg-white rounded-xl p-5 border border-slate-100 shadow-card">
-        <div class="flex items-start justify-between">
-            <div>
-                <p class="text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]">Confirmed</p>
-                <p class="text-slate-800 font-bold mt-1 text-[28px] leading-[1]">
-                    {{ $confirmedEntries ?? 0 }}
-                </p>
-                <p class="text-slate-400 mt-1 text-[11px]">Approved by staff</p>
+    {{-- My prices against the tariff and the other stalls --}}
+    <x-card class="xl:col-span-2" :padded="false" title="My Prices vs Tariff"
+            subtitle="Fish on your stall now, against the official tariff and other stalls">
+        @if($myPrices->isEmpty())
+            <x-empty-state icon="bi-tags" title="Nothing on your stall right now" text="Confirmed batches with fish left show here." />
+        @else
+            <div class="overflow-x-auto">
+                <table class="vpm-table">
+                    <thead>
+                        <tr>
+                            <th>Fish</th>
+                            <th class="vpm-th-right">My price</th>
+                            <th class="vpm-th-right">vs Tariff</th>
+                            <th class="vpm-th-right">Other stalls</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($myPrices as $row)
+                            <tr>
+                                <td>
+                                    <p class="vpm-cell-strong">{{ $row['fish'] }}</p>
+                                    <p class="vpm-cell-muted">{{ $row['quality_class'] }}</p>
+                                </td>
+                                <td class="vpm-td-right vpm-num vpm-cell-strong">₱{{ number_format($row['price'], 2) }}</td>
+                                <td class="vpm-td-right">
+                                    <x-tariff-diff :comparison="$row['comparison']" show-tariff />
+                                    @if($row['is_top_markup'])
+                                        <x-badge variant="danger" class="mt-1">Highest markup on the board</x-badge>
+                                    @endif
+                                </td>
+                                <td class="vpm-td-right vpm-num">
+                                    @if($row['stalls'] > 1)
+                                        ₱{{ number_format($row['market_min'], 2) }} – ₱{{ number_format($row['market_max'], 2) }}
+                                        <span class="vpm-cell-muted block">{{ $row['stalls'] }} stalls selling</span>
+                                    @else
+                                        <span class="vpm-cell-muted">Only you</span>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
             </div>
-            <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-success-50"
-                >
-                <x-icon name="bi-check-circle-fill" size="lg" class="text-emerald-500" />
-            </div>
-        </div>
-    </div>
-
-    {{-- Pending --}}
-    <div class="stat-card bg-white rounded-xl p-5 border border-slate-100 shadow-card">
-        <div class="flex items-start justify-between">
-            <div>
-                <p class="text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]">Pending</p>
-                <p class="text-slate-800 font-bold mt-1 text-[28px] leading-[1]">
-                    {{ $pendingEntries ?? 0 }}
-                </p>
-                <p class="text-slate-400 mt-1 text-[11px]">Awaiting staff review</p>
-            </div>
-            <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-warning-50"
-                >
-                <x-icon name="bi-hourglass-split" size="lg" class="text-amber-500" />
-            </div>
-        </div>
-    </div>
-
-    {{-- Remaining Stock — released minus what today's sale report declared sold --}}
-    <div class="stat-card bg-white rounded-xl p-5 border border-slate-100 shadow-card">
-        <div class="flex items-start justify-between">
-            <div>
-                <p class="text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]">Remaining Stock</p>
-                <p class="text-slate-800 font-bold mt-1 text-[28px] leading-[1]">
-                    {{ number_format($remainingStock ?? 0, 1) }} <span class="text-[14px] font-semibold text-slate-400">kg</span>
-                </p>
-                <p class="text-slate-400 mt-1 text-[11px]">Across every batch still on sale</p>
-            </div>
-            <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                 style="background: #fdf4ff;">
-                <x-icon name="bi-box-seam" size="lg" class="text-purple-500" />
-            </div>
-        </div>
-    </div>
-
+        @endif
+    </x-card>
 </div>
 
 {{-- ── Today's Inventory Table ──────────────────────────────── --}}
@@ -177,6 +222,9 @@
                         </td>
                         <td class="px-5 py-3 text-slate-700 text-[12px]">
                             ₱{{ number_format($item->price_per_kg, 2) }}
+                            @if($item->tariff_price !== null)
+                                <x-tariff-diff :comparison="$item->tariffComparison()" align="start" class="mt-0.5 flex" />
+                            @endif
                         </td>
                         <td class="px-5 py-3 text-slate-700 text-[12px]">
                             {{ number_format($item->stock_kg, 1) }} kg
@@ -215,3 +263,39 @@
 
 
 @endsection
+
+@push('scripts')
+@include('partials.chart-kit')
+<script>
+(function () {
+    const DATA = @json($charts);
+    const { C, peso, kg } = VPM;
+
+    const sales = new Chart(document.getElementById('vendorSalesChart'), {
+        type: 'line',
+        data: { labels: [], datasets: [VPM.line('Sales', [], C.blue, { fill: true })] },
+        options: VPM.axes({ prefix: '₱', fmt: v => peso(v), legend: false }),
+    });
+
+    const tubo = new Chart(document.getElementById('vendorTuboChart'), {
+        type: 'bar',
+        data: { labels: [], datasets: [VPM.bar('Tubo', [], C.purple)] },
+        options: Object.assign(VPM.axes({ prefix: '₱', fmt: v => peso(v), legend: false }), {}),
+    });
+    tubo.options.scales.x.ticks.display = false;
+
+    const outcome = VPM.doughnut(document.getElementById('vendorOutcomeChart'), ['Sold', 'Pulled out', 'Expired'], [], [C.green, C.amber, C.red], kg);
+
+    VPM.periods('vendorPeriods', p => {
+        const d = DATA[p];
+        document.getElementById('vendorPeriodCaption').textContent = d.caption;
+        VPM.update(sales, d.labels, [d.series.sales]);
+        VPM.update(tubo, d.labels, [d.series.tubo]);
+        const o = d.outcome;
+        VPM.update(outcome, ['Sold', 'Pulled out', 'Expired'], [[o.sold, o.pulled_out, o.expired]]);
+        document.getElementById('sellThrough').textContent = o.sell_through !== null ? o.sell_through + '%' : '—';
+        document.getElementById('vendorOnStall').textContent = 'of the stock that has left your stall was sold · ' + kg(o.on_stall) + ' still on sale';
+    });
+})();
+</script>
+@endpush

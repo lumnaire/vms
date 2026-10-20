@@ -334,9 +334,13 @@ Buksan ang **Forecasts** sa menu ng Supervisor.
 
 | Card               | Ibig sabihin |
 | ------------------ | ------------ |
-| **3-Day Trend**    | Pataas, Pababa, o Stable (Seksyon 9). |
-| **Avg Forecast**   | Average ng tatlong hula. |
-| **Lowest / Highest** | Pinakamababa at pinakamataas na hula sa 3 araw. |
+| **3-Day Trend**    | Pataas, Pababa, o Stable (Seksyon 9), kasama ang 7-day average na pinagkumparahan. |
+| **Avg Forecast**   | Average ng tatlong hula, kasama ang mga petsang sakop. |
+| **Lowest in Period / Highest in Period** | Ang pinakamababa at pinakamataas **na hula sa 3 araw**, at **kung aling araw** iyon (hal. "Day 2 · Thu, Oct 22"). Galing ito sa mismong hula, **hindi** sa saklaw (CI). Kapag pare-pareho ang tatlong araw, "Same on all 3 days" ang nakasulat. |
+
+> Iisang kuwenta ang pinagmumulan ng mga card, ng graph at ng talaan. Ang araw
+> na nakasulat sa *Highest* ay siya ring berdeng tuldok sa graph at may
+> **Highest** na badge sa talaan; ganoon din ang *Lowest* (pulang tuldok).
 
 ### Ang graph
 
@@ -346,6 +350,10 @@ Buksan ang **Forecasts** sa menu ng Supervisor.
 | **Forecast** (linya)    | Ang **hula** para sa susunod na 3 araw. |
 | **Mapusyaw na asul na bahagi** | Ang **saklaw** (Lower CI hanggang Upper CI). |
 | **"Today"**             | Ang hangganan sa pagitan ng nakaraan at ng hula. |
+| **Berde / pulang tuldok** | Ang pinakamataas / pinakamababang araw ng hula. |
+| **Dilaw na putol-putol na linya** | Ang Avg Forecast, sa ibabaw ng tatlong araw ng hula. |
+| **Lilang putol-putol na linya** | Ang **tariff** (opisyal na presyo) ng isda. Sa Price lang ito lumalabas. |
+| **Puting tuldok sa nakaraan** | Ang **dating hula** para sa araw na iyon, para makita kung gaano kalapit sa totoo. |
 
 ### Ang talaan sa ibaba (Forecast Breakdown)
 
@@ -354,8 +362,15 @@ Buksan ang **Forecasts** sa menu ng Supervisor.
 | **Day / Date** | Aling araw ang hinuhulaan. |
 | **Predicted**  | Ang hula. |
 | **Lower CI / Upper CI** | Pinakamababa at pinakamataas sa saklaw. |
-| **Δ Change**   | Pagbabago mula sa naunang araw. |
+| **Δ Change**   | Pagbabago mula sa naunang araw. Sa Day 1, ikinukumpara ito sa huling totoong araw. |
+| **vs Tariff**  | (Price lang) Gaano kalayo ang hula sa tariff. |
 | **Trend**      | Ang trend ng buong 3 araw. |
+
+### Past Forecasts vs Actual
+
+Sa ilalim ng talaan, makikita ang **mga dating hula** para sa mga araw na
+lumipas na, katabi ng totoong nangyari at ng **mintis (error %)**. Ang "Avg
+error" ay ang karaniwang mintis sa mga araw na may totoong batch.
 
 ---
 
@@ -381,12 +396,21 @@ pagkalipas ng isang linggo.
 | Kailan                         | Ano ang nangyayari |
 | ------------------------------ | ------------------ |
 | **Araw-araw, 12:01 ng hatinggabi** | Awtomatikong gumagawa ng bagong forecast ang system para sa lahat ng isdang may sapat na datos (kailangang tumatakbo ang *scheduler* sa server). |
-| **Kapag binuksan ang pahina at walang nakaimbak na forecast** | Gumagawa agad ang pahina ng forecast para sa napiling isda. Kaya kahit hindi tumakbo ang scheduler, hindi mananatiling blangko ang pahina. |
+| **Kapag binuksan ang pahina at wala pang forecast ngayong araw** | Gumagawa agad ang pahina ng forecast para sa napiling isda. Kaya kahit hindi tumakbo ang scheduler, laging bukas hanggang sa ikatlong araw ang ipinapakita. |
 | **Mano-mano**                  | Puwedeng patakbuhin ng developer ang `php artisan forecast:generate`. |
 
 > Dahil hindi kasama ang araw ngayon (Seksyon 2), **hindi magbabago ang
 > forecast sa buong araw** kahit may bagong batch na makumpirma. Papasok ang
 > mga iyon sa forecast bukas.
+
+**Hindi binubura ang mga lumang forecast.** Bawat araw na pagtakbo ay
+itinatabi, kaya may kasaysayan ng mga hula para sa report at para sa muling
+pag-train ng modelo. Kapag pinatakbo ulit sa parehong araw, iyon lang araw na
+iyon ang napapalitan. Ang pinakabagong takbo ang ipinapakita sa pahina.
+
+Para sa datos na pang-train sa labas ng system, may **History (CSV)** sa
+Reports ng supervisor: araw-araw na suplay, benta, pull-out, presyo at tariff
+ng bawat isda.
 
 ---
 

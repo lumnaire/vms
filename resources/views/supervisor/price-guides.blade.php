@@ -1,600 +1,203 @@
 @extends('layouts.app')
 
-@section('title', 'Price Guide Management')
-@section('subtitle', 'Configure price brackets per fish type & quality class')
-
-@push('styles')
-<style>
-    @layer components {
-    .tier-pill {
-        display:inline-flex; align-items:center; gap:4px;
-        padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:600;
-    }
-    .tier-cheap    { background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0; }
-    .tier-moderate { background:#fffbeb; color:#92400e; border:1px solid #fde68a; }
-    .tier-expensive{ background:#fef2f2; color:#991b1b; border:1px solid #fecaca; }
-
-    .fish-card {
-        background:#fff; border:1px solid #e2e8f0; border-radius:14px;
-        overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,0.05);
-        transition:box-shadow 0.15s ease;
-    }
-    .fish-card:hover { box-shadow:0 4px 16px rgba(0,0,0,0.08); }
-    .fish-card-header {
-        display:flex; align-items:center; gap:12px;
-        padding:14px 16px; border-bottom:1px solid #f1f5f9; background:#fafafa;
-    }
-    .fish-icon-wrap {
-        width:36px; height:36px; border-radius:10px;
-        background:linear-gradient(135deg,#0f2d5e,#1d4ed8);
-        display:flex; align-items:center; justify-content:center; flex-shrink:0;
-    }
-    .price-grid-row {
-        display:grid; grid-template-columns:1.4fr 1fr 1fr 90px;
-        gap:0; border-bottom:1px solid #f1f5f9;
-    }
-    .price-grid-row:last-child { border-bottom:none; }
-    .price-grid-cell { padding:10px 14px; border-right:1px solid #f1f5f9; }
-    .price-grid-cell:last-child { border-right:none; }
-
-    /* Modal overlay */
-    .modal-overlay {
-        position:fixed; inset:0; background:rgba(0,0,0,0.45);
-        z-index:1000; align-items:center; justify-content:center;
-        padding:16px;
-    }
-    .modal-box {
-        background:#fff; border-radius:16px; width:100%; max-width:480px;
-        box-shadow:0 20px 60px rgba(0,0,0,0.2); overflow:hidden;
-    }
-    .modal-header {
-        padding:18px 20px 14px; border-bottom:1px solid #f1f5f9;
-        display:flex; align-items:center; justify-content:space-between;
-    }
-    .modal-body   { padding:20px; }
-    .modal-footer {
-        padding:14px 20px; border-top:1px solid #f1f5f9;
-        display:flex; justify-content:flex-end; gap:10px; background:#fafafa;
-    }
-    .form-label-pg { font-size:12px; font-weight:600; color:#475569; margin-bottom:5px; display:block; }
-    .form-input-pg {
-        width:100%; padding:9px 12px; border:1px solid #e2e8f0; border-radius:9px;
-        font-size:13px; color:#334155; outline:none;
-        transition:border-color 0.15s, box-shadow 0.15s;
-    }
-    .form-input-pg:focus { border-color:#93c5fd; box-shadow:0 0 0 3px rgba(147,197,253,0.25); }
-    .form-input-pg.is-invalid { border-color:#f87171; }
-    .btn-pg-primary {
-        padding:9px 18px; border-radius:9px; font-size:13px; font-weight:600;
-        background:#1d4ed8; color:#fff; border:none; cursor:pointer;
-        transition:background 0.15s;
-    }
-    .btn-pg-primary:hover { background:#1e40af; }
-    .btn-pg-cancel {
-        padding:9px 18px; border-radius:9px; font-size:13px; font-weight:600;
-        background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0; cursor:pointer;
-        transition:background 0.15s;
-    }
-    .btn-pg-cancel:hover { background:#e2e8f0; }
-
-    .filter-sel {
-        background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px;
-        padding:7px 12px; font-size:13px; font-weight:500; color:#334155;
-        transition:border-color .15s, box-shadow .15s; appearance:none;
-        background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 16 16'%3E%3Cpath fill='%2394a3b8' d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
-        background-repeat:no-repeat; background-position:right 10px center; padding-right:30px;
-        cursor:pointer;
-    }
-    .filter-sel:focus { outline:none; border-color:#93c5fd; box-shadow:0 0 0 3px rgba(59,130,246,0.1); }
-    }
-</style>
-@endpush
+@section('title', 'Tariff (Price Guide)')
+@section('subtitle', 'Official tariff per kilo · enter it from the municipal tariff list')
 
 @section('content')
 
-{{-- ── Flash Messages ──────────────────────────────────────────── --}}
-@if(session('success'))
-    <div class="flex items-center gap-3 px-4 py-3 mb-5 rounded-xl border bg-success-50"
-         style="border-color:#bbf7d0">
-        <x-icon name="bi-check-circle-fill" size="base" class="text-emerald-500" />
-        <p class="text-emerald-700 font-semibold text-[13px]">{{ session('success') }}</p>
-    </div>
+<x-alert />
+
+@if($errors->any())
+    <x-alert variant="error" :message="$errors->first('effective_date') ?: 'Some tariffs could not be saved. Check the highlighted rows.'" />
 @endif
 
-{{-- ── Stats Row ────────────────────────────────────────────────── --}}
-<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-
-    <div class="stat-card bg-white rounded-xl p-5 border border-slate-100 shadow-card">
-        <div class="flex items-start justify-between">
-            <div>
-                <p class="text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]">Total Brackets</p>
-                <p class="text-slate-800 font-bold mt-1 text-[28px] leading-[1]">{{ $totalGuides }}</p>
-                <p class="text-slate-400 mt-1 text-[11px]">Active classification rules</p>
-            </div>
-            <div class="w-10 h-10 rounded-xl flex items-center justify-center bg-brand-50">
-                <x-icon name="bi-tags-fill" size="lg" class="text-blue-600" />
-            </div>
-        </div>
-    </div>
-
-    <div class="stat-card bg-white rounded-xl p-5 border border-slate-100 shadow-card">
-        <div class="flex items-start justify-between">
-            <div>
-                <p class="text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]">Configured</p>
-                <p class="text-slate-800 font-bold mt-1 text-[28px] leading-[1]">{{ $totalConfigured }}</p>
-                <p class="text-slate-400 mt-1 text-[11px]">Fish types with brackets</p>
-            </div>
-            <div class="w-10 h-10 rounded-xl flex items-center justify-center bg-success-50">
-                <x-icon name="bi-check-circle-fill" size="lg" class="text-emerald-500" />
-            </div>
-        </div>
-    </div>
-
-    <div class="stat-card bg-white rounded-xl p-5 border border-slate-100 shadow-card">
-        <div class="flex items-start justify-between">
-            <div>
-                <p class="text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]">Not Yet Set</p>
-                <p class="text-slate-800 font-bold mt-1 text-[28px] leading-[1]">{{ $totalMissing }}</p>
-                <p class="text-slate-400 mt-1 text-[11px]">Fish types needing setup</p>
-            </div>
-            <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background:#fff1f2;">
-                <x-icon name="bi-exclamation-circle-fill" size="lg" class="text-rose-400" />
-            </div>
-        </div>
-    </div>
-
+{{-- ── Stats ─────────────────────────────────────────────────────── --}}
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+    <x-stat-card label="Tariffs Set" :value="$stats['set']" decimals="0" icon="bi-tags-fill"
+                 foot="of {{ $stats['set'] + $stats['missing'] }} fish types" />
+    <x-stat-card label="Not Yet Set" :value="$stats['missing']" decimals="0" icon="bi-exclamation-circle-fill"
+                 tone="danger" foot="Fish types without a tariff" />
+    <x-stat-card label="Changed This Month" :value="$stats['changed_month']" decimals="0" icon="bi-clock-history"
+                 tone="neutral" foot="Older versions kept as history" />
+    <x-stat-card label="Above Tariff Now" :value="$stats['above_now']" decimals="0" icon="bi-graph-up-arrow"
+                 tone="warning" foot="Stalls pricing above it on the board" />
 </div>
 
-{{-- ── Legend + Add Button ──────────────────────────────────────── --}}
-<div class="bg-white rounded-xl border border-slate-100 p-5 mb-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-card"
-    >
-    <div>
-        <p class="text-slate-700 font-semibold mb-2 text-[12.5px]">How price brackets work:</p>
-        <div class="flex flex-wrap gap-2 items-center">
-            <span class="tier-pill tier-cheap"><i class="bi bi-circle-fill text-[7px]"></i> Cheap</span>
-            <span class="text-slate-400 text-[11.5px]">≤ cheap_max</span>
-            <span class="text-slate-200 mx-1">|</span>
-            <span class="tier-pill tier-moderate"><i class="bi bi-circle-fill text-[7px]"></i> Moderate</span>
-            <span class="text-slate-400 text-[11.5px]">≤ moderate_max</span>
-            <span class="text-slate-200 mx-1">|</span>
-            <span class="tier-pill tier-expensive"><i class="bi bi-circle-fill text-[7px]"></i> Expensive</span>
-            <span class="text-slate-400 text-[11.5px]">above moderate_max</span>
-        </div>
+{{-- ── How the tariff works ─────────────────────────────────────── --}}
+<div class="vpm-card px-5 py-4 mb-5 flex items-start gap-3">
+    <x-icon name="bi-info-circle-fill" size="lg" class="text-brand-600 mt-0.5" />
+    <div class="vpm-body leading-relaxed">
+        <p class="font-semibold text-slate-700">This table is the official tariff (taripa).</p>
+        <p class="text-slate-500 text-[12px]">
+            Type the price per kilo and English name from the tariff list, then save. Changing a tariff keeps the old one in its history.
+            A fish missing from a class can be added with <strong>Add to …</strong>; use the pencil to rename or move one, and the bin to remove it.
+            Vendors may sell above the tariff. The difference is their markup (tubo), which staff, the supervisor and consumers can all see.
+        </p>
     </div>
-    <button onclick="openAddModal(null)"
-            class="btn-pg-primary flex items-center gap-2 flex-shrink-0">
-        <i class="bi bi-plus-lg"></i> Add Price Bracket
+</div>
+
+{{-- ── Filters ──────────────────────────────────────────────────── --}}
+<form method="GET" action="{{ route('supervisor.price-guides.index') }}" id="pgFilterForm" class="vpm-card vpm-filter-bar">
+    <x-filter-field label="Category" width="170px">
+        <select name="quality_class" id="pg-category" class="vpm-filter-select"
+                onchange="document.getElementById('pg-fish-type').value=''; this.form.submit()">
+            <option value="">All</option>
+            @foreach($qualityClasses as $qc)
+                <option value="{{ $qc }}" {{ $selectedCategory === $qc ? 'selected' : '' }}>{{ $qc }}</option>
+            @endforeach
+        </select>
+    </x-filter-field>
+    <x-filter-field label="Fish Type" width="170px">
+        <select name="fish_type_id" id="pg-fish-type" class="vpm-filter-select" onchange="this.form.submit()">
+            <option value="">All</option>
+            @foreach($categoryFishTypes as $ft)
+                <option value="{{ $ft->id }}" {{ (int) $selectedFishType === (int) $ft->id ? 'selected' : '' }}>{{ $ft->name }}</option>
+            @endforeach
+        </select>
+    </x-filter-field>
+    <x-filter-field label="Search" width="200px">
+        <input type="search" id="tariffSearch" class="vpm-input" placeholder="Local or English name">
+    </x-filter-field>
+    @if($selectedCategory || $selectedFishType)
+        <a href="{{ route('supervisor.price-guides.index') }}" class="vpm-btn vpm-btn-secondary">
+            <x-icon name="bi-arrow-clockwise" size="sm" /> Clear
+        </a>
+    @endif
+    <button type="button" class="vpm-btn vpm-btn-primary ml-auto"
+            onclick="openFishModal('add', { quality_class: @js($selectedCategory ?? '') })">
+        <x-icon name="bi-plus-lg" size="sm" /> Add fish
     </button>
-</div>
-
-{{-- ── Filter Bar ─────────────────────────────────────────────── --}}
-<form method="GET" action="{{ route('supervisor.price-guides.index') }}" id="pgFilterForm">
-    <div class="bg-white rounded-xl border border-slate-100 px-4 py-3.5 mb-5 flex flex-wrap items-end gap-3 shadow-card"
-        >
-
-        {{-- Category (quality class) --}}
-        <div class="flex flex-col gap-1.5 flex-shrink-0" style="min-width:170px;">
-            <label class="text-slate-400 font-semibold select-none text-[10px] uppercase tracking-[0.08em]"
-                  >
-                <i class="bi bi-grid-3x3-gap-fill" style="margin-right:4px"></i>Category
-            </label>
-            <select name="quality_class" id="pg-category" onchange="onPgCategoryChange()" class="filter-sel">
-                <option value="">All</option>
-                @foreach($qualityClasses as $qc)
-                    <option value="{{ $qc }}" {{ $selectedCategory === $qc ? 'selected' : '' }}>{{ $qc }}</option>
-                @endforeach
-            </select>
-        </div>
-
-        {{-- Fish Type (narrowed by the selected category) --}}
-        <div class="flex flex-col gap-1.5 flex-shrink-0" style="min-width:170px;">
-            <label class="text-slate-400 font-semibold select-none text-[10px] uppercase tracking-[0.08em]"
-                  >
-                <i class="bi bi-water" style="margin-right:4px"></i>Fish Type
-            </label>
-            <select name="fish_type_id" id="pg-fish-type" onchange="onPgFishTypeChange()" class="filter-sel">
-                <option value="">All</option>
-                @foreach($categoryFishTypes as $ft)
-                    <option value="{{ $ft->id }}" {{ (int) $selectedFishType === (int) $ft->id ? 'selected' : '' }}>{{ $ft->name }}</option>
-                @endforeach
-            </select>
-        </div>
-
-        {{-- Filter submit + clear --}}
-        <div class="flex items-end gap-2 flex-shrink-0">
-            <button type="submit"
-                    class="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-colors text-[13px]"
-                    style="background:#1d4ed8; color:#fff; cursor:pointer; border:none"
-                    onmouseover="this.style.background='#1e40af'"
-                    onmouseout="this.style.background='#1d4ed8'">
-                <i class="bi bi-funnel"></i> Filter
-            </button>
-            @if($selectedCategory || $selectedFishType)
-                <a href="{{ route('supervisor.price-guides.index') }}"
-                   class="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-colors text-[13px] border border-slate-200 text-slate-600"
-                  
-                   onmouseover="this.style.background='#f8fafc'"
-                   onmouseout="this.style.background='#fff'" style="background:#fff; text-decoration:none">
-                    <i class="bi bi-arrow-clockwise"></i> Clear
-                </a>
-            @endif
-        </div>
-    </div>
 </form>
 
-{{-- ── Fish Type Cards ─────────────────────────────────────────── --}}
-@php
-    // Single source of truth for tier ordering. The look of each pill now lives
-    // in <x-quality-badge>, so only the sequence is needed here.
-    $classOrder = App\Models\FishType::QUALITY_CLASSES;
-@endphp
-
-@if($fishTypes->isEmpty())
-
-    {{-- No fish types match the current filters --}}
-    <div class="bg-white rounded-xl border border-slate-100 shadow-card">
-        <div class="text-center" style="padding:40px 20px">
-            <i class="bi bi-funnel text-slate-300" style="display:block; margin-bottom:10px"></i>
-            <p class="text-slate-600 font-semibold text-[13px]">No fish types match your filters</p>
-            <p class="text-slate-400 text-[11.5px]" style="margin-top:3px">Try a different category or fish type.</p>
-            <a href="{{ route('supervisor.price-guides.index') }}"
-               class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors mt-3 text-[12px] font-semibold"
-               style="border:1px dashed #93c5fd; text-decoration:none">
-                <x-icon name="bi-arrow-clockwise" size="xs" /> Clear filters
-            </a>
-        </div>
-    </div>
-
+@if($groups->isEmpty())
+    <x-empty-state icon="bi-funnel" title="No fish types match your filters" text="Try a different category or fish type." />
 @else
+    @include('partials.tariff-table', ['editable' => true])
 
-<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+    <form method="POST" action="{{ route('supervisor.price-guides.store', request()->only('quality_class', 'fish_type_id')) }}" id="tariffForm">
+        @csrf
 
-    @foreach($fishTypes as $fishType)
-    <div class="fish-card">
-
-        {{-- Card Header --}}
-        <div class="fish-card-header">
-            <div class="fish-icon-wrap">
-                <x-icon name="bi-water" size="base" class="text-white" />
+        {{-- Save bar: stays in view while the list is long --}}
+        <div class="vpm-card sticky bottom-0 mt-4 px-4 py-3 flex flex-wrap items-end gap-3 justify-between shadow-card-hover">
+            <div class="flex flex-wrap items-end gap-3">
+                <x-filter-field label="Effective date">
+                    <input type="date" name="effective_date" max="{{ today()->toDateString() }}"
+                           value="{{ old('effective_date', today()->toDateString()) }}"
+                           class="vpm-input {{ $errors->has('effective_date') ? 'is-invalid' : '' }}" required>
+                </x-filter-field>
+                <p class="vpm-meta pb-2" id="tariffChangeCount">No changes yet</p>
             </div>
-            <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 min-w-0">
-                    <p class="text-slate-800 font-bold truncate text-[13.5px]">{{ $fishType->name }}</p>
-                    @if($fishType->quality_class)
-                        <x-quality-badge :quality="$fishType->quality_class" class="flex-shrink-0" />
-                    @endif
-                </div>
-                <p class="text-slate-400 text-[11px] mt-px">
-                    {{ $fishType->priceGuides->count() }} {{ Str::plural('bracket', $fishType->priceGuides->count()) }} configured
-                </p>
-            </div>
-            <button class="text-[11.5px] font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors flex-shrink-0 border border-brand-200"
-                    onclick="openAddModal({{ $fishType->id }})"
-                    title="Add a price bracket for {{ $fishType->name }}">
-                <x-icon name="bi-plus-lg" size="xs" /> Add
+            <button type="submit" class="vpm-btn vpm-btn-primary" id="tariffSave" disabled>
+                <x-icon name="bi-check-lg" size="sm" /> Save tariff
             </button>
         </div>
-
-        @if($fishType->priceGuides->isNotEmpty())
-
-            {{-- Column Headers --}}
-            <div class="price-grid-row bg-surface-subtle">
-                <div class="price-grid-cell">
-                    <p class="font-bold uppercase tracking-[0.08em] text-slate-400" style="font-size:9.5px">Quality Class</p>
-                </div>
-                <div class="price-grid-cell">
-                    <p class="font-bold uppercase tracking-[0.08em] text-slate-400" style="font-size:9.5px">Cheap up to</p>
-                </div>
-                <div class="price-grid-cell">
-                    <p class="font-bold uppercase tracking-[0.08em] text-slate-400" style="font-size:9.5px">Moderate up to</p>
-                </div>
-                <div class="price-grid-cell">
-                    <p class="font-bold uppercase tracking-[0.08em] text-slate-400" style="font-size:9.5px">Actions</p>
-                </div>
-            </div>
-
-            {{-- Bracket Rows --}}
-@foreach($fishType->priceGuides->sortBy(fn($g) => array_search($g->quality_class, $classOrder)) as $guide)
-    <div class="price-grid-row">
-
-
-                <div class="price-grid-cell flex items-center">
-                    <x-quality-badge :quality="$guide->quality_class" />
-                </div>
-
-                <div class="price-grid-cell">
-                    <span class="tier-pill tier-cheap text-[10.5px]" style="padding:2px 8px">
-                        ₱ {{ number_format($guide->cheap_max, 2) }}
-                    </span>
-                    <p class="text-[10px] text-slate-400" style="margin-top:3px">&amp; below</p>
-                </div>
-
-                <div class="price-grid-cell">
-                    <span class="tier-pill tier-moderate text-[10.5px]" style="padding:2px 8px">
-                        ₱ {{ number_format($guide->moderate_max, 2) }}
-                    </span>
-                    <p class="text-[10px] text-slate-400" style="margin-top:3px">
-                        above = <span class="tier-pill tier-expensive" style="font-size:9.5px; padding:1px 6px;">Expensive</span>
-                    </p>
-                </div>
-
-                <div class="price-grid-cell flex items-center gap-1.5">
-                    {{-- Edit --}}
-                    <button onclick="openEditModal(
-                                {{ $guide->id }},
-                                {{ $guide->cheap_max }},
-                                {{ $guide->moderate_max }},
-                                '{{ $guide->effective_date->format('Y-m-d') }}',
-                                '{{ route('supervisor.price-guides.update', $guide) }}',
-                                '{{ $guide->quality_class }}',
-                                '{{ $fishType->name }}'
-                            )"
-                            title="Edit"
-                            class="w-7 h-7 rounded-lg flex items-center justify-center text-blue-500 hover:bg-blue-50 transition-colors border border-brand-200"
-                           >
-                        <x-icon name="bi-pencil-fill" size="xs" />
-                    </button>
-
-                    {{-- Delete --}}
-                    <button type="button"
-                            title="Delete"
-                            onclick="openDeleteModal(
-                                '{{ route('supervisor.price-guides.destroy', $guide) }}',
-                                '{{ addslashes($guide->quality_class) }}',
-                                '{{ addslashes($fishType->name) }}'
-                            )"
-                            class="w-7 h-7 rounded-lg flex items-center justify-center text-rose-400 hover:bg-rose-50 transition-colors border border-danger-200"
-                           >
-                        <x-icon name="bi-trash-fill" size="xs" />
-                    </button>
-                </div>
-
-            </div>
-            @endforeach
-
-            {{-- Effective date footer --}}
-            <div style="padding:9px 14px; background:#fafafa; border-top:1px solid #f1f5f9;">
-                <p class="text-[10.5px] text-slate-400">
-                    <i class="bi bi-calendar3" style="margin-right:4px"></i>
-                    Effective:
-                    <span class="font-semibold text-slate-500">
-                        {{ $fishType->priceGuides->first()?->effective_date?->format('F j, Y') ?? '—' }}
-                    </span>
-                </p>
-            </div>
-
-        @else
-
-            {{-- Empty state --}}
-            <div class="text-center" style="padding:28px 20px">
-                <i class="bi bi-dash-circle text-slate-300" style="display:block; margin-bottom:8px"></i>
-                <p class="text-[12px] text-slate-400" style="margin-bottom:10px">No price brackets configured</p>
-                <button class="text-[12px] font-semibold inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"
-                        style="border:1px dashed #93c5fd"
-                        onclick="openAddModal({{ $fishType->id }})">
-                    <x-icon name="bi-plus-lg" size="xs" /> Configure now
-                </button>
-            </div>
-
-        @endif
-
-    </div>
-    @endforeach
-
-</div>
-
+    </form>
 @endif
 
-
-{{-- ════════════════════════════════ ADD MODAL ════════════════════════════════ --}}
-<div id="addModal" class="modal-overlay hidden flex" onclick="handleOverlayClick(event,'addModal')">
-    <div class="modal-box">
-
-        <div class="modal-header">
-            <div>
-                <p class="text-slate-800 font-bold" style="font-size:15px;">Add Price Bracket</p>
-                <p class="text-slate-400 text-[11.5px] mt-0.5">Set cheap &amp; moderate thresholds for a quality class</p>
-            </div>
-            <button onclick="closeModal('addModal')" class="text-slate-400 hover:text-slate-600 transition-colors">
-                <x-icon name="bi-x-lg" size="base" />
-            </button>
-        </div>
-
-        <form action="{{ route('supervisor.price-guides.store') }}" method="POST">
-            @csrf
-            <div class="modal-body" style="display:flex; flex-direction:column; gap:16px;">
-
-                {{-- Validation error --}}
-                @if($errors->has('quality_class') && !session('open_edit_modal'))
-                    <div class="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-danger-50 border border-danger-200">
-                        <i class="bi bi-exclamation-circle-fill text-rose-400 mt-0.5" style="flex-shrink:0"></i>
-                        <p class="text-rose-600 text-[12px]">{{ $errors->first('quality_class') }}</p>
-                    </div>
-                @endif
-
-                {{-- Quality Class --}}
-                <div>
-                    <label class="form-label-pg">Quality Class <span class="text-rose-400">*</span></label>
-                    <select name="quality_class" id="add-quality-class-select"
-                            class="form-input-pg {{ $errors->has('quality_class') ? 'is-invalid' : '' }}" required>
-                        <option value="">— Select class —</option>
-                        @foreach($qualityClasses as $qc)
-                            <option value="{{ $qc }}" {{ old('quality_class') === $qc ? 'selected' : '' }}>{{ $qc }}</option>
-                        @endforeach
-                    </select>
-                </div>
-
-                {{-- Fish Type (filtered by the selected quality class) --}}
-                <div>
-                    <label class="form-label-pg">Fish Type <span class="text-rose-400">*</span></label>
-                    <select name="fish_type_id" id="add-fish-type-select"
-                            class="form-input-pg {{ $errors->has('fish_type_id') ? 'is-invalid' : '' }}"
-                            required>
-                        <option value="">— Select fish type —</option>
-                        @foreach($allFishTypes as $ft)
-                            <option value="{{ $ft->id }}"
-                                data-quality-class="{{ $ft->quality_class }}"
-                                {{ old('fish_type_id', session('open_add_modal')) == $ft->id ? 'selected' : '' }}>
-                                {{ $ft->name }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-
-                {{-- Price Inputs --}}
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="form-label-pg">Cheap Max (₱/kg) <span class="text-rose-400">*</span></label>
-                        <input type="number" name="cheap_max" step="0.01" min="0.01"
-                               value="{{ old('cheap_max') }}"
-                               placeholder="e.g. 150.00"
-                               class="form-input-pg {{ $errors->has('cheap_max') ? 'is-invalid' : '' }}"
-                               required>
-                        <p class="text-[10.5px] text-slate-400" style="margin-top:4px">Prices at or below this = Cheap</p>
-                    </div>
-                    <div>
-                        <label class="form-label-pg">Moderate Max (₱/kg) <span class="text-rose-400">*</span></label>
-                        <input type="number" name="moderate_max" step="0.01" min="0.01"
-                               value="{{ old('moderate_max') }}"
-                               placeholder="e.g. 220.00"
-                               class="form-input-pg {{ $errors->has('moderate_max') ? 'is-invalid' : '' }}"
-                               required>
-                        <p class="text-[10.5px] text-slate-400" style="margin-top:4px">Above this = Expensive</p>
-                    </div>
-                </div>
-
-                {{-- Effective Date --}}
-                <div>
-                    <label class="form-label-pg">Effective Date <span class="text-rose-400">*</span></label>
-                    <input type="date" name="effective_date"
-                           value="{{ old('effective_date', now()->toDateString()) }}"
-                           class="form-input-pg {{ $errors->has('effective_date') ? 'is-invalid' : '' }}"
-                           required>
-                </div>
-
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn-pg-cancel" onclick="closeModal('addModal')">Cancel</button>
-                <button type="submit" class="btn-pg-primary"><x-icon name="bi-plus-lg" class="me-1" /> Add Bracket</button>
-            </div>
-        </form>
-
-    </div>
-</div>
-
-
-{{-- ════════════════════════════════ EDIT MODAL ════════════════════════════════ --}}
-<div id="editModal" class="modal-overlay hidden flex" onclick="handleOverlayClick(event,'editModal')">
-    <div class="modal-box">
-
-        <div class="modal-header">
-            <div>
-                <p class="text-slate-800 font-bold" style="font-size:15px;">Edit Price Bracket</p>
-                <p id="edit-modal-subtitle" class="text-slate-400 text-[11.5px] mt-0.5">Adjust the thresholds</p>
-            </div>
-            <button onclick="closeModal('editModal')" class="text-slate-400 hover:text-slate-600 transition-colors">
-                <x-icon name="bi-x-lg" size="base" />
-            </button>
-        </div>
-
-        <form id="edit-form" method="POST">
-            @csrf @method('PUT')
-            <div class="modal-body" style="display:flex; flex-direction:column; gap:16px;">
-
-                @if($errors->has('cheap_max') || $errors->has('moderate_max'))
-                    <div class="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-danger-50 border border-danger-200">
-                        <i class="bi bi-exclamation-circle-fill text-rose-400 mt-0.5" style="flex-shrink:0"></i>
-                        <p class="text-rose-600 text-[12px]">
-                            {{ $errors->first('cheap_max') ?: $errors->first('moderate_max') }}
+{{-- ── Removed fish: hidden from the list, history kept ─────────── --}}
+@if($removedFishTypes->isNotEmpty())
+    <x-card class="mt-6" :padded="false" title="Removed Fish"
+            subtitle="Taken off the list. Their past batches stay in reports and forecasts. Restore to bring one back.">
+        <ul class="divide-y divide-slate-100">
+            @foreach($removedFishTypes as $removed)
+                <li class="px-5 py-3 flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                        <p class="text-slate-700 font-semibold text-[12.5px]">
+                            {{ $removed->name }}
+                            @if($removed->english_name)<span class="text-slate-400 font-normal">· {{ $removed->english_name }}</span>@endif
                         </p>
+                        <p class="vpm-meta">{{ $removed->quality_class }} · {{ $removed->vendor_inventories_count }} {{ Str::plural('batch', $removed->vendor_inventories_count) }} on record</p>
+                    </div>
+                    <form method="POST" action="{{ route('supervisor.price-guides.fish.restore', $removed) }}">
+                        @csrf @method('PATCH')
+                        <button type="submit" class="vpm-btn vpm-btn-secondary vpm-btn-sm">
+                            <x-icon name="bi-arrow-counterclockwise" size="xs" /> Restore
+                        </button>
+                    </form>
+                </li>
+            @endforeach
+        </ul>
+    </x-card>
+@endif
+
+{{-- ── Add / edit a fish ─────────────────────────────────────────── --}}
+@php
+    $fishErrors = $errors->getBag('fish');
+    $fishModal = session('fish_modal');
+@endphp
+<div id="fishModal" class="vpm-modal-backdrop hidden" onclick="if (event.target === this) closeFishModal()">
+    <div class="vpm-modal" role="dialog" aria-modal="true" aria-labelledby="fishModalTitle">
+        <form method="POST" id="fishForm" action="{{ route('supervisor.price-guides.fish.store') }}">
+            @csrf
+            <input type="hidden" name="_method" id="fishFormMethod" value="POST">
+            <div class="vpm-modal-header">
+                <div>
+                    <p class="vpm-modal-title" id="fishModalTitle">Add fish</p>
+                    <p class="vpm-section-sub" id="fishModalSub">Add a fish that is missing from the tariff list.</p>
+                </div>
+                <button type="button" class="vpm-icon-btn" onclick="closeFishModal()" aria-label="Close">
+                    <x-icon name="bi-x-lg" size="base" />
+                </button>
+            </div>
+            <div class="vpm-modal-body space-y-4">
+                @if($fishErrors->any())
+                    <div class="vpm-alert vpm-alert-error" role="alert">
+                        <x-icon name="bi-exclamation-circle-fill" class="vpm-alert-icon" />
+                        <div>@foreach($fishErrors->all() as $message)<p>{{ $message }}</p>@endforeach</div>
                     </div>
                 @endif
-
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="form-label-pg">Cheap Max (₱/kg) <span class="text-rose-400">*</span></label>
-                        <input type="number" id="edit-cheap-max" name="cheap_max" step="0.01" min="0.01"
-                               value="{{ old('cheap_max') }}"
-                               class="form-input-pg {{ $errors->has('cheap_max') ? 'is-invalid' : '' }}" required>
-                        <p class="text-[10.5px] text-slate-400" style="margin-top:4px">Prices at or below = Cheap</p>
-                    </div>
-                    <div>
-                        <label class="form-label-pg">Moderate Max (₱/kg) <span class="text-rose-400">*</span></label>
-                        <input type="number" id="edit-moderate-max" name="moderate_max" step="0.01" min="0.01"
-                               value="{{ old('moderate_max') }}"
-                               class="form-input-pg {{ $errors->has('moderate_max') ? 'is-invalid' : '' }}" required>
-                        <p class="text-[10.5px] text-slate-400" style="margin-top:4px">Above this = Expensive</p>
-                    </div>
-                </div>
-
-                <div>
-                    <label class="form-label-pg">Effective Date <span class="text-rose-400">*</span></label>
-                    <input type="date" id="edit-effective-date" name="effective_date"
-                           value="{{ old('effective_date') }}"
-                           class="form-input-pg {{ $errors->has('effective_date') ? 'is-invalid' : '' }}" required>
-                </div>
-
+                <label class="block">
+                    <span class="vpm-label-text">Local / commercial name <span class="text-danger-500">*</span></span>
+                    <input type="text" name="name" id="fishName" maxlength="100" required placeholder="e.g. Hipon (Medium)"
+                           value="{{ old('name') }}" class="vpm-input {{ $fishErrors->has('name') ? 'is-invalid' : '' }}">
+                </label>
+                <label class="block">
+                    <span class="vpm-label-text">English name <span class="font-normal text-slate-400">(optional)</span></span>
+                    <input type="text" name="english_name" id="fishEnglish" maxlength="100" placeholder="e.g. Shrimp"
+                           value="{{ old('english_name') }}" class="vpm-input">
+                </label>
+                <label class="block">
+                    <span class="vpm-label-text">Class <span class="text-danger-500">*</span></span>
+                    <select name="quality_class" id="fishClass" required class="vpm-select {{ $fishErrors->has('quality_class') ? 'is-invalid' : '' }}">
+                        <option value="">— Choose a class —</option>
+                        @foreach($qualityClasses as $qc)
+                            <option value="{{ $qc }}" @selected(old('quality_class') === $qc)>{{ $qc }}</option>
+                        @endforeach
+                    </select>
+                    <span class="vpm-meta block mt-1" id="fishClassNote">Moving a fish to another class takes its tariff and batches with it.</span>
+                </label>
+                <label class="block" id="fishTariffField">
+                    <span class="vpm-label-text">Tariff per kilo (₱) <span class="font-normal text-slate-400">(optional, can be set later)</span></span>
+                    <input type="number" name="tariff_price" id="fishTariff" step="0.01" min="0.01" max="99999.99" placeholder="0.00"
+                           value="{{ old('tariff_price') }}" class="vpm-input vpm-num {{ $fishErrors->has('tariff_price') ? 'is-invalid' : '' }}">
+                </label>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn-pg-cancel" onclick="closeModal('editModal')">Cancel</button>
-                <button type="submit" class="btn-pg-primary"><x-icon name="bi-check-lg" class="me-1" /> Save Changes</button>
+            <div class="vpm-modal-footer">
+                <button type="button" class="vpm-btn vpm-btn-secondary" onclick="closeFishModal()">Cancel</button>
+                <button type="submit" class="vpm-btn vpm-btn-primary" id="fishSubmit"><x-icon name="bi-check-lg" size="sm" /> Add fish</button>
             </div>
         </form>
-
     </div>
 </div>
 
-{{-- \u2500\u2500 Delete Confirmation Modal \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 --}}
-<div id="deleteModal"
-     class="modal-overlay hidden flex"
-     onclick="handleOverlayClick(event, 'deleteModal')">
-    <div class="modal-box" style="max-width:400px;">
-        <form id="delete-form" method="POST">
+{{-- ── Remove a fish ─────────────────────────────────────────────── --}}
+<div id="removeFishModal" class="vpm-modal-backdrop hidden" onclick="if (event.target === this) closeRemoveFish()">
+    <div class="vpm-modal" role="dialog" aria-modal="true" aria-labelledby="removeFishTitle">
+        <form method="POST" id="removeFishForm">
             @csrf @method('DELETE')
-
-            <div class="modal-header" style="border-bottom:1px solid #fef2f2;">
-                <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-danger-50 border border-danger-200"
-                        >
-                        <x-icon name="bi-trash-fill" size="base" class="text-rose-500" />
-                    </div>
-                    <div>
-                        <p class="text-slate-800 font-bold text-[14px]">Remove Price Bracket</p>
-                        <p class="text-slate-400 text-[11px]">This action cannot be undone</p>
-                    </div>
-                </div>
-                <button type="button" onclick="closeModal('deleteModal')"
-                        class="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-slate-100 transition-colors text-slate-400"
-                        style="border:none; background:transparent; cursor:pointer">
-                    <x-icon name="bi-x-lg" size="md" />
+            <div class="vpm-modal-header">
+                <p class="vpm-modal-title" id="removeFishTitle">Remove fish</p>
+                <button type="button" class="vpm-icon-btn" onclick="closeRemoveFish()" aria-label="Close">
+                    <x-icon name="bi-x-lg" size="base" />
                 </button>
             </div>
-
-            <div class="modal-body">
-                <div class="rounded-xl p-4 mb-1 bg-danger-50 border border-danger-200">
-                    <p class="text-rose-700 font-semibold text-[13px]">
-                        Are you sure you want to remove the
-                        <span id="delete-modal-class" class="font-bold"></span> bracket
-                        for <span id="delete-modal-fish" class="font-bold"></span>?
-                    </p>
-                    <p class="text-rose-500 mt-1 text-[11.5px]">
-                        Vendors will no longer be able to submit entries under this bracket.
-                    </p>
-                </div>
+            <div class="vpm-modal-body">
+                <p class="vpm-body" id="removeFishText"></p>
             </div>
-
-            <div class="modal-footer" style="background:#fafafa;">
-                <button type="button" onclick="closeModal('deleteModal')" class="btn-pg-cancel">
-                    Cancel
-                </button>
-                <button class="text-[13px] font-semibold bg-danger-600" type="submit"
-                       
-                        onmouseover="this.style.background='#b91c1c'"
-                        onmouseout="this.style.background='#dc2626'" style="padding:9px 18px; border-radius:9px; color:#fff; border:none; cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:background 0.15s">
-                    <x-icon name="bi-trash-fill" size="sm" /> Yes, Remove
-                </button>
+            <div class="vpm-modal-footer">
+                <button type="button" class="vpm-btn vpm-btn-secondary" onclick="closeRemoveFish()">Cancel</button>
+                <button type="submit" class="vpm-btn vpm-btn-danger"><x-icon name="bi-trash" size="sm" /> Remove</button>
             </div>
-
         </form>
     </div>
 </div>
@@ -603,110 +206,98 @@
 
 @push('scripts')
 <script>
-    // ── Filter bar: category → fish type ─────────────────────────
-    const pgFilterForm    = document.getElementById('pgFilterForm');
-    const pgFishTypeSelect = document.getElementById('pg-fish-type');
+    // ── Add / edit a fish ─────────────────────────────────────────
+    const FISH_STORE_URL = @json(route('supervisor.price-guides.fish.store'));
 
-    function onPgCategoryChange() {
-        // Drop any stale fish type before submitting on category change
-        pgFishTypeSelect.value = '';
-        pgFilterForm.submit();
-    }
-    function onPgFishTypeChange() {
-        pgFilterForm.submit();
-    }
-
-    // ── Modal helpers ────────────────────────────────────────────
-    function openModal(id) {
-        document.getElementById(id).classList.remove('hidden');
-        document.body.style.overflow = 'hidden';
-    }
-    function closeModal(id) {
-        document.getElementById(id).classList.add('hidden');
-        document.body.style.overflow = '';
-    }
-    function handleOverlayClick(e, id) {
-        if (e.target === document.getElementById(id)) closeModal(id);
-    }
-
-    // ── Fetch modal helpers ───────────────────────────────────────
-    const addQCSelect    = document.getElementById('add-quality-class-select');
-    const addFishSelect  = document.getElementById('add-fish-type-select');
-    const addAllFishOpts = Array.from(addFishSelect.options).filter(o => o.value !== '');
-
-    function filterAddFishTypes() {
-        const selectedClass = addQCSelect.value;
-        const previousValue = addFishSelect.value;
-
-        addFishSelect.innerHTML = '<option value="">— Select fish type —</option>';
-
-        addAllFishOpts.forEach(opt => {
-            if (!selectedClass || opt.dataset.qualityClass === selectedClass) {
-                addFishSelect.add(opt.cloneNode(true));
-            }
-        });
-
-        const hasPrevious = Array.from(addFishSelect.options).some(o => o.value === previousValue);
-        addFishSelect.value = hasPrevious ? previousValue : '';
+    function openFishModal(mode, fish, keepValues) {
+        const isEdit = mode === 'edit';
+        const form = document.getElementById('fishForm');
+        form.action = isEdit ? fish.url : FISH_STORE_URL;
+        document.getElementById('fishFormMethod').value = isEdit ? 'PUT' : 'POST';
+        document.getElementById('fishModalTitle').textContent = isEdit ? 'Edit ' + fish.name : 'Add fish';
+        document.getElementById('fishModalSub').textContent = isEdit
+            ? 'Rename it, fix its English name, or move it to another class.'
+            : 'Add a fish that is missing from the tariff list.';
+        document.getElementById('fishSubmit').lastChild.textContent = isEdit ? ' Save changes' : ' Add fish';
+        document.getElementById('fishTariffField').classList.toggle('hidden', isEdit);
+        document.getElementById('fishClassNote').classList.toggle('hidden', !isEdit);
+        if (!keepValues) {
+            document.getElementById('fishName').value = fish.name || '';
+            document.getElementById('fishEnglish').value = fish.english_name || '';
+            document.getElementById('fishClass').value = fish.quality_class || '';
+            document.getElementById('fishTariff').value = '';
+        }
+        document.getElementById('fishModal').classList.remove('hidden');
+        setTimeout(() => document.getElementById('fishName').focus(), 30);
     }
 
-    // Auto-set the quality class to the fish's own class when a fish is chosen
-    addFishSelect.addEventListener('change', function () {
-        const opt = addAllFishOpts.find(o => o.value === addFishSelect.value);
-        if (opt) addQCSelect.value = opt.dataset.qualityClass;
+    function closeFishModal() {
+        document.getElementById('fishModal').classList.add('hidden');
+    }
+
+    // ── Remove a fish ─────────────────────────────────────────────
+    function openRemoveFish(fish) {
+        document.getElementById('removeFishForm').action = fish.url;
+        document.getElementById('removeFishTitle').textContent = 'Remove ' + fish.name + '?';
+        document.getElementById('removeFishText').textContent = fish.has_history
+            ? fish.name + ' has batches on record, so it will be hidden from the list, vendors and the board, but its sales history stays for reports and forecasts. You can restore it from Removed Fish.'
+            : fish.name + ' has never been sold, so it will be deleted together with its tariff.';
+        document.getElementById('removeFishModal').classList.remove('hidden');
+    }
+
+    function closeRemoveFish() {
+        document.getElementById('removeFishModal').classList.add('hidden');
+    }
+
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { closeFishModal(); closeRemoveFish(); }
     });
 
-    // ── Open Add Modal (optionally pre-select a fish type) ───────
-    function openAddModal(fishTypeId) {
-        if (fishTypeId) {
-            const opt = addAllFishOpts.find(o => o.value == fishTypeId);
-            if (opt) addQCSelect.value = opt.dataset.qualityClass;
-        }
-        filterAddFishTypes();
-        if (fishTypeId) addFishSelect.value = fishTypeId;
-        openModal('addModal');
-    }
-
-    addQCSelect.addEventListener('change', filterAddFishTypes);
-    filterAddFishTypes(); // run once so old() input is preserved after validation errors
-
-    // ── Open Edit Modal and populate fields ──────────────────────
-    function openEditModal(id, cheapMax, moderateMax, effectiveDate, actionUrl, qualityClass, fishName) {
-        document.getElementById('edit-cheap-max').value    = cheapMax;
-        document.getElementById('edit-moderate-max').value = moderateMax;
-        document.getElementById('edit-effective-date').value = effectiveDate;
-        document.getElementById('edit-form').action        = actionUrl;
-        document.getElementById('edit-modal-subtitle').textContent =
-            fishName + ' — ' + qualityClass;
-        openModal('editModal');
-    }
-
-    // ── Open Delete Modal ────────────────────
-    function openDeleteModal(actionUrl, qualityClass, fishName) {
-        document.getElementById('delete-form').action = actionUrl;
-        document.getElementById('delete-modal-class').textContent = qualityClass;
-        document.getElementById('delete-modal-fish').textContent = fishName;
-        openModal('deleteModal');
-    }
-
-    // ── Reopen the modal the supervisor actually submitted from ──
-    @if(session('open_edit_modal'))
-        @php $editModalCtx = session('open_edit_modal'); @endphp
-        document.addEventListener('DOMContentLoaded', function () {
-            openEditModal(
-                {{ (int) $editModalCtx['id'] }},
-                '{{ old('cheap_max') }}',
-                '{{ old('moderate_max') }}',
-                '{{ old('effective_date') }}',
-                '{{ $editModalCtx['action'] }}',
-                '{{ addslashes($editModalCtx['quality_class']) }}',
-                '{{ addslashes($editModalCtx['fish']) }}'
-            );
-        });
-    @elseif($errors->isNotEmpty())
-        document.addEventListener('DOMContentLoaded', function () {
-            openAddModal({{ session('open_add_modal', 'null') }});
-        });
+    // Reopen the dialog the server refused, with what was typed.
+    @if($fishModal)
+        @php
+            $failedFish = ($fishModal['mode'] ?? '') === 'edit' ? App\Models\FishType::find($fishModal['id'] ?? 0) : null;
+        @endphp
+        document.addEventListener('DOMContentLoaded', () => openFishModal(
+            @js($failedFish ? 'edit' : 'add'),
+            @js($failedFish ? ['name' => $failedFish->name, 'url' => route('supervisor.price-guides.fish.update', $failedFish)] : []),
+            true
+        ));
     @endif
+
+    // ── Highlight what changed and count it on the save bar ────────
+    (function () {
+        const form = document.getElementById('tariffForm');
+        if (!form) return;
+        const inputs = Array.from(document.querySelectorAll('.tariff-input[form="tariffForm"]'));
+        const save = document.getElementById('tariffSave');
+        const count = document.getElementById('tariffChangeCount');
+
+        function normalise(input) {
+            const v = input.value.trim();
+            return input.type === 'number' && v !== '' ? Number(v).toFixed(2) : v;
+        }
+
+        function refresh() {
+            let changed = 0;
+            inputs.forEach(input => {
+                const isChanged = normalise(input) !== (input.dataset.original || '');
+                input.classList.toggle('is-changed', isChanged);
+                if (isChanged) changed++;
+            });
+            save.disabled = changed === 0;
+            count.textContent = changed === 0 ? 'No changes yet' : changed + (changed === 1 ? ' change' : ' changes') + ' to save';
+        }
+
+        inputs.forEach(input => input.addEventListener('input', refresh));
+        refresh();
+
+        // Leaving with unsaved tariffs asks first.
+        let submitting = false;
+        form.addEventListener('submit', () => { submitting = true; });
+        window.addEventListener('beforeunload', e => {
+            if (!submitting && !save.disabled) { e.preventDefault(); e.returnValue = ''; }
+        });
+    })();
 </script>
 @endpush

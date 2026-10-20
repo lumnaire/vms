@@ -130,7 +130,7 @@
                 <th class="text-left text-slate-400 font-semibold px-5 py-3 text-[11px] uppercase tracking-[0.07em]" style="width:50px">#</th>
                 <th class="text-left text-slate-400 font-semibold px-4 py-3 text-[11px] uppercase tracking-[0.07em]">Fish Type Name</th>
                 <th class="text-left text-slate-400 font-semibold px-4 py-3 text-[11px] uppercase tracking-[0.07em]">Quality Class</th>
-                <th class="text-right text-slate-400 font-semibold px-4 py-3 text-[11px] uppercase tracking-[0.07em]" style="width:90px">Guides</th>
+                <th class="text-right text-slate-400 font-semibold px-4 py-3 text-[11px] uppercase tracking-[0.07em]" style="width:120px">Tariff</th>
                 <th class="text-right text-slate-400 font-semibold px-5 py-3 text-[11px] uppercase tracking-[0.07em]" style="width:110px">Actions</th>
             </tr>
         </thead>
@@ -142,6 +142,12 @@
                     <span class="font-semibold text-[13.5px] text-slate-700">
                         {{ $ft->name }}
                     </span>
+                    @unless($ft->is_active)
+                        <x-badge variant="neutral" class="ml-1" title="Removed from the tariff list; restore it from Price Guides">Removed</x-badge>
+                    @endunless
+                    @if($ft->english_name)
+                        <span class="block text-slate-400 text-[11.5px]">{{ $ft->english_name }}</span>
+                    @endif
                 </td>
                 <td class="px-4 py-3">
                     @if($ft->quality_class)
@@ -151,7 +157,11 @@
                     @endif
                 </td>
                 <td class="px-4 py-3 text-right">
-                    <span class="text-slate-600 text-[12.5px] font-semibold">{{ $ft->price_guides_count }}</span>
+                    @if($ft->currentTariff)
+                        <span class="text-slate-700 text-[12.5px] font-semibold vpm-num">₱{{ number_format((float) $ft->currentTariff->tariff_price, 2) }}</span>
+                    @else
+                        <span class="text-slate-300 text-[11.5px]">Not set</span>
+                    @endif
                 </td>
                 <td class="px-5 py-3 text-right">
                     {{-- Edit is the only action. A fish type has no on/off switch
@@ -200,6 +210,11 @@
                                    value="{{ $reopenedEdit ? old('name', $ft->name) : $ft->name }}"
                                    required maxlength="100">
 
+                            <label class="ft-form-label" style="margin-top:14px;">English Name <span class="font-normal text-slate-400">(optional)</span></label>
+                            <input type="text" name="english_name" class="ft-form-input"
+                                   value="{{ $reopenedEdit ? old('english_name', $ft->english_name) : $ft->english_name }}"
+                                   placeholder="e.g. Milkfish" maxlength="100">
+
                             <label class="ft-form-label" style="margin-top:14px;">Quality Class <span class="text-danger-500">*</span></label>
                             <select name="quality_class"
                                     class="ft-form-input {{ ($reopenedEdit && $errors->has('quality_class')) ? 'danger' : '' }}"
@@ -212,7 +227,7 @@
                                 @endforeach
                             </select>
                             <p class="mt-1.5 text-[11px] text-slate-400">
-                                Changing the class moves this fish type's price brackets and
+                                Changing the class moves this fish type's tariff and
                                 inventory to the new class so they stay in step.
                             </p>
                         </div>
@@ -286,6 +301,10 @@
                 <p class="text-slate-400 mt-2 text-[11.5px]">
                     <i class="bi bi-info-circle"></i> Name will be auto-formatted to Title Case.
                 </p>
+
+                <label class="ft-form-label" style="margin-top:14px;">English Name <span class="font-normal text-slate-400">(optional)</span></label>
+                <input type="text" name="english_name" class="ft-form-input" value="{{ old('english_name') }}"
+                       placeholder="e.g. Milkfish" maxlength="100">
 
                 <label class="ft-form-label" style="margin-top:14px;">Quality Class <span class="text-danger-500">*</span></label>
                 <select name="quality_class" class="ft-form-input @error('quality_class') border-rose-300 @enderror" required>

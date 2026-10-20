@@ -279,22 +279,69 @@ class ArimaService
 
     // ─────────────────────────────────────────────────────────────
     /**
-     * Replace the stored rows for a series so the table holds exactly the live
-     * horizon. The whole series is cleared rather than only the rows outside
-     * the window, which keeps this idempotent: re-running the generator cannot
-     * duplicate rows inside the horizon, and projections left over from an
-     * earlier run or a previous horizon length are always discarded.
+     * Store a run without losing the earlier ones. Each day's run is kept so a
+     * past prediction can be compared with what actually came in, and so the
+     * history is there when the model is retrained. Re-running on the same day
+     * replaces only that day's run, which keeps the generator idempotent.
      */
     private function replaceForecastRows(int $fishTypeId, string $quality, string $metric, array $rows): void
     {
-        Forecast::where('fish_type_id', $fishTypeId)
-            ->where('quality_class', $quality)
-            ->where('metric', $metric)
+        $this->series($fishTypeId, $quality, $metric)
+            ->whereDate('generated_at', today())
             ->delete();
 
         foreach ($rows as $row) {
             Forecast::create($row);
         }
+    }
+
+    /** Stored forecast rows of one series, every run. */
+    private function series(int $fishTypeId, string $quality, string $metric)
+    {
+        return Forecast::where('fish_type_id', $fishTypeId)
+            ->where('quality_class', $quality)
+            ->where('metric', $metric);
+    }
+
+    /**
+     * The rows of a series' most recent run, earliest day first.
+     *
+     * @return Collection<int, Forecast>
+     */
+    public function latestRun(int $fishTypeId, string $quality, string $metric): Collection
+    {
+        $latest = $this->series($fishTypeId, $quality, $metric)->max('generated_at');
+
+        if ($latest === null) {
+            return collect();
+        }
+
+        return $this->series($fishTypeId, $quality, $metric)
+            ->where('generated_at', $latest)
+            ->orderBy('forecast_date')
+            ->get();
+    }
+
+    /**
+     * What the model predicted for each past day of the chart window, from the
+     * latest run made before that day. Lets the page put the forecast beside the
+     * actual figure once the day has passed.
+     *
+     * @return Collection<string, float> date => predicted value
+     */
+    public function pastPredictions(int $fishTypeId, string $quality, string $metric): Collection
+    {
+        $start = today()->subDays((int) config('forecast.history_chart_days'));
+
+        return $this->series($fishTypeId, $quality, $metric)
+            ->whereDate('forecast_date', '>=', $start->toDateString())
+            ->whereDate('forecast_date', '<', today()->toDateString())
+            ->orderBy('generated_at')
+            ->get()
+            ->filter(fn (Forecast $f) => $f->generated_at->lt($f->forecast_date->copy()->startOfDay()))
+            ->groupBy(fn (Forecast $f) => $f->forecast_date->toDateString())
+            ->map(fn ($runs) => round((float) $runs->last()->predicted_value, 2))
+            ->sortKeys();
     }
 
     /**

@@ -26,11 +26,9 @@ class ConfirmationController extends Controller
         $confirmedCount = VendorInventory::where('status', 'confirmed')->whereDate('entry_date', today())->count();
         $rejectedCount = VendorInventory::where('status', 'rejected')->whereDate('entry_date', today())->count();
 
-        // Active price guides keyed by fish_type_id + '_' + quality_class
-        $priceGuides = PriceGuide::with('fishType')
-            ->where('is_active', true)
-            ->get()
-            ->keyBy(fn ($g) => $g->fish_type_id.'_'.$g->quality_class);
+        // Current tariffs keyed by fish_type_id + '_' + quality_class, for batches
+        // submitted before the fish had one
+        $tariffs = PriceGuide::tariffMap();
 
         // Confirmed entries today for price comparison (grouped by fish_type + quality)
         $confirmedToday = VendorInventory::with(['vendor.vendorProfile'])
@@ -54,7 +52,7 @@ class ConfirmationController extends Controller
             'pendingCount',
             'confirmedCount',
             'rejectedCount',
-            'priceGuides',
+            'tariffs',
             'confirmedToday',
             'vendorLinesToday',
         ));
@@ -72,11 +70,14 @@ class ConfirmationController extends Controller
         ]);
 
         $label = "{$inventory->fishType->name} ({$inventory->quality_class} Class, {$inventory->batchLabel()})";
+        $markup = $inventory->isAboveTariff()
+            ? ' (₱'.number_format($inventory->markupPerKg(), 2).' above the ₱'.number_format((float) $inventory->tariff_price, 2).' tariff)'
+            : '';
 
         ActivityLog::create([
             'user_id' => Auth::id(),
             'action' => 'confirm_price',
-            'description' => "Confirmed: {$label} — ₱".number_format($inventory->price_per_kg, 2).'/kg for vendor '.$inventory->vendor->name.'.',
+            'description' => "Confirmed: {$label} — ₱".number_format($inventory->price_per_kg, 2).'/kg'.$markup.' for vendor '.$inventory->vendor->name.'.',
         ]);
 
         return redirect()->route('staff.confirmations.index')

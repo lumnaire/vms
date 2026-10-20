@@ -33,6 +33,8 @@ class VendorInventory extends Model
         'quality_class',
         'batch_no',
         'price_per_kg',
+        'tariff_price',
+        'price_note',
         'stock_kg',
         'released_kg',
         'sold_kg',
@@ -49,6 +51,7 @@ class VendorInventory extends Model
     protected $casts = [
         'batch_no' => 'integer',
         'price_per_kg' => 'decimal:2',
+        'tariff_price' => 'decimal:2',
         'stock_kg' => 'decimal:2',
         'released_kg' => 'decimal:2',
         'sold_kg' => 'decimal:2',
@@ -129,6 +132,36 @@ class VendorInventory extends Model
     public function repeatKey(): string
     {
         return $this->vendor_id.'_'.$this->fish_type_id.'_'.$this->quality_class;
+    }
+
+    // ─── Tariff and markup ("tubo") ──────────────────────────────
+    //
+    // tariff_price is the official tariff in force when the batch was submitted.
+    // What the vendor charges above it is their markup, their "tubo". Pricing
+    // above the tariff is allowed; it is recorded so staff, the supervisor and
+    // consumers can compare, and the vendor may say why in price_note.
+
+    /** Price minus tariff, per kilo. Null when the fish had no tariff. */
+    public function markupPerKg(): ?float
+    {
+        return $this->tariff_price === null ? null : round((float) $this->price_per_kg - (float) $this->tariff_price, 2);
+    }
+
+    /** {tariff, diff, pct, state} for the comparison badges, or null. */
+    public function tariffComparison(): ?array
+    {
+        return PriceGuide::compare((float) $this->price_per_kg, $this->tariff_price === null ? null : (float) $this->tariff_price);
+    }
+
+    public function isAboveTariff(): bool
+    {
+        return ($this->markupPerKg() ?? 0) > 0.004;
+    }
+
+    /** Markup earned on what has been sold so far. */
+    public function tuboEarned(): float
+    {
+        return round(($this->markupPerKg() ?? 0) * (float) $this->sold_kg, 2);
     }
 
     // ─── Status ──────────────────────────────────────────────────

@@ -69,23 +69,109 @@
         </div>
     </div>
 
-    {{-- Total Vendors --}}
+    {{-- Above the tariff today --}}
     <div class="stat-card bg-white rounded-xl p-5 border border-slate-100 shadow-card">
         <div class="flex items-start justify-between">
             <div>
-                <p class="text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]">Total Vendors</p>
+                <p class="text-slate-400 font-semibold text-[10.5px] uppercase tracking-[0.07em]">Above Tariff Today</p>
                 <p class="text-slate-800 font-bold mt-1 text-[28px] leading-[1]">
-                    {{ $totalVendors ?? 0 }}
+                    {{ $aboveTariffToday }}
                 </p>
-                <p class="text-slate-400 mt-1 text-[11px]">Managed by you</p>
+                <p class="text-slate-400 mt-1 text-[11px]">Batches priced over the tariff</p>
             </div>
-            <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-brand-50"
-                >
-                <x-icon name="bi-people-fill" size="lg" class="text-blue-600" />
+            <div class="vpm-stat-icon vpm-stat-icon-warning flex-shrink-0">
+                <x-icon name="bi-graph-up-arrow" size="lg" />
             </div>
         </div>
+        <a href="{{ route('staff.price-guides.index') }}" class="inline-flex items-center gap-1 mt-3 text-brand-600 hover:underline text-[11.5px] font-semibold">
+            Compare with the tariff <i class="bi bi-arrow-right"></i>
+        </a>
     </div>
 
+</div>
+
+{{-- ── This week + who has not submitted ─────────────────────── --}}
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
+    <x-card class="xl:col-span-2" title="Entries This Week" subtitle="Batches submitted per day, by review status">
+        <div class="relative h-[260px]"><canvas id="weekChart" aria-label="Entries this week by status"></canvas></div>
+    </x-card>
+
+    <x-card :padded="false" title="Not Submitted Today"
+            subtitle="{{ $notSubmitted->count() }} of {{ $totalVendors }} active {{ Str::plural('vendor', $totalVendors) }}">
+        @if($notSubmitted->isEmpty())
+            <x-empty-state icon="bi-check2-all" title="Every vendor has submitted" text="All active vendors logged a batch today." />
+        @else
+            <ul class="divide-y divide-slate-100 overflow-y-auto" style="max-height: 290px;">
+                @foreach($notSubmitted as $vendor)
+                    <li class="px-5 py-2.5 flex items-center justify-between gap-3">
+                        <span class="text-slate-700 text-[12.5px] font-medium truncate">{{ $vendor->name }}</span>
+                        <span class="vpm-badge vpm-badge-neutral flex-shrink-0">{{ $vendor->vendorProfile?->stall_number ?? '—' }}</span>
+                    </li>
+                @endforeach
+            </ul>
+        @endif
+    </x-card>
+</div>
+
+{{-- ── Supply trend + markup leaderboard ────────────────────── --}}
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
+    <x-card>
+        <x-slot:header>
+            <div class="min-w-0">
+                <h2 class="vpm-section-title">Supply (kg)</h2>
+                <p class="vpm-section-sub">
+                    <span id="staffPeriodCaption">&nbsp;</span> ·
+                    this month {{ number_format($supplyMonth['current'], 1) }} kg
+                    @if($supplyMonth['change'] !== null)
+                        ({{ $supplyMonth['change'] >= 0 ? '▲' : '▼' }} {{ number_format(abs($supplyMonth['change']), 1) }}% vs same days last month)
+                    @endif
+                </p>
+            </div>
+            <div class="vpm-segment" id="staffPeriods" role="group" aria-label="Period">
+                @foreach(App\Services\MarketAnalytics::PERIODS as $key => [$label])
+                    <button type="button" data-period="{{ $key }}" aria-pressed="false">{{ $label }}</button>
+                @endforeach
+            </div>
+        </x-slot:header>
+        <div class="relative h-[260px]"><canvas id="staffSupplyChart" aria-label="Confirmed supply in kilograms"></canvas></div>
+    </x-card>
+
+    <x-card :padded="false" title="Highest Markups · This Month"
+            subtitle="Vendors ranked by average markup (tubo) over the tariff, per kilo">
+        @if($markupBoard->isEmpty())
+            <x-empty-state icon="bi-tags" title="No markups recorded yet"
+                           text="This fills in once the supervisor sets tariffs and vendors price against them." />
+        @else
+            <div class="overflow-x-auto">
+                <table class="vpm-table">
+                    <thead>
+                        <tr>
+                            <th>Vendor</th>
+                            <th class="vpm-th-right">Avg markup</th>
+                            <th class="vpm-th-right">Largest</th>
+                            <th class="vpm-th-right">Above tariff</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($markupBoard as $i => $v)
+                            <tr class="{{ $i === 0 && $v['avg_markup'] > 0 ? 'is-highlighted' : '' }}">
+                                <td>
+                                    <p class="vpm-cell-strong">{{ $v['name'] }}</p>
+                                    <p class="vpm-cell-muted">Stall {{ $v['stall'] ?? '—' }}</p>
+                                </td>
+                                <td class="vpm-td-right vpm-num">
+                                    {{ $v['avg_markup'] >= 0 ? '+' : '−' }}₱{{ number_format(abs($v['avg_markup']), 2) }}/kg
+                                    <span class="vpm-cell-muted block">{{ $v['avg_pct'] >= 0 ? '+' : '−' }}{{ number_format(abs($v['avg_pct']), 1) }}%</span>
+                                </td>
+                                <td class="vpm-td-right vpm-num">{{ $v['max_markup'] >= 0 ? '+' : '−' }}₱{{ number_format(abs($v['max_markup']), 2) }}</td>
+                                <td class="vpm-td-right vpm-num">{{ $v['above'] }} of {{ $v['batches'] }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
+    </x-card>
 </div>
 
 {{-- ── Pending Entries + Repeat Submissions ───────────────────── --}}
@@ -229,3 +315,35 @@
 </div>
 
 @endsection
+
+@push('scripts')
+@include('partials.chart-kit')
+<script>
+(function () {
+    const WEEK = @json($week);
+    const SUPPLY = @json($supplyCharts);
+    const { C, kg } = VPM;
+
+    new Chart(document.getElementById('weekChart'), {
+        type: 'bar',
+        data: { labels: WEEK.labels, datasets: [
+            VPM.bar('Confirmed', WEEK.confirmed, C.green),
+            VPM.bar('Rejected', WEEK.rejected, C.red),
+            VPM.bar('Pending', WEEK.pending, C.amber),
+        ] },
+        options: VPM.axes({ stacked: true, fmt: v => v + (v === 1 ? ' batch' : ' batches') }),
+    });
+
+    const supply = new Chart(document.getElementById('staffSupplyChart'), {
+        type: 'line',
+        data: { labels: [], datasets: [VPM.line('Supply', [], C.blue, { fill: true })] },
+        options: VPM.axes({ fmt: kg, legend: false }),
+    });
+
+    VPM.periods('staffPeriods', p => {
+        document.getElementById('staffPeriodCaption').textContent = SUPPLY[p].caption;
+        VPM.update(supply, SUPPLY[p].labels, [SUPPLY[p].series.supply]);
+    }, 'daily');
+})();
+</script>
+@endpush

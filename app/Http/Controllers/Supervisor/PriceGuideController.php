@@ -3,149 +3,346 @@
 namespace App\Http\Controllers\Supervisor;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\FishType;
 use App\Models\PriceGuide;
+use App\Services\MarketAnalytics;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
+/**
+ * The official tariff (taripa): one standard price per kilo for each fish, typed
+ * in by the supervisor from the municipal tariff list.
+ *
+ * The page is one table, laid out like the paper list (local name, price per
+ * kilo, English name), so the whole list can be entered and saved at once. A
+ * tariff is never overwritten: each change adds a version and the old one stays
+ * as history. Vendors may still price above it; the difference is their markup.
+ *
+ * The fish list itself is managed here too, so a fish missing from a class can
+ * be added on the spot (with its tariff), renamed or moved to another class,
+ * and removed. Removing a fish that has batches only hides it, because those
+ * batches feed reports and forecasts; it can be restored.
+ */
 class PriceGuideController extends Controller
 {
-    // ─── List all fish types with their price brackets ───────────
-    public function index(Request $request)
+    public function index(Request $request, MarketAnalytics $analytics)
     {
+        return view('supervisor.price-guides', $this->tablePayload($request, $analytics));
+    }
+
+    /**
+     * Shared with the staff tariff page: fish types (filtered), their tariff and
+     * history, and how the board compares right now.
+     */
+    public static function tablePayload(Request $request, MarketAnalytics $analytics): array
+    {
+        $qualityClasses = FishType::QUALITY_CLASSES;
+
         $allFishTypes = FishType::where('is_active', true)
-            ->with(['priceGuides' => fn ($q) => $q->where('is_active', true)->orderBy('quality_class')])
+            ->with(['currentTariff', 'tariffHistory.setBy'])
+            ->withCount('vendorInventories')
             ->orderBy('name')
             ->get();
 
-        $qualityClasses = FishType::QUALITY_CLASSES;
-
-        // ── Filters: category (quality class) → fish type ────────
         $selectedCategory = $request->input('quality_class');
         if ($selectedCategory && ! in_array($selectedCategory, $qualityClasses, true)) {
             $selectedCategory = null;
         }
 
-        $requestedFishType = $request->input('fish_type_id');
-        $matchedFishType = $requestedFishType
-            ? $allFishTypes->firstWhere('id', (int) $requestedFishType)
+        $matchedFishType = $request->filled('fish_type_id')
+            ? $allFishTypes->firstWhere('id', (int) $request->input('fish_type_id'))
             : null;
         $selectedFishType = $matchedFishType
             && (! $selectedCategory || $matchedFishType->quality_class === $selectedCategory)
                 ? $matchedFishType->id
                 : null;
 
-        // Fish type dropdown options: narrowed to the selected category
         $categoryFishTypes = $selectedCategory
             ? $allFishTypes->where('quality_class', $selectedCategory)->values()
             : $allFishTypes;
 
-        // Cards: narrowed to the selected category + fish type
         $fishTypes = $selectedFishType
             ? $categoryFishTypes->where('id', (int) $selectedFishType)->values()
             : $categoryFishTypes;
 
-        $totalGuides = $fishTypes->sum(fn ($f) => $f->priceGuides->count());
-        $totalConfigured = $fishTypes->filter(fn ($f) => $f->priceGuides->isNotEmpty())->count();
-        $totalMissing = $fishTypes->filter(fn ($f) => $f->priceGuides->isEmpty())->count();
+        // Grouped by class in tariff-list order (Special → Fourth is how the
+        // municipal list reads: most expensive first).
+        $groups = collect(['Special Class', 'First Class', 'Second Class', 'Third Class', 'Fourth Class'])
+            ->mapWithKeys(fn ($c) => [$c => $fishTypes->where('quality_class', $c)->values()])
+            ->filter(fn ($g) => $g->isNotEmpty());
 
-        return view('supervisor.price-guides', compact(
-            'allFishTypes', 'fishTypes', 'totalGuides', 'totalConfigured', 'totalMissing',
+        $board = $analytics->boardByFish();
+
+        $stats = [
+            'set' => $allFishTypes->filter(fn ($f) => $f->currentTariff)->count(),
+            'missing' => $allFishTypes->filter(fn ($f) => ! $f->currentTariff)->count(),
+            'changed_month' => PriceGuide::tariffHistory()->where('created_at', '>=', today()->startOfMonth())->count(),
+            'above_now' => $board->sum(fn ($b) => $b['stalls']->filter(fn ($s) => ($s['comparison']['state'] ?? null) === 'above')->count()),
+        ];
+
+        // Fish taken off the list that still have history, for restoring.
+        $removedFishTypes = FishType::where('is_active', false)
+            ->withCount('vendorInventories')
+            ->orderBy('name')
+            ->get();
+
+        return compact(
+            'allFishTypes', 'fishTypes', 'groups', 'board', 'stats', 'removedFishTypes',
             'qualityClasses', 'selectedCategory', 'selectedFishType', 'categoryFishTypes'
-        ));
+        );
     }
 
-    // ─── Store a new price bracket ────────────────────────────────
+    // ─── Save the table: every changed tariff and English name ────
     public function store(Request $request)
     {
-        $request->validate([
-            'fish_type_id' => ['required', 'exists:fish_types,id'],
-            'quality_class' => [
-                'required',
-                'in:'.implode(',', FishType::QUALITY_CLASSES),
-                function ($attribute, $value, $fail) use ($request) {
-                    $fish = FishType::find($request->fish_type_id);
-                    if ($fish && $fish->quality_class !== $value) {
-                        $fail('The selected quality class does not match this fish type.');
-                    }
-                },
-            ],
-            'cheap_max' => ['required', 'numeric', 'min:0.01'],
-            'moderate_max' => ['required', 'numeric', 'gt:cheap_max'],
-            'effective_date' => ['required', 'date'],
+        $validator = Validator::make($request->all(), [
+            'tariffs' => ['nullable', 'array'],
+            'tariffs.*' => ['nullable', 'numeric', 'min:0.01', 'max:99999.99'],
+            'english' => ['nullable', 'array'],
+            'english.*' => ['nullable', 'string', 'max:100'],
+            'effective_date' => ['required', 'date', 'before_or_equal:today'],
         ], [
-            'moderate_max.gt' => 'Moderate max must be greater than the cheap max.',
+            'tariffs.*.numeric' => 'Enter the tariff as a number.',
+            'tariffs.*.min' => 'A tariff must be at least ₱0.01.',
+            'tariffs.*.max' => 'A tariff cannot exceed ₱99,999.99.',
+            'effective_date.before_or_equal' => 'The effective date cannot be in the future.',
         ]);
 
-        // Block duplicates: same fish + same quality class
-        $alreadyExists = PriceGuide::where('fish_type_id', $request->fish_type_id)
-            ->where('quality_class', $request->quality_class)
-            ->where('is_active', true)
-            ->exists();
-
-        if ($alreadyExists) {
-            return back()
-                ->withInput()
-                ->withErrors(['quality_class' => 'A bracket for this fish type and quality class already exists. Edit it instead.'])
-                ->with('open_add_modal', $request->fish_type_id);
+        if ($validator->fails()) {
+            return back()->withInput()->withErrors($validator);
         }
 
-        PriceGuide::create([
-            'fish_type_id' => $request->fish_type_id,
+        $fishTypes = FishType::with('currentTariff')
+            ->whereIn('id', array_keys(($request->input('tariffs') ?? []) + ($request->input('english') ?? [])))
+            ->get()
+            ->keyBy('id');
+
+        $changedTariffs = [];
+        $renamed = 0;
+
+        DB::transaction(function () use ($request, $fishTypes, &$changedTariffs, &$renamed) {
+            foreach ($request->input('tariffs', []) as $fishId => $value) {
+                $fish = $fishTypes->get((int) $fishId);
+                if (! $fish || $value === null || $value === '') {
+                    continue;
+                }
+
+                $old = $fish->currentTariff?->tariff_price;
+                if (PriceGuide::setTariff($fish, (float) $value, $request->effective_date, Auth::id())) {
+                    $changedTariffs[] = $fish->name.' '.($old !== null ? '₱'.number_format((float) $old, 2).' → ' : '')
+                        .'₱'.number_format((float) $value, 2);
+                }
+            }
+
+            foreach ($request->input('english', []) as $fishId => $value) {
+                $fish = $fishTypes->get((int) $fishId);
+                $value = trim((string) $value) ?: null;
+                if ($fish && $fish->english_name !== $value) {
+                    $fish->update(['english_name' => $value]);
+                    $renamed++;
+                }
+            }
+        });
+
+        if ($changedTariffs) {
+            ActivityLog::create([
+                'user_id' => Auth::id(),
+                'action' => 'update_tariff',
+                'description' => 'Updated the tariff: '.implode('; ', array_slice($changedTariffs, 0, 15))
+                    .(count($changedTariffs) > 15 ? ' and '.(count($changedTariffs) - 15).' more' : '').'.',
+            ]);
+        }
+
+        $parts = array_filter([
+            $changedTariffs ? count($changedTariffs).' '.str('tariff')->plural(count($changedTariffs)).' updated' : null,
+            $renamed ? $renamed.' English '.str('name')->plural($renamed).' saved' : null,
+        ]);
+
+        return redirect()->route('supervisor.price-guides.index', $request->only('quality_class', 'fish_type_id'))
+            ->with('success', $parts ? implode(' · ', $parts).'.' : 'No changes to save.');
+    }
+
+    // ─── Change one tariff (adds a new version) ───────────────────
+    public function update(Request $request, PriceGuide $priceGuide)
+    {
+        $request->validate([
+            'tariff_price' => ['required', 'numeric', 'min:0.01', 'max:99999.99'],
+            'effective_date' => ['required', 'date', 'before_or_equal:today'],
+        ]);
+
+        $fish = $priceGuide->fishType;
+        PriceGuide::setTariff($fish, (float) $request->tariff_price, $request->effective_date, Auth::id());
+
+        ActivityLog::create([
+            'user_id' => Auth::id(),
+            'action' => 'update_tariff',
+            'description' => "Updated the tariff: {$fish->name} ₱".number_format((float) $request->tariff_price, 2).'.',
+        ]);
+
+        return redirect()->route('supervisor.price-guides.index')
+            ->with('success', "Tariff for {$fish->name} updated.");
+    }
+
+    // ─── Remove a tariff: switched off, kept as history ───────────
+    public function destroy(PriceGuide $priceGuide)
+    {
+        $fish = $priceGuide->fishType;
+
+        PriceGuide::where('fish_type_id', $priceGuide->fish_type_id)->where('is_active', true)->update(['is_active' => false]);
+
+        ActivityLog::create([
+            'user_id' => Auth::id(),
+            'action' => 'remove_tariff',
+            'description' => "Removed the tariff for {$fish?->name}. Its history is kept.",
+        ]);
+
+        return redirect()->route('supervisor.price-guides.index')
+            ->with('success', "Tariff for {$fish?->name} removed. Its history is kept.");
+    }
+
+    // ─── The fish list: add, edit, remove, restore ────────────────
+
+    /** Name / English name / class rules shared by add and edit. */
+    private function fishRules(?FishType $fish = null): array
+    {
+        return [
+            'name' => ['required', 'string', 'max:100', Rule::unique('fish_types', 'name')->ignore($fish?->id)],
+            'english_name' => ['nullable', 'string', 'max:100'],
+            'quality_class' => ['required', Rule::in(FishType::QUALITY_CLASSES)],
+        ];
+    }
+
+    private function fishMessages(): array
+    {
+        return [
+            'name.required' => 'Enter the fish name.',
+            'name.unique' => 'A fish type with that name already exists.',
+            'quality_class.required' => 'Choose a class.',
+            'quality_class.in' => 'Choose a class from the list.',
+            'tariff_price.min' => 'A tariff must be at least ₱0.01.',
+        ];
+    }
+
+    /** Back to the table with the fish modal reopened on the errors. */
+    private function fishFailed($validator, array $modal)
+    {
+        return back()->withInput()->withErrors($validator, 'fish')->with('fish_modal', $modal);
+    }
+
+    public function storeFish(Request $request)
+    {
+        $request->merge(['name' => FishType::normaliseName($request->name)]);
+
+        $validator = Validator::make($request->all(), $this->fishRules() + [
+            'tariff_price' => ['nullable', 'numeric', 'min:0.01', 'max:99999.99'],
+        ], $this->fishMessages());
+
+        // A removed fish keeps its name; point the supervisor at Restore instead.
+        $validator->after(function ($v) use ($request) {
+            if (FishType::where('name', $request->name)->where('is_active', false)->exists()) {
+                $v->errors()->forget('name');
+                $v->errors()->add('name', "\"{$request->name}\" was removed earlier. Restore it from Removed Fish at the bottom of the page.");
+            }
+        });
+
+        if ($validator->fails()) {
+            return $this->fishFailed($validator, ['mode' => 'add']);
+        }
+
+        $fish = FishType::create([
+            'name' => $request->name,
+            'english_name' => trim((string) $request->english_name) ?: null,
             'quality_class' => $request->quality_class,
-            'cheap_max' => $request->cheap_max,
-            'moderate_max' => $request->moderate_max,
-            'effective_date' => $request->effective_date,
             'is_active' => true,
         ]);
 
-        return redirect()->route('supervisor.price-guides.index')
-            ->with('success', 'Price bracket added successfully.');
-    }
-
-    // ─── Update an existing price bracket ────────────────────────
-    public function update(Request $request, PriceGuide $priceGuide)
-    {
-        $validator = Validator::make($request->all(), [
-            'cheap_max' => ['required', 'numeric', 'min:0.01'],
-            'moderate_max' => ['required', 'numeric', 'gt:cheap_max'],
-            'effective_date' => ['required', 'date'],
-        ], [
-            'moderate_max.gt' => 'Moderate max must be greater than the cheap max.',
-        ]);
-
-        // Validated by hand rather than with $request->validate() so the redirect
-        // can also say *which* modal to reopen. The bracket is edited inside a
-        // modal; a plain validation redirect would drop the supervisor back on a
-        // list where the error is invisible.
-        if ($validator->fails()) {
-            return back()
-                ->withInput()
-                ->withErrors($validator)
-                ->with('open_edit_modal', [
-                    'id' => $priceGuide->id,
-                    'fish' => $priceGuide->fishType?->name ?? '',
-                    'quality_class' => $priceGuide->quality_class,
-                    'action' => route('supervisor.price-guides.update', $priceGuide),
-                ]);
+        if ($request->filled('tariff_price')) {
+            PriceGuide::setTariff($fish, (float) $request->tariff_price, today()->toDateString(), Auth::id());
         }
 
-        $priceGuide->update([
-            'cheap_max' => $request->cheap_max,
-            'moderate_max' => $request->moderate_max,
-            'effective_date' => $request->effective_date,
+        ActivityLog::create([
+            'user_id' => Auth::id(),
+            'action' => 'add_fish_type',
+            'description' => "Added {$fish->name} to {$fish->quality_class}"
+                .($request->filled('tariff_price') ? ' with a ₱'.number_format((float) $request->tariff_price, 2).' tariff' : '').'.',
+        ]);
+
+        return redirect()->route('supervisor.price-guides.index', $request->only('quality_class'))
+            ->with('success', "{$fish->name} added to {$fish->quality_class}.");
+    }
+
+    public function updateFish(Request $request, FishType $fishType)
+    {
+        $request->merge(['name' => FishType::normaliseName($request->name)]);
+
+        $validator = Validator::make($request->all(), $this->fishRules($fishType), $this->fishMessages());
+
+        if ($validator->fails()) {
+            return $this->fishFailed($validator, ['mode' => 'edit', 'id' => $fishType->id]);
+        }
+
+        $before = "{$fishType->name} ({$fishType->quality_class})";
+
+        $fishType->update([
+            'name' => $request->name,
+            'english_name' => trim((string) $request->english_name) ?: null,
+        ]);
+        // Its tariff versions and batches move to the new class with it.
+        $fishType->changeClass($request->quality_class);
+
+        ActivityLog::create([
+            'user_id' => Auth::id(),
+            'action' => 'update_fish_type',
+            'description' => "Edited {$before} → {$fishType->name} ({$fishType->quality_class}).",
         ]);
 
         return redirect()->route('supervisor.price-guides.index')
-            ->with('success', 'Price bracket updated successfully.');
+            ->with('success', "{$fishType->name} updated.");
     }
 
-    // ─── Delete a price bracket ───────────────────────────────────
-    public function destroy(PriceGuide $priceGuide)
+    public function destroyFish(FishType $fishType)
     {
-        $priceGuide->delete();
+        // Fish still on a stall or waiting for staff would vanish from under the
+        // vendors selling it, so it has to clear the board first.
+        if ($live = $fishType->liveBatchCount()) {
+            return redirect()->route('supervisor.price-guides.index')
+                ->with('error', "{$fishType->name} cannot be removed while {$live} "
+                    .str('batch')->plural($live).' of it '.($live === 1 ? 'is' : 'are')
+                    .' on sale or waiting for staff. Remove it once they are sold or expire.');
+        }
+
+        $name = $fishType->name;
+        $how = $fishType->removeFromCatalogue();
+
+        ActivityLog::create([
+            'user_id' => Auth::id(),
+            'action' => 'remove_fish_type',
+            'description' => $how === 'deleted'
+                ? "Deleted {$name} (it had no batches)."
+                : "Removed {$name} from the list. Its batches are kept for reports and forecasts.",
+        ]);
 
         return redirect()->route('supervisor.price-guides.index')
-            ->with('success', 'Price bracket removed.');
+            ->with('success', $how === 'deleted'
+                ? "{$name} deleted."
+                : "{$name} removed from the list. Its sales history is kept, and it can be restored below.");
+    }
+
+    public function restoreFish(FishType $fishType)
+    {
+        $fishType->update(['is_active' => true]);
+
+        ActivityLog::create([
+            'user_id' => Auth::id(),
+            'action' => 'restore_fish_type',
+            'description' => "Restored {$fishType->name} to the list.",
+        ]);
+
+        return redirect()->route('supervisor.price-guides.index')
+            ->with('success', "{$fishType->name} is back on the list.");
     }
 }

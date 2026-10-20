@@ -63,8 +63,17 @@ Route::middleware(['auth', 'role:supervisor'])
         Route::put('/price-guides/{priceGuide}', [PriceGuideController::class, 'update'])->name('price-guides.update');
         Route::delete('/price-guides/{priceGuide}', [PriceGuideController::class, 'destroy'])->name('price-guides.destroy');
 
+        // The fish list, managed from the tariff table: add a missing fish to a
+        // class, rename or move it, remove it (hidden when it has history), restore.
+        Route::post('/price-guides/fish', [PriceGuideController::class, 'storeFish'])->name('price-guides.fish.store');
+        Route::put('/price-guides/fish/{fishType}', [PriceGuideController::class, 'updateFish'])->name('price-guides.fish.update');
+        Route::delete('/price-guides/fish/{fishType}', [PriceGuideController::class, 'destroyFish'])->name('price-guides.fish.destroy');
+        Route::patch('/price-guides/fish/{fishType}/restore', [PriceGuideController::class, 'restoreFish'])->name('price-guides.fish.restore');
+
         Route::get('/forecasts', [ForecastController::class, 'index'])->name('forecasts.index');
         Route::get('/reports', [ReportController::class,   'index'])->name('reports.index');
+        // Daily history (supply, sales, prices vs tariff) as CSV, for reports and model retraining.
+        Route::get('/reports/history.csv', [ReportController::class, 'history'])->name('reports.history');
 
         // ── My Account ─────────────────────────────────────────────
         Route::get('/account', [AccountController::class, 'edit'])->name('account.edit');

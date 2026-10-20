@@ -23,13 +23,13 @@
     }
     .form-input::placeholder { color: #cbd5e1; }
     .form-input:disabled { background: #f8fafc; color: #94a3b8; cursor: not-allowed; }
-    .form-input.is-over-guide,
-    .form-input.is-over-guide:focus {
-        border-color: #f87171;
-        color: #991b1b;
-        -webkit-text-fill-color: #991b1b;
+    .form-input.is-above-tariff,
+    .form-input.is-above-tariff:focus {
+        border-color: var(--color-warning-400);
+        color: var(--color-warning-800);
+        -webkit-text-fill-color: var(--color-warning-800);
         font-weight: 600;
-        box-shadow: 0 0 0 3px rgba(248,113,113,0.15);
+        box-shadow: 0 0 0 3px rgb(251 191 36 / 0.18);
     }
     .form-label {
         display: block;
@@ -238,20 +238,31 @@
                                    oninput="checkPriceGuide()"
                                    required class="form-input" style="padding-left: 28px;">
                         </div>
-                        <p class="mt-1 text-slate-400 text-[11px]" id="priceGuideHint">Select a fish type to see its price guideline.</p>
+                        <p class="mt-1 text-slate-400 text-[11px]" id="priceGuideHint">Select a fish type to see its tariff.</p>
 
-                        {{-- Shown when the entered price is above the guideline --}}
+                        {{-- Shown when the entered price is above the tariff. Allowed:
+                             the difference is the vendor's markup (tubo), recorded so
+                             staff, the supervisor and consumers can compare. --}}
                         <div id="priceGuideWarning" class="hidden mt-2">
-                            <div class="flex items-start gap-1.5 rounded-lg px-2.5 py-2 text-[11px] leading-[1.45]"
-                                 style="background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;">
-                                <span class="flex-shrink-0 mt-px" id="priceGuideWarningIcon" title="Price exceeds the price guideline.">
-                                    <x-icon name="bi-exclamation-triangle-fill" size="xs" />
+                            <div class="flex items-start gap-1.5 rounded-lg px-2.5 py-2 text-[11px] leading-[1.45] bg-warning-50 border border-warning-200 text-warning-800">
+                                <span class="flex-shrink-0 mt-px">
+                                    <x-icon name="bi-info-circle-fill" size="xs" />
                                 </span>
                                 <span>
-                                    <strong class="font-semibold">Price exceeds the price guideline.</strong>
+                                    <strong class="font-semibold">Above the tariff.</strong>
                                     <span id="priceGuideWarningText"></span>
                                 </span>
                             </div>
+                        </div>
+
+                        {{-- Optional reason for pricing above the tariff --}}
+                        <div id="priceNoteBox" class="{{ $formOld('price_note') ? '' : 'hidden' }} mt-3">
+                            <label class="form-label" for="priceNoteInput">
+                                Why is it above the tariff? <span class="font-normal text-slate-400">(optional)</span>
+                            </label>
+                            <textarea name="price_note" id="priceNoteInput" rows="2" maxlength="500" class="form-input"
+                                      placeholder="e.g. Bigger size, caught this morning, higher boat fuel cost">{{ $formOld('price_note') }}</textarea>
+                            <p class="mt-1 text-slate-400 text-[11px]">Staff, the supervisor and consumers see this next to your price.</p>
                         </div>
                     </div>
 
@@ -319,7 +330,7 @@
                         <tr class="bg-surface-subtle" style="border-bottom: 1px solid #f1f5f9">
                             <th class="th-cell text-left">Fish / Batch</th>
                             <th class="th-cell text-left">Class</th>
-                            <th class="th-cell text-right">Price/kg</th>
+                            <th class="th-cell text-right">Price/kg · vs Tariff</th>
                             <th class="th-cell text-right">Stock</th>
                             <th class="th-cell text-right">Remaining</th>
                             <th class="th-cell text-center">Days Left</th>
@@ -350,7 +361,7 @@
                         <tr class="bg-surface-subtle" style="border-bottom: 1px solid #f1f5f9">
                             <th class="th-cell text-left">Fish / Batch</th>
                             <th class="th-cell text-left">Class</th>
-                            <th class="th-cell text-right">Price/kg</th>
+                            <th class="th-cell text-right">Price/kg · vs Tariff</th>
                             <th class="th-cell text-right">Stock</th>
                             <th class="th-cell text-right">Sold</th>
                             <th class="th-cell text-center">Days Left</th>
@@ -489,8 +500,8 @@
     const fishSelect  = document.getElementById('fishTypeSelect');
     const allFishOpts = Array.from(fishSelect.options).filter(o => o.value !== '');
 
-    // Active price guidelines, keyed by "<fish_type_id>_<quality class>"
-    const PRICE_GUIDES  = {!! json_encode($priceGuides) !!};
+    // Current tariffs (₱/kg), keyed by "<fish_type_id>_<quality class>"
+    const TARIFFS       = @json($tariffs);
     // What the vendor already has of each fish, keyed the same way
     const EXISTING      = @json($existingBatches);
 
@@ -498,7 +509,7 @@
     const guideHint     = document.getElementById('priceGuideHint');
     const guideWarning  = document.getElementById('priceGuideWarning');
     const guideWarnText = document.getElementById('priceGuideWarningText');
-    const guideWarnIcon = document.getElementById('priceGuideWarningIcon');
+    const noteBox       = document.getElementById('priceNoteBox');
     const peso = (n) => '₱' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const kg   = (n) => Number(n).toLocaleString('en-PH', { minimumFractionDigits: 1, maximumFractionDigits: 2 }) + ' kg';
 
@@ -542,30 +553,36 @@
         });
     }
 
-    // Flags the price red + shows the warning when it is above the guideline
+    // Compares the price with the tariff as it is typed. Above the tariff is
+    // allowed: it shows the markup (tubo) and offers the optional reason box.
     function checkPriceGuide() {
-        const guide = fishSelect.value ? PRICE_GUIDES[fishSelect.value + '_' + qcSelect.value] : undefined;
+        const tariff = fishSelect.value ? TARIFFS[fishSelect.value + '_' + qcSelect.value] : undefined;
         const price = parseFloat(priceInput.value);
 
-        if (!guide) {
-            priceInput.classList.remove('is-over-guide');
+        if (tariff === undefined) {
+            priceInput.classList.remove('is-above-tariff');
             guideWarning.classList.add('hidden');
+            noteBox.classList.add('hidden');
             guideHint.textContent = fishSelect.value
-                ? 'No price guideline is set for this fish type and quality class.'
-                : 'Select a fish type to see its price guideline.';
+                ? 'The supervisor has not set a tariff for this fish yet.'
+                : 'Select a fish type to see its tariff.';
             return;
         }
 
-        guideHint.textContent = 'Guideline: Cheap ≤ ' + peso(guide.cheap) + ' · Moderate ≤ ' + peso(guide.moderate) + ' per kg.';
+        const diff = Number.isFinite(price) ? Math.round((price - tariff) * 100) / 100 : null;
+        const isAbove = diff !== null && diff > 0;
+        const pct = diff !== null ? (diff / tariff * 100).toFixed(1) : null;
 
-        const isOver = Number.isFinite(price) && price > guide.moderate;
-        priceInput.classList.toggle('is-over-guide', isOver);
-        guideWarning.classList.toggle('hidden', !isOver);
+        guideHint.textContent = 'Tariff: ' + peso(tariff) + ' per kg'
+            + (diff !== null && diff < 0 ? ' · you are ' + peso(-diff) + ' below it.' : (diff === 0 ? ' · you are at the tariff.' : '.'));
 
-        if (isOver) {
-            guideWarnText.textContent = ' The guideline for this fish and quality class is up to '
-                + peso(guide.moderate) + ' per kg. You may still submit, but staff will see this as an expensive price.';
-            guideWarnIcon.setAttribute('title', 'Price exceeds the price guideline (max ' + peso(guide.moderate) + ' per kg).');
+        priceInput.classList.toggle('is-above-tariff', isAbove);
+        guideWarning.classList.toggle('hidden', !isAbove);
+        noteBox.classList.toggle('hidden', !isAbove);
+
+        if (isAbove) {
+            guideWarnText.textContent = ' Your markup (tubo) is ' + peso(diff) + ' per kg (+' + pct + '%) over the '
+                + peso(tariff) + ' tariff. You can still submit; the difference is shown to staff, the supervisor and consumers.';
         }
     }
 

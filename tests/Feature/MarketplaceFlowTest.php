@@ -17,8 +17,8 @@ use Tests\TestCase;
  *
  * The frontend smoke test only proves a route returns 200. These tests drive the
  * real forms, so a broken modal, a lost validation message or a fish type whose
- * quality class no longer matches its price bracket fails here instead of in
- * front of a user.
+ * quality class no longer matches its tariff fails here instead of in front of
+ * a user.
  */
 class MarketplaceFlowTest extends TestCase
 {
@@ -48,59 +48,56 @@ class MarketplaceFlowTest extends TestCase
         ]);
     }
 
-    private function makeGuide(FishType $fish, float $cheap = 240, float $moderate = 460): PriceGuide
+    private function makeGuide(FishType $fish, float $tariff = 240): PriceGuide
     {
         return PriceGuide::create([
             'fish_type_id' => $fish->id,
             'quality_class' => $fish->quality_class,
-            'cheap_max' => $cheap,
-            'moderate_max' => $moderate,
+            'tariff_price' => $tariff,
             'effective_date' => today(),
             'is_active' => true,
         ]);
     }
 
-    // ─── Vendor: price against the guideline ───────────────────────
+    // ─── Vendor: price against the tariff ──────────────────────────
 
     /**
-     * The submit form ships the active brackets to the browser so the price can
-     * be flagged live. The key is "<fish_type_id>_<quality class>", which is the
-     * same key the staff confirmation page and the price label use.
+     * The submit form ships the current tariffs to the browser so the price can
+     * be compared live. The key is "<fish_type_id>_<quality class>", the same key
+     * the staff confirmation page and the board use.
      */
-    public function test_vendor_inventory_page_ships_the_active_price_guidelines(): void
+    public function test_vendor_inventory_page_ships_the_current_tariffs(): void
     {
         $fish = $this->makeFishType();
-        $this->makeGuide($fish, 240, 460);
+        $this->makeGuide($fish, 240);
         $vendor = $this->makeUser('vendor');
 
         $response = $this->actingAs($vendor)->get('/vendor/inventory')->assertOk();
 
-        $response->assertSee('const PRICE_GUIDES', false);
-        $response->assertSee('"'.$fish->id.'_First Class":{"cheap":240,"moderate":460}', false);
+        $response->assertSee('const TARIFFS', false);
+        $response->assertSee('"'.$fish->id.'_First Class":240', false);
     }
 
-    public function test_vendor_price_input_reports_the_moderate_ceiling_and_flags_over_guide_prices(): void
+    public function test_vendor_price_input_shows_the_markup_over_the_tariff_without_blocking(): void
     {
         $fish = $this->makeFishType();
-        $this->makeGuide($fish, 240, 460);
+        $this->makeGuide($fish, 240);
         $vendor = $this->makeUser('vendor');
 
         $html = $this->actingAs($vendor)->get('/vendor/inventory')->assertOk()->getContent();
 
-        // The rule itself: flag once the price is above the moderate ceiling.
-        $this->assertStringContainsString('price > guide.moderate', $html);
-        $this->assertStringContainsString("classList.toggle('is-over-guide', isOver)", $html);
+        // Above the tariff is flagged amber and offers the optional reason box.
+        $this->assertStringContainsString("classList.toggle('is-above-tariff', isAbove)", $html);
+        $this->assertStringContainsString("noteBox.classList.toggle('hidden', !isAbove)", $html);
+        $this->assertStringContainsString('name="price_note"', $html);
+        $this->assertStringContainsString('Above the tariff.', $html);
 
-        // The red state and the tooltip copy.
-        $this->assertStringContainsString('.form-input.is-over-guide', $html);
-        $this->assertStringContainsString('Price exceeds the price guideline.', $html);
-
-        // Both the field and the tooltip re-evaluate on input and on selection.
+        // Both the field and the hint re-evaluate on input and on selection.
         $this->assertStringContainsString('oninput="checkPriceGuide()"', $html);
         $this->assertStringContainsString("fishSelect.addEventListener('change', checkPriceGuide)", $html);
     }
 
-    public function test_inactive_guidelines_are_not_offered_to_vendors(): void
+    public function test_removed_tariffs_are_not_offered_to_vendors(): void
     {
         $fish = $this->makeFishType();
         $guide = $this->makeGuide($fish);
@@ -117,29 +114,55 @@ class MarketplaceFlowTest extends TestCase
             ->assertDontSee($key, false);
     }
 
-    public function test_vendor_can_submit_an_entry_above_the_guideline(): void
+    /**
+     * Pricing above the tariff is never blocked. The tariff in force is kept on
+     * the batch with the vendor's optional reason, so the markup (tubo) is on
+     * record for staff and the supervisor.
+     */
+    public function test_vendor_can_submit_above_the_tariff_and_the_markup_is_recorded(): void
     {
         $fish = $this->makeFishType();
-        $this->makeGuide($fish, 240, 460);
+        $this->makeGuide($fish, 120);
         $vendor = $this->makeUser('vendor');
 
         $this->actingAs($vendor)
             ->post('/vendor/inventory', [
                 'fish_type_id' => $fish->id,
                 'quality_class' => 'First Class',
-                'price_per_kg' => 900, // far above the ₱460 ceiling
+                'price_per_kg' => 130,
                 'stock_kg' => 10,
+                'price_note' => 'Caught this morning, bigger size',
             ])
             ->assertRedirect('/vendor/inventory')
             ->assertSessionHasNoErrors();
 
-        $this->assertDatabaseHas('vendor_inventories', [
-            'vendor_id' => $vendor->id,
+        $entry = VendorInventory::firstWhere('vendor_id', $vendor->id);
+        $this->assertSame('130.00', $entry->price_per_kg);
+        $this->assertSame('120.00', $entry->tariff_price);
+        $this->assertSame('Caught this morning, bigger size', $entry->price_note);
+        $this->assertSame(10.0, $entry->markupPerKg());
+        $this->assertSame('pending', $entry->status);
+        $this->assertStringContainsString('₱10.00 above the ₱120.00 tariff', ActivityLog::latest('id')->value('description'));
+    }
+
+    public function test_a_reason_is_not_kept_when_the_price_is_not_above_the_tariff(): void
+    {
+        $fish = $this->makeFishType();
+        $this->makeGuide($fish, 120);
+        $vendor = $this->makeUser('vendor');
+
+        $this->actingAs($vendor)->post('/vendor/inventory', [
             'fish_type_id' => $fish->id,
-            'price_per_kg' => 900,
-            'released_kg' => 10,
-            'status' => 'pending',
-        ]);
+            'quality_class' => 'First Class',
+            'price_per_kg' => 115,
+            'stock_kg' => 10,
+            'price_note' => 'Leftover text from an earlier price',
+        ])->assertSessionHasNoErrors();
+
+        $entry = VendorInventory::firstWhere('vendor_id', $vendor->id);
+        $this->assertSame('120.00', $entry->tariff_price);
+        $this->assertNull($entry->price_note);
+        $this->assertSame(-5.0, $entry->markupPerKg());
     }
 
     public function test_vendor_cannot_submit_a_quality_class_the_fish_does_not_have(): void
@@ -159,140 +182,114 @@ class MarketplaceFlowTest extends TestCase
         $this->assertDatabaseCount('vendor_inventories', 0);
     }
 
-    // ─── Supervisor: price brackets ───────────────────────────────
+    // ─── Supervisor: tariff ────────────────────────────────────────
 
-    public function test_supervisor_can_add_edit_and_remove_a_price_bracket(): void
+    /**
+     * The whole tariff table saves at once. A changed tariff adds a version and
+     * switches the old one off, so the history is kept; an unchanged one adds
+     * nothing.
+     */
+    public function test_supervisor_sets_and_changes_tariffs_keeping_the_history(): void
+    {
+        $bangus = $this->makeFishType('Bangus');
+        $tilapia = $this->makeFishType('Tilapia', 'Third Class');
+        $supervisor = $this->makeUser('supervisor');
+
+        $this->actingAs($supervisor)
+            ->post('/supervisor/price-guides', [
+                'tariffs' => [$bangus->id => '180', $tilapia->id => ''],
+                'english' => [$bangus->id => 'Milkfish', $tilapia->id => ''],
+                'effective_date' => today()->toDateString(),
+            ])
+            ->assertRedirect('/supervisor/price-guides')
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(180.0, PriceGuide::tariffFor($bangus->id, 'First Class'));
+        $this->assertNull(PriceGuide::tariffFor($tilapia->id, 'Third Class'));
+        $this->assertSame('Milkfish', $bangus->fresh()->english_name);
+        $this->assertSame($supervisor->id, PriceGuide::current()->first()->set_by);
+
+        // Same price again: nothing new.
+        $this->actingAs($supervisor)->post('/supervisor/price-guides', [
+            'tariffs' => [$bangus->id => '180.00'],
+            'effective_date' => today()->toDateString(),
+        ]);
+        $this->assertSame(1, PriceGuide::where('fish_type_id', $bangus->id)->count());
+
+        // A new price: a second version, the first kept but switched off.
+        $this->actingAs($supervisor)->post('/supervisor/price-guides', [
+            'tariffs' => [$bangus->id => '200'],
+            'effective_date' => today()->toDateString(),
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(200.0, PriceGuide::tariffFor($bangus->id, 'First Class'));
+        $this->assertSame(['200.00', '180.00'], $bangus->tariffHistory()->pluck('tariff_price')->all());
+        $this->assertSame(1, PriceGuide::current()->where('fish_type_id', $bangus->id)->count());
+        $this->assertStringContainsString('Bangus ₱180.00 → ₱200.00', ActivityLog::latest('id')->value('description'));
+    }
+
+    public function test_tariff_values_and_dates_are_validated(): void
     {
         $fish = $this->makeFishType();
         $supervisor = $this->makeUser('supervisor');
 
         $this->actingAs($supervisor)
+            ->from('/supervisor/price-guides')
             ->post('/supervisor/price-guides', [
-                'fish_type_id' => $fish->id,
-                'quality_class' => 'First Class',
-                'cheap_max' => 150,
-                'moderate_max' => 220,
-                'effective_date' => today()->toDateString(),
+                'tariffs' => [$fish->id => '-5'],
+                'effective_date' => today()->addDay()->toDateString(),
             ])
             ->assertRedirect('/supervisor/price-guides')
-            ->assertSessionHasNoErrors();
+            ->assertSessionHasErrors(['tariffs.'.$fish->id, 'effective_date']);
 
-        $guide = PriceGuide::firstWhere('fish_type_id', $fish->id);
-        $this->assertNotNull($guide);
-        $this->assertSame('150.00', $guide->cheap_max);
-        $this->assertSame('220.00', $guide->moderate_max);
+        $this->assertDatabaseCount('price_guides', 0);
+    }
 
-        $this->actingAs($supervisor)
-            ->put('/supervisor/price-guides/'.$guide->id, [
-                'cheap_max' => 240,
-                'moderate_max' => 460,
-                'effective_date' => today()->toDateString(),
-            ])
-            ->assertRedirect('/supervisor/price-guides')
-            ->assertSessionHasNoErrors();
-
-        $this->assertSame('240.00', $guide->fresh()->cheap_max);
-        $this->assertSame('460.00', $guide->fresh()->moderate_max);
+    public function test_removing_a_tariff_keeps_its_history(): void
+    {
+        $fish = $this->makeFishType();
+        $guide = $this->makeGuide($fish, 150);
+        $supervisor = $this->makeUser('supervisor');
 
         $this->actingAs($supervisor)
             ->delete('/supervisor/price-guides/'.$guide->id)
             ->assertRedirect('/supervisor/price-guides');
 
-        $this->assertDatabaseCount('price_guides', 0);
+        $this->assertNull(PriceGuide::tariffFor($fish->id, 'First Class'));
+        $this->assertDatabaseHas('price_guides', ['id' => $guide->id, 'tariff_price' => 150, 'is_active' => false]);
     }
 
-    /**
-     * Both entry points into the bracket modal used to be broken: the card
-     * header "Add" called a mangled function name, and the empty-state
-     * "Configure now" had no handler at all.
-     */
-    public function test_bracket_modal_buttons_carry_a_working_handler(): void
+    public function test_tariff_table_renders_inputs_history_and_the_board_comparison(): void
     {
-        $configured = $this->makeFishType('Bangus');
-        $this->makeGuide($configured);
-        $unconfigured = $this->makeFishType('Tilapia');
+        $fish = $this->makeFishType('Bangus');
+        $this->makeGuide($fish, 120);
+        $unset = $this->makeFishType('Tilapia');
+        $vendor = $this->makeUser('vendor');
+
+        VendorInventory::create([
+            'vendor_id' => $vendor->id, 'fish_type_id' => $fish->id, 'quality_class' => 'First Class',
+            'price_per_kg' => 135, 'tariff_price' => 120, 'price_note' => 'Fresh catch',
+            'stock_kg' => 10, 'released_kg' => 10, 'sold_kg' => 0,
+            'status' => 'confirmed', 'entry_date' => today(), 'is_locked' => false,
+        ]);
 
         $html = $this->actingAs($this->makeUser('supervisor'))->get('/supervisor/price-guides')
             ->assertOk()->getContent();
 
-        // Configured fish: the header "Add".
-        $this->assertStringContainsString('openAddModal('.$configured->id.')', $html);
-        $this->assertStringContainsString('openAddModal('.$unconfigured->id.')', $html);
+        $this->assertStringContainsString('name="tariffs['.$fish->id.']"', $html);
+        $this->assertStringContainsString('name="tariffs['.$unset->id.']"', $html);
+        $this->assertStringContainsString('value="120.00"', $html);
+        $this->assertStringContainsString('openTariffHistory('.$fish->id.')', $html);
+        // The board comparison: stall A-01 is ₱15 over the tariff, with its reason.
+        $this->assertStringContainsString('+₱15.00', $html);
+        $this->assertStringContainsString('Stall A-01', $html);
+        $this->assertStringContainsString('Fresh catch', $html);
 
-        $this->assertStringNotContainsString('openAddMolex', $html);
-        $this->assertStringNotContainsString('text-blue-600nline-flex', $html);
-    }
-
-    public function test_duplicate_bracket_is_rejected_and_reopens_the_add_modal(): void
-    {
-        $fish = $this->makeFishType();
-        $this->makeGuide($fish);
-        $supervisor = $this->makeUser('supervisor');
-
-        $this->actingAs($supervisor)
-            ->post('/supervisor/price-guides', [
-                'fish_type_id' => $fish->id,
-                'quality_class' => 'First Class',
-                'cheap_max' => 999,
-                'moderate_max' => 1999,
-                'effective_date' => today()->toDateString(),
-            ])
-            ->assertSessionHasErrors('quality_class');
-
-        $this->assertDatabaseCount('price_guides', 1);
-    }
-
-    public function test_moderate_ceiling_must_exceed_the_cheap_ceiling(): void
-    {
-        $fish = $this->makeFishType();
-        $supervisor = $this->makeUser('supervisor');
-
-        $this->actingAs($supervisor)
-            ->post('/supervisor/price-guides', [
-                'fish_type_id' => $fish->id,
-                'quality_class' => 'First Class',
-                'cheap_max' => 500,
-                'moderate_max' => 100,
-                'effective_date' => today()->toDateString(),
-            ])
-            ->assertSessionHasErrors('moderate_max');
-
-        $this->assertDatabaseCount('price_guides', 0);
-    }
-
-    /**
-     * A failed edit happens inside a modal. The redirect has to name that modal,
-     * otherwise the supervisor lands on a list where the message is invisible and
-     * the thresholds they typed are gone.
-     */
-    public function test_failed_bracket_edit_reopens_the_edit_modal_with_the_typed_values(): void
-    {
-        $fish = $this->makeFishType();
-        $guide = $this->makeGuide($fish);
-        $supervisor = $this->makeUser('supervisor');
-
-        $this->actingAs($supervisor)
-            ->from('/supervisor/price-guides')
-            ->put('/supervisor/price-guides/'.$guide->id, [
-                'cheap_max' => 500,
-                'moderate_max' => 100,
-                'effective_date' => today()->toDateString(),
-            ])
-            ->assertRedirect('/supervisor/price-guides')
-            ->assertSessionHasErrors('moderate_max')
-            ->assertSessionHas('open_edit_modal');
-
-        $html = $this->actingAs($supervisor)->get('/supervisor/price-guides')
-            ->assertOk()->getContent();
-
-        // The edit modal is the one that reopens, pre-filled with what was typed.
-        $this->assertStringContainsString("openEditModal(\n", $html);
-        $this->assertStringContainsString('value="500"', $html);
-        $this->assertStringContainsString('value="100"', $html);
-        $this->assertStringContainsString('Moderate max must be greater than the cheap max.', $html);
-        // The add modal must stay shut, otherwise the message is shown in the
-        // wrong dialog.
-        $this->assertStringNotContainsString("openAddModal(\n", $html);
+        // Staff see the same table without inputs.
+        $staffHtml = $this->actingAs($this->makeUser('staff'))->get('/staff/price-guides')->assertOk()->getContent();
+        $this->assertStringNotContainsString('name="tariffs[', $staffHtml);
+        $this->assertStringContainsString('₱120.00', $staffHtml);
+        $this->assertStringContainsString('+₱15.00', $staffHtml);
     }
 
     // ─── Supervisor: fish types ────────────────────────────────────
@@ -330,15 +327,15 @@ class MarketplaceFlowTest extends TestCase
     }
 
     /**
-     * The price label on the staff confirmation page and the live check on the
-     * vendor form are both keyed on "<fish_type_id>_<quality class>". Reclassing a
-     * fish type without moving its bracket would silently orphan the bracket and
-     * both features would stop working for that fish.
+     * The tariff on the staff confirmation page and the live check on the vendor
+     * form are both keyed on "<fish_type_id>_<quality class>". Reclassing a fish
+     * type without moving its tariff would silently orphan it and both features
+     * would stop working for that fish.
      */
-    public function test_reclassifying_a_fish_type_keeps_its_bracket_and_inventory_in_step(): void
+    public function test_reclassifying_a_fish_type_keeps_its_tariff_and_inventory_in_step(): void
     {
         $fish = $this->makeFishType('Bangus', 'First Class');
-        $guide = $this->makeGuide($fish, 240, 460);
+        $guide = $this->makeGuide($fish, 240);
         $vendor = $this->makeUser('vendor');
 
         $entry = VendorInventory::create([
@@ -367,9 +364,9 @@ class MarketplaceFlowTest extends TestCase
         $this->assertSame('Second Class', $guide->fresh()->quality_class);
         $this->assertSame('Second Class', $entry->fresh()->quality_class);
 
-        // The vendor form must now resolve the bracket under the new class.
+        // The vendor form must now resolve the tariff under the new class.
         $this->actingAs($vendor)->get('/vendor/inventory')
-            ->assertSee('"'.$fish->id.'_Second Class":{"cheap":240,"moderate":460}', false);
+            ->assertSee('"'.$fish->id.'_Second Class":240', false);
     }
 
     public function test_failed_fish_type_edit_reopens_that_rows_modal(): void
@@ -498,10 +495,10 @@ class MarketplaceFlowTest extends TestCase
 
     // ─── Staff: confirmation workflow ──────────────────────────────
 
-    public function test_staff_sees_the_price_label_for_a_pending_entry(): void
+    public function test_staff_see_the_tariff_the_vendor_price_and_the_markup(): void
     {
         $fish = $this->makeFishType();
-        $this->makeGuide($fish, 240, 460);
+        $this->makeGuide($fish, 240);
         $vendor = $this->makeUser('vendor');
         $staff = $this->makeUser('staff');
 
@@ -509,7 +506,9 @@ class MarketplaceFlowTest extends TestCase
             'vendor_id' => $vendor->id,
             'fish_type_id' => $fish->id,
             'quality_class' => 'First Class',
-            'price_per_kg' => 300, // within the guide => Moderate
+            'price_per_kg' => 300,
+            'tariff_price' => 240,
+            'price_note' => 'Large size only',
             'stock_kg' => 10,
             'released_kg' => 10,
             'sold_kg' => 0,
@@ -521,15 +520,19 @@ class MarketplaceFlowTest extends TestCase
         $html = $this->actingAs($staff)->get('/staff/confirmations')
             ->assertOk()->getContent();
 
-        $this->assertStringContainsString('price-label-moderate', $html);
-        $this->assertStringContainsString('data-label="Moderate"', $html);
-        $this->assertStringContainsString('data-labelclass="price-label-moderate"', $html);
+        $this->assertStringContainsString('Tariff (standard)', $html);
+        $this->assertStringContainsString('₱240.00', $html);
+        $this->assertStringContainsString('+₱60.00', $html);
+        $this->assertStringContainsString('(+25.0%)', $html);
+        $this->assertStringContainsString('Large size only', $html);
+        $this->assertStringContainsString('data-label="+₱60.00 over tariff"', $html);
 
         $this->actingAs($staff)
             ->patch('/staff/confirmations/'.$entry->id.'/approve')
             ->assertRedirect('/staff/confirmations');
 
         $this->assertSame('confirmed', $entry->fresh()->status);
+        $this->assertStringContainsString('₱60.00 above the ₱240.00 tariff', ActivityLog::latest('id')->value('description'));
     }
 
     public function test_staff_can_reject_a_pending_entry(): void
@@ -632,7 +635,7 @@ class MarketplaceFlowTest extends TestCase
     {
         foreach ([
             resource_path('views/supervisor/fish-types.blade.php'),
-            resource_path('views/supervisor/price-guides.blade.php'),
+            resource_path('views/partials/tariff-table.blade.php'),
         ] as $file) {
             $contents = file_get_contents($file);
 
@@ -652,36 +655,30 @@ class MarketplaceFlowTest extends TestCase
     // ─── Supervisor dashboard scope ────────────────────────────────
 
     /**
-     * The client asked for the dashboard to be figures only, so the ARIMA chart
-     * and its Chart.js payload are gone from this page. The activity log moved
-     * to My Account, which is where an account-level record belongs.
+     * The client now asks for charts on the dashboard (supply, sales, tubo,
+     * top vendors, quality classes, records). The ARIMA forecast stays on its own
+     * page and the activity log stays on My Account.
      */
-    public function test_supervisor_dashboard_shows_figures_but_no_forecast_chart_or_activity(): void
+    public function test_supervisor_dashboard_shows_market_charts_but_no_forecast_or_activity(): void
     {
         $supervisor = $this->makeUser('supervisor');
-
-        // makeUser() already gives the vendor a stall profile, so the stall and
-        // stock figures above it have something to count.
         $this->makeUser('vendor');
         $this->makeUser('staff');
 
         $response = $this->actingAs($supervisor)->get('/supervisor/dashboard');
         $response->assertOk();
 
-        // The analytics figures are what remains.
         $response->assertSee('Total Vendors');
         $response->assertSee('Total Stalls');
+        $response->assertSee('Sales this month');
+        $response->assertSee('Tubo Leaderboard');
+        $response->assertSee('id="supplySoldChart"', false);
+        $response->assertSee('Chart.js/4.4.1', false);
 
-        // The forecast card, its canvas and its CDN script are not.
-        $response->assertDontSee('Price Forecast', false);
-        $response->assertDontSee('forecastMiniChart', false);
-        $response->assertDontSee('chart.js', false);
         $response->assertDontSee('ARIMA', false);
-
-        // The activity log now lives on My Account.
+        $response->assertDontSee('forecastChart', false);
         $response->assertDontSee('Recent Activity');
 
-        // The dedicated forecast page is untouched.
         $this->actingAs($supervisor)->get('/supervisor/forecasts')->assertOk();
     }
 

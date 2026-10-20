@@ -43,10 +43,16 @@
     $hasForecasts     = $forecasts->isNotEmpty();
     $hasHistorical    = $historical->isNotEmpty();
 
-    /* ── Summary stats ───────────────────────────────────────── */
-    $avgForecast  = $hasForecasts ? round($forecasts->avg('predicted_value'), 2) : null;
-    $minForecast  = $hasForecasts ? $forecasts->min('predicted_value')           : null;
-    $maxForecast  = $hasForecasts ? $forecasts->max('predicted_value')           : null;
+    /* ── Summary stats: one source for the cards, chart and table ── */
+    $avgForecast  = $summary['avg'];
+    $lowPoint     = $summary['low'];
+    $highPoint    = $summary['high'];
+    $dayLabel     = fn($p) => 'Day ' . $p['day'] . ' · ' . $p['date']->format('D, M j');
+    $trendBaseline = $latestForecast?->arima_params['trend_baseline'] ?? null;
+
+    /* Last real day before the forecast, so day 1's change has a reference */
+    $lastActual   = $historical->filter(fn($p) => ! $p['filled'] && $p['value'] !== null)->last();
+    $lastActualVal = $lastActual['value'] ?? null;
 
     /* ── Chart data arrays (PHP → JS) ────────────────────────── */
     /* One point per day of the window; "filled" marks a day with no batch */
@@ -58,6 +64,9 @@
     $fcVals     = $forecasts->pluck('predicted_value')->map(fn($v) => (float)$v)->values()->toArray();
     $fcMins     = $forecasts->pluck('predicted_min')->map(fn($v) => $v !== null ? (float)$v : null)->values()->toArray();
     $fcMaxs     = $forecasts->pluck('predicted_max')->map(fn($v) => $v !== null ? (float)$v : null)->values()->toArray();
+
+    $pastLabels = $pastPredictions->keys()->values()->toArray();
+    $pastVals   = $pastPredictions->values()->toArray();
 
     /* ── Merged, sorted label set ────────────────────────────── */
     $allLabels  = collect(array_unique(array_merge($histLabels, $fcLabels)))->sort()->values()->toArray();
@@ -176,7 +185,7 @@
                         <i class="bi bi-arrow-up-circle-fill"></i> Upward
                     </p>
                     <p class="text-slate-400 mt-1.5 text-[11px]">
-                        {{ $metricShort }} increasing
+                        Day {{ $horizon }} above the last 7-day avg{{ $trendBaseline !== null ? ' (' . $metricPrefix . number_format($trendBaseline, 2) . ')' : '' }}
                     </p>
                 @elseif($trendLabel === 'downward')
                     <p class="font-bold mt-2 flex items-center gap-1.5 leading-[1]"
@@ -184,7 +193,7 @@
                         <i class="bi bi-arrow-down-circle-fill"></i> Downward
                     </p>
                     <p class="text-slate-400 mt-1.5 text-[11px]">
-                        {{ $metricShort }} declining
+                        Day {{ $horizon }} below the last 7-day avg{{ $trendBaseline !== null ? ' (' . $metricPrefix . number_format($trendBaseline, 2) . ')' : '' }}
                     </p>
                 @elseif($trendLabel === 'stable')
                     <p class="font-bold mt-2 flex items-center gap-1.5 leading-[1] text-slate-500"
@@ -192,7 +201,7 @@
                         <i class="bi bi-dash-circle-fill"></i> Stable
                     </p>
                     <p class="text-slate-400 mt-1.5 text-[11px]">
-                        No significant movement
+                        Within 2% of the last 7-day avg{{ $trendBaseline !== null ? ' (' . $metricPrefix . number_format($trendBaseline, 2) . ')' : '' }}
                     </p>
                 @else
                     <p class="font-bold mt-2 text-slate-300 leading-[1]"
@@ -224,7 +233,13 @@
                         <span class="text-slate-300">—</span>
                     @endif
                 </p>
-                <p class="text-slate-400 mt-1.5 text-[11px]">Over {{ $horizon }} days</p>
+                <p class="text-slate-400 mt-1.5 text-[11px]">
+                    @if($hasForecasts)
+                        Mean of {{ $forecasts->first()->forecast_date->format('M j') }}–{{ $forecasts->last()->forecast_date->format('M j') }} ({{ $forecasts->count() }} days)
+                    @else
+                        Over {{ $horizon }} days
+                    @endif
+                </p>
             </div>
             <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
                  style="background:#fefce8;">
@@ -240,17 +255,25 @@
             <div>
                 <p class="text-slate-400 font-semibold text-[10px] uppercase tracking-[0.08em]"
                   >
-                    Projected Low
+                    Lowest in Period
                 </p>
                 <p class="text-slate-800 font-bold mt-2 leading-[1]" style="font-size:24px">
-                    @if($minForecast !== null)
-                        {{ $metricPrefix }}{{ number_format($minForecast, 2) }}
+                    @if($lowPoint)
+                        {{ $metricPrefix }}{{ number_format($lowPoint['value'], 2) }}
                         <span class="text-[12px] font-semibold text-slate-400">{{ $metricUnit }}</span>
                     @else
                         <span class="text-slate-300">—</span>
                     @endif
                 </p>
-                <p class="text-slate-400 mt-1.5 text-[11px]">Lowest in period</p>
+                <p class="text-slate-400 mt-1.5 text-[11px]" data-forecast-low-day>
+                    @if($lowPoint && $summary['flat'])
+                        Same on all {{ $forecasts->count() }} days
+                    @elseif($lowPoint)
+                        <span class="font-semibold text-rose-500">{{ $dayLabel($lowPoint) }}</span>
+                    @else
+                        Lowest forecast day
+                    @endif
+                </p>
             </div>
             <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
                  style="background:#fff1f2;">
@@ -266,17 +289,25 @@
             <div>
                 <p class="text-slate-400 font-semibold text-[10px] uppercase tracking-[0.08em]"
                   >
-                    Projected High
+                    Highest in Period
                 </p>
                 <p class="text-slate-800 font-bold mt-2 leading-[1]" style="font-size:24px">
-                    @if($maxForecast !== null)
-                        {{ $metricPrefix }}{{ number_format($maxForecast, 2) }}
+                    @if($highPoint)
+                        {{ $metricPrefix }}{{ number_format($highPoint['value'], 2) }}
                         <span class="text-[12px] font-semibold text-slate-400">{{ $metricUnit }}</span>
                     @else
                         <span class="text-slate-300">—</span>
                     @endif
                 </p>
-                <p class="text-slate-400 mt-1.5 text-[11px]">Highest in period</p>
+                <p class="text-slate-400 mt-1.5 text-[11px]" data-forecast-high-day>
+                    @if($highPoint && $summary['flat'])
+                        Same on all {{ $forecasts->count() }} days
+                    @elseif($highPoint)
+                        <span class="font-semibold text-emerald-600">{{ $dayLabel($highPoint) }}</span>
+                    @else
+                        Highest forecast day
+                    @endif
+                </p>
             </div>
             <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-success-50"
                 >
@@ -339,7 +370,7 @@
         @endif
 
         {{-- Legend --}}
-        <div class="hidden sm:flex items-center gap-4 flex-shrink-0 border-l border-slate-100 pl-4">
+        <div class="hidden sm:flex flex-wrap items-center gap-x-4 gap-y-1.5 flex-shrink-0 border-l border-slate-100 pl-4">
             {{-- Historical --}}
             <div class="flex items-center gap-1.5">
                 <div style="width:22px; height:2.5px; background:#2563eb; border-radius:2px;"></div>
@@ -360,6 +391,34 @@
                             border-radius:3px; border:1px solid rgba(59,130,246,0.25);"></div>
                 <span class="text-slate-500 text-[11px]">95% CI</span>
             </div>
+            @if($hasForecasts && ! $summary['flat'])
+                <div class="flex items-center gap-1.5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-success-500"></span>
+                    <span class="text-slate-500 text-[11px]">Highest</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-danger-500"></span>
+                    <span class="text-slate-500 text-[11px]">Lowest</span>
+                </div>
+            @endif
+            @if($hasForecasts)
+                <div class="flex items-center gap-1.5">
+                    <svg width="18" height="5" viewBox="0 0 18 5" style="flex-shrink:0;"><line x1="0" y1="2.5" x2="18" y2="2.5" stroke="#d97706" stroke-width="2" stroke-dasharray="2,3"/></svg>
+                    <span class="text-slate-500 text-[11px]">Avg forecast</span>
+                </div>
+            @endif
+            @if($tariff !== null)
+                <div class="flex items-center gap-1.5">
+                    <svg width="18" height="5" viewBox="0 0 18 5" style="flex-shrink:0;"><line x1="0" y1="2.5" x2="18" y2="2.5" stroke="#7e22ce" stroke-width="2" stroke-dasharray="8,3"/></svg>
+                    <span class="text-slate-500 text-[11px]">Tariff ₱{{ number_format($tariff, 2) }}</span>
+                </div>
+            @endif
+            @if(count($pastLabels))
+                <div class="flex items-center gap-1.5">
+                    <span class="w-2.5 h-2.5 rounded-full border-2 border-slate-400 bg-white"></span>
+                    <span class="text-slate-500 text-[11px]">Past forecast</span>
+                </div>
+            @endif
         </div>
 
     </div>
@@ -407,7 +466,7 @@
                 {{ $horizon }}-Day {{ $metricShort }} Forecast Breakdown
             </h2>
             <p class="text-slate-400 mt-0.5 text-[11px]">
-                Predicted values with confidence intervals ·
+                Predicted values with confidence intervals · Δ is the change from the day before ·
                 {{ $fishTypeName }} · {{ $metrics[$selectedMetric] }}
             </p>
         </div>
@@ -449,6 +508,11 @@
                        >
                         Δ Change
                     </th>
+                    @if($tariff !== null)
+                        <th class="text-right text-slate-500 font-semibold hidden sm:table-cell text-[10px] uppercase tracking-[0.07em]">
+                            vs Tariff
+                        </th>
+                    @endif
                     <th class="text-center text-slate-500 font-semibold text-[10px] uppercase tracking-[0.07em]"
                        >
                         Trend
@@ -458,18 +522,18 @@
             <tbody>
                 @php
                     $dayNum  = 1;
-                    $prevVal = (float)($forecasts->first()?->predicted_value ?? 0);
+                    $prevVal = $lastActualVal;
                 @endphp
 
                 @foreach($forecasts as $fc)
                     @php
                         $val      = (float)$fc->predicted_value;
-                        $diff     = $dayNum > 1 ? $val - $prevVal : null;
+                        $diff     = $prevVal !== null ? $val - $prevVal : null;
                         $prevVal  = $val;
                         $isToday  = $fc->forecast_date->isToday();
                     @endphp
 
-                    <tr class="{{ $isToday ? 'bg-blue-50/40' : '' }}">
+                    <tr class="{{ $isToday ? 'bg-blue-50/40' : '' }}" data-day="{{ $dayNum }}">
 
                         {{-- Day number --}}
                         <td>
@@ -503,6 +567,11 @@
                                     {{ $metricUnit }}
                                 </span>
                             </p>
+                            @if(! $summary['flat'] && $summary['high_day'] === $dayNum)
+                                <x-badge variant="success" class="mt-1">Highest</x-badge>
+                            @elseif(! $summary['flat'] && $summary['low_day'] === $dayNum)
+                                <x-badge variant="danger" class="mt-1">Lowest</x-badge>
+                            @endif
                         </td>
 
                         {{-- Lower CI --}}
@@ -540,7 +609,16 @@
                             @else
                                 <span class="text-slate-400 text-[12.5px]">±0.00</span>
                             @endif
+                            @if($dayNum === 1 && $diff !== null)
+                                <p class="text-slate-400 text-[10px]">vs last actual</p>
+                            @endif
                         </td>
+
+                        @if($tariff !== null)
+                            <td class="text-right hidden sm:table-cell text-[12.5px]">
+                                <x-tariff-diff :comparison="App\Models\PriceGuide::compare($val, $tariff)" />
+                            </td>
+                        @endif
 
                         {{-- Trend badge --}}
                         <td class="text-center">
@@ -570,6 +648,69 @@
         </table>
     </div>
 
+</div>
+@endif
+
+{{-- ═══════════════════════════════════════════════════════════════
+     FORECAST VS ACTUAL — earlier runs against the days that passed
+═══════════════════════════════════════════════════════════════════ --}}
+@if($pastPredictions->isNotEmpty())
+<div class="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-card mt-5">
+    <div class="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center gap-3">
+        <div class="flex-1 min-w-0">
+            <h2 class="text-slate-700 font-bold text-[14px]">Past Forecasts vs Actual</h2>
+            <p class="text-slate-400 mt-0.5 text-[11px]">
+                What the model predicted for each past day (the run made before that day), beside what came in.
+                Every daily run is kept for reporting and retraining.
+            </p>
+        </div>
+        @if($accuracy['mape'] !== null)
+            <span class="vpm-badge vpm-badge-info flex-shrink-0">
+                Avg error {{ number_format($accuracy['mape'], 1) }}% · {{ $accuracy['days'] }} {{ Str::plural('day', $accuracy['days']) }}
+            </span>
+        @endif
+    </div>
+    <div class="overflow-x-auto" style="max-height:320px">
+        <table class="vpm-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th class="vpm-th-right">Predicted</th>
+                    <th class="vpm-th-right">Actual</th>
+                    <th class="vpm-th-right">Error</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($pastPredictions->reverse() as $date => $predicted)
+                    @php
+                        $actual = $historical[$date] ?? null;
+                        $hasActual = $actual && ! $actual['filled'] && $actual['value'] !== null;
+                        $err = $hasActual && $actual['value'] > 0 ? ($predicted - $actual['value']) / $actual['value'] * 100 : null;
+                    @endphp
+                    <tr>
+                        <td>{{ \Illuminate\Support\Carbon::parse($date)->format('D, M j') }}</td>
+                        <td class="vpm-td-right vpm-num">{{ $metricPrefix }}{{ number_format($predicted, 2) }} <span class="text-slate-400 text-[11px]">{{ $metricUnit }}</span></td>
+                        <td class="vpm-td-right vpm-num">
+                            @if($hasActual)
+                                {{ $metricPrefix }}{{ number_format($actual['value'], 2) }}
+                            @else
+                                <span class="text-slate-300 text-[11px]">No batch</span>
+                            @endif
+                        </td>
+                        <td class="vpm-td-right vpm-num">
+                            @if($err !== null)
+                                <span class="{{ abs($err) <= 5 ? 'text-emerald-600' : (abs($err) <= 15 ? 'text-amber-600' : 'text-rose-600') }} font-semibold">
+                                    {{ $err >= 0 ? '+' : '−' }}{{ number_format(abs($err), 1) }}%
+                                </span>
+                            @else
+                                <span class="text-slate-300">—</span>
+                            @endif
+                        </td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
 </div>
 @endif
 
@@ -641,6 +782,12 @@
     const isPrice    = {{ $isMetricPrice ? 'true' : 'false' }};
     const prefix     = {!! json_encode($metricPrefix) !!};
     const unit       = {!! json_encode($metricUnit) !!};
+    const pastLabels = @json($pastLabels);
+    const pastVals   = @json($pastVals);
+    const avgFc      = @json($avgForecast);
+    const tariff     = @json($tariff);
+    const highDate   = @json(! $summary['flat'] && $highPoint ? $highPoint['date']->format('Y-m-d') : null);
+    const lowDate    = @json(! $summary['flat'] && $lowPoint ? $lowPoint['date']->format('Y-m-d') : null);
 
     if (!allLabels.length) return;
 
@@ -660,6 +807,17 @@
     const fcData    = allLabels.map(d => fcMap[d]    ?? null);
     const fcMinData = allLabels.map(d => fcMinMap[d] ?? null);
     const fcMaxData = allLabels.map(d => fcMaxMap[d] ?? null);
+    const pastMap   = Object.fromEntries(pastLabels.map((d, i) => [d, pastVals[i]]));
+    const pastData  = allLabels.map(d => pastMap[d] ?? null);
+    // The average spans the forecast days only; the tariff spans the whole chart.
+    const avgData   = allLabels.map(d => (avgFc !== null && d in fcMap) ? avgFc : null);
+    const tariffData = allLabels.map(() => tariff);
+
+    // Highest and lowest forecast days get their own colour and a bigger dot,
+    // the same days the summary cards and the table name.
+    const fcPointColor  = allLabels.map(d => d === highDate ? '#10b981' : (d === lowDate ? '#ef4444' : '#93c5fd'));
+    const fcPointBorder = allLabels.map(d => d === highDate ? '#047857' : (d === lowDate ? '#b91c1c' : '#2563eb'));
+    const fcPointRadius = allLabels.map(d => (d === highDate || d === lowDate) ? 6 : 3);
 
     // ── Date formatter ────────────────────────────────────────
     function fmtDate(s) {
@@ -763,12 +921,49 @@
                     backgroundColor: '#2563eb',
                     borderWidth: 2,
                     borderDash: [7, 4],
-                    pointRadius: 3,
-                    pointHoverRadius: 5,
-                    pointBackgroundColor: '#93c5fd',
-                    pointBorderColor: '#2563eb',
+                    pointRadius: fcPointRadius,
+                    pointHoverRadius: 7,
+                    pointBackgroundColor: fcPointColor,
+                    pointBorderColor: fcPointBorder,
                     pointBorderWidth: 1.5,
                     tension: 0.35,
+                    spanGaps: false,
+                },
+
+                // Dataset 4 — Average of the forecast days
+                {
+                    label: 'Avg forecast',
+                    data: avgData,
+                    fill: false,
+                    borderColor: '#d97706',
+                    borderWidth: 1.5,
+                    borderDash: [2, 3],
+                    pointRadius: 0,
+                    spanGaps: false,
+                },
+
+                // Dataset 5 — Current tariff (price only)
+                {
+                    label: 'Tariff',
+                    data: tariff !== null ? tariffData : [],
+                    fill: false,
+                    borderColor: '#7e22ce',
+                    borderWidth: 1.5,
+                    borderDash: [8, 3],
+                    pointRadius: 0,
+                    spanGaps: true,
+                },
+
+                // Dataset 6 — What earlier runs predicted for days now past
+                {
+                    label: 'Past forecast',
+                    data: pastData,
+                    showLine: false,
+                    pointRadius: 3,
+                    pointHoverRadius: 5,
+                    pointBackgroundColor: '#ffffff',
+                    pointBorderColor: '#94a3b8',
+                    pointBorderWidth: 1.5,
                     spanGaps: false,
                 },
             ]
@@ -807,6 +1002,8 @@
                         },
                         label(item) {
                             const val = item.parsed.y.toFixed(2);
+                            if (item.datasetIndex === 3 && item.label === highDate) return ` Forecast (highest): ${prefix}${val} ${unit}`;
+                            if (item.datasetIndex === 3 && item.label === lowDate)  return ` Forecast (lowest): ${prefix}${val} ${unit}`;
                             const note = item.datasetIndex === 2 && filledSet.has(item.label)
                                 ? (isPrice ? ' (no batch – last price)' : ' (no batch)')
                                 : '';

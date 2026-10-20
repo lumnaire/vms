@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Staff;
 
 use App\Http\Controllers\Controller;
+use App\Models\PriceGuide;
 use App\Models\User;
 use App\Models\VendorInventory;
+use App\Services\MarketAnalytics;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
-    public function index()
+    public function index(MarketAnalytics $analytics)
     {
         $pendingCount = VendorInventory::where('status', 'pending')->whereDate('entry_date', today())->count();
         $pendingEntries = VendorInventory::with(['fishType', 'vendor.vendorProfile'])
@@ -48,6 +51,52 @@ class DashboardController extends Controller
             ->sortBy(fn ($g) => ($g['pending_count'] > 0 ? '0' : '1').($g['vendor']?->name ?? ''))
             ->values();
 
+        // ── Entries this week: one stacked bar per day by status ──────
+        $weekStart = today()->subDays(6);
+        $counts = DB::table('vendor_inventories')
+            ->whereDate('entry_date', '>=', $weekStart->toDateString())
+            ->selectRaw('DATE(entry_date) AS d, status, COUNT(*) AS n')
+            ->groupByRaw('DATE(entry_date), status')
+            ->get()
+            ->groupBy('d');
+
+        $week = ['labels' => [], 'confirmed' => [], 'rejected' => [], 'pending' => []];
+        for ($day = $weekStart->copy(); $day->lte(today()); $day->addDay()) {
+            $rows = $counts->get($day->toDateString(), collect())->pluck('n', 'status');
+            $week['labels'][] = $day->isToday() ? 'Today' : $day->format('D j');
+            foreach (['confirmed', 'rejected', 'pending'] as $status) {
+                $week[$status][] = (int) ($rows[$status] ?? 0);
+            }
+        }
+
+        // ── Vendors who have not submitted anything today ─────────────
+        $notSubmitted = User::with('vendorProfile')
+            ->where('role', 'vendor')
+            ->where('status', 'active')
+            ->whereDoesntHave('vendorInventories', fn ($q) => $q->whereDate('entry_date', today()))
+            ->orderBy('name')
+            ->get();
+
+        // ── Tariff: today's batches priced above it, and who marks up most ──
+        $tariffs = PriceGuide::tariffMap();
+        $aboveTariffToday = VendorInventory::whereDate('entry_date', today())
+            ->whereIn('status', ['pending', 'confirmed'])
+            ->get()
+            ->filter(function ($e) use ($tariffs) {
+                $tariff = $e->tariff_price ?? ($tariffs[PriceGuide::key($e->fish_type_id, $e->quality_class)] ?? null);
+
+                return $tariff !== null && (float) $e->price_per_kg > (float) $tariff;
+            })
+            ->count();
+
+        // Markup only: sales stay with the vendor and the supervisor.
+        $markupBoard = $analytics->tuboLeaderboard(today()->startOfMonth(), 8, withSales: false);
+
+        // Supply trend for every period (kilograms only).
+        $dailySupply = $analytics->dailySupply();
+        $supplyCharts = $analytics->periodPayload(['supply' => [$dailySupply]]);
+        $supplyMonth = $analytics->monthToDate($dailySupply);
+
         return view('staff.dashboard', compact(
             'pendingCount',
             'pendingEntries',
@@ -55,6 +104,12 @@ class DashboardController extends Controller
             'rejectedToday',
             'totalVendors',
             'repeatSubmissions',
+            'week',
+            'notSubmitted',
+            'aboveTariffToday',
+            'markupBoard',
+            'supplyCharts',
+            'supplyMonth',
         ));
     }
 }

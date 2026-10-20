@@ -280,7 +280,7 @@ class FrontendSmokeTest extends TestCase
                 fn ($e) => ! preg_match(
                     '/^Tag (?:header|main|section|nav|footer|article|aside|figure|'
                     .'figcaption|time|mark|summary|details|template|picture|search|'
-                    .'dialog|slot|svg|path|line|circle|rect|polyline|polygon|g|'
+                    .'dialog|slot|canvas|svg|path|line|circle|rect|polyline|polygon|g|'
                     .'defs|use|ellipse|text|tspan|defs)\b.*\binvalid\b/i',
                     trim($e->message)
                 )

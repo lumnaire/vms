@@ -76,12 +76,14 @@
         $v['fish_list'] ?: '—',
         number_format($v['total_stock_kg'], 2),
         '₱' . number_format($v['avg_price'] ?? 0, 2),
+        ($v['avg_markup'] === null ? '—' : ($v['avg_markup'] >= 0 ? '+' : '−') . '₱' . number_format(abs($v['avg_markup']), 2)),
         (string)$v['total_entries'],
     ])->values()->toArray();
 
     $priceRowsJs = $priceBreakdown->map(fn($p) => [
         $p['fish_name'] ?? '—',
         'Class ' . $p['quality_class'],
+        $p['tariff'] !== null ? '₱' . number_format($p['tariff'], 2) : '—',
         '₱' . number_format($p['avg_price'], 2),
         '₱' . number_format($p['min_price'], 2),
         '₱' . number_format($p['max_price'], 2),
@@ -119,6 +121,11 @@
                     Filter
                 </button>
             </form>
+
+            <a href="{{ route('supervisor.reports.history') }}" class="btn-filter" style="text-decoration:none"
+               title="Daily supply, sales and prices vs tariff for the past year, for reports and model retraining">
+                <i class="bi bi-filetype-csv"></i> History (CSV)
+            </a>
 
             <button id="btnGeneratePdf" class="btn-pdf" onclick="generateSupervisorPdf()">
                 <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -166,6 +173,7 @@
                         <th>Fish Types</th>
                         <th>Total Stock (kg)</th>
                         <th>Avg. Price / kg</th>
+                        <th>Avg. Markup / kg</th>
                         <th>Entries</th>
                     </tr>
                 </thead>
@@ -180,11 +188,19 @@
                         <td style="color:#6b7280; font-size:.775rem;">{{ $vs['fish_list'] ?: '—' }}</td>
                         <td class="text-right font-semibold">{{ number_format($vs['total_stock_kg'], 2) }}</td>
                         <td class="text-right" style="color:#374151">₱{{ number_format($vs['avg_price'] ?? 0, 2) }}</td>
+                        <td class="text-right" style="color:#374151">
+                            @if($vs['avg_markup'] === null)
+                                <span style="color:#9ca3af">—</span>
+                            @else
+                                {{ $vs['avg_markup'] >= 0 ? '+' : '−' }}₱{{ number_format(abs($vs['avg_markup']), 2) }}
+                                <span style="display:block; color:#9ca3af; font-size:.7rem">{{ $vs['above_tariff'] }} above tariff</span>
+                            @endif
+                        </td>
                         <td class="text-right" style="color:#6b7280">{{ $vs['total_entries'] }}</td>
                     </tr>
                     @empty
                     <tr>
-                        <td class="text-center" colspan="7" style="padding:2.5rem; color:#9ca3af; font-size:.875rem">
+                        <td class="text-center" colspan="8" style="padding:2.5rem; color:#9ca3af; font-size:.875rem">
                             No vendor activity recorded for this date.
                         </td>
                     </tr>
@@ -197,7 +213,7 @@
                             Market Total
                         </td>
                         <td class="text-right">{{ number_format($marketTotalKg, 2) }} kg</td>
-                        <td colspan="2"></td>
+                        <td colspan="3"></td>
                     </tr>
                 </tfoot>
                 @endif
@@ -219,6 +235,7 @@
                     <tr>
                         <th>Fish Type</th>
                         <th>Quality Class</th>
+                        <th>Tariff / kg</th>
                         <th>Avg. Price / kg</th>
                         <th>Min. Price / kg</th>
                         <th>Max. Price / kg</th>
@@ -235,7 +252,13 @@
                                 Class {{ $pb['quality_class'] }}
                             </span>
                         </td>
-                        <td class="text-right font-semibold" style="color:#111827">₱{{ number_format($pb['avg_price'], 2) }}</td>
+                        <td class="text-right" style="color:#7e22ce">{{ $pb['tariff'] !== null ? '₱' . number_format($pb['tariff'], 2) : '—' }}</td>
+                        <td class="text-right font-semibold" style="color:#111827">
+                            ₱{{ number_format($pb['avg_price'], 2) }}
+                            @if($pb['tariff'] !== null)
+                                <x-tariff-diff :comparison="App\Models\PriceGuide::compare($pb['avg_price'], $pb['tariff'])" class="flex mt-0.5" />
+                            @endif
+                        </td>
                         <td class="text-right" style="color:#6b7280">₱{{ number_format($pb['min_price'], 2) }}</td>
                         <td class="text-right" style="color:#6b7280">₱{{ number_format($pb['max_price'], 2) }}</td>
                         <td class="text-right font-semibold">{{ number_format($pb['total_kg'], 2) }}</td>
@@ -243,7 +266,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td class="text-center" colspan="7" style="padding:2.5rem; color:#9ca3af; font-size:.875rem">
+                        <td class="text-center" colspan="8" style="padding:2.5rem; color:#9ca3af; font-size:.875rem">
                             No price data available for this date.
                         </td>
                     </tr>
@@ -385,11 +408,11 @@
                 doc.setTextColor(150, 150, 150);
                 doc.text('No vendor activity recorded for this date.', 14, vsY + 5);
             } else {
-                const vendorFoot = [['', 'MARKET TOTAL', '', MARKET_KG + ' kg', '', '']];
+                const vendorFoot = [['', 'MARKET TOTAL', '', MARKET_KG + ' kg', '', '', '']];
                 doc.autoTable({
                     startY     : vsY + 3,
                     margin     : { left: 14, right: 14 },
-                    head       : [['Stall No.', 'Vendor Name', 'Fish Types', 'Total Stock (kg)', 'Avg. Price/kg', 'Entries']],
+                    head       : [['Stall No.', 'Vendor Name', 'Fish Types', 'Total Stock (kg)', 'Avg. Price/kg', 'Avg. Markup/kg', 'Entries']],
                     body       : VENDOR_ROWS,
                     foot       : vendorFoot,
                     showFoot   : 'lastPage',
@@ -408,9 +431,10 @@
                         0: { cellWidth: 20,  halign: 'center' },
                         1: { cellWidth: 55 },
                         2: { cellWidth: 'auto' },
-                        3: { cellWidth: 38,  halign: 'right' },
-                        4: { cellWidth: 32,  halign: 'right' },
-                        5: { cellWidth: 20,  halign: 'center' },
+                        3: { cellWidth: 34,  halign: 'right' },
+                        4: { cellWidth: 30,  halign: 'right' },
+                        5: { cellWidth: 30,  halign: 'right' },
+                        6: { cellWidth: 18,  halign: 'center' },
                     },
                     didDrawPage: (data) => {
                         if (data.pageNumber > 1) drawPageHeader(doc, 'DAILY MARKET REPORT — SUPERVISOR OVERVIEW (cont.)');
@@ -436,7 +460,7 @@
                 doc.autoTable({
                     startY     : 33,
                     margin     : { left: 14, right: 14 },
-                    head       : [['Fish Type', 'Quality Class', 'Avg. Price/kg', 'Min. Price/kg', 'Max. Price/kg', 'Total Volume (kg)', 'Vendors']],
+                    head       : [['Fish Type', 'Quality Class', 'Tariff/kg', 'Avg. Price/kg', 'Min. Price/kg', 'Max. Price/kg', 'Total Volume (kg)', 'Vendors']],
                     body       : PRICE_ROWS,
                     theme      : 'striped',
                     headStyles : {
@@ -446,13 +470,14 @@
                     bodyStyles : { fontSize: 8 },
                     alternateRowStyles: { fillColor: C_BLUE_LITE },
                     columnStyles: {
-                        0: { cellWidth: 55 },
-                        1: { cellWidth: 30, halign: 'center' },
-                        2: { cellWidth: 35, halign: 'right' },
-                        3: { cellWidth: 35, halign: 'right' },
-                        4: { cellWidth: 35, halign: 'right' },
-                        5: { cellWidth: 40, halign: 'right' },
-                        6: { cellWidth: 20, halign: 'center' },
+                        0: { cellWidth: 50 },
+                        1: { cellWidth: 28, halign: 'center' },
+                        2: { cellWidth: 30, halign: 'right' },
+                        3: { cellWidth: 30, halign: 'right' },
+                        4: { cellWidth: 30, halign: 'right' },
+                        5: { cellWidth: 30, halign: 'right' },
+                        6: { cellWidth: 34, halign: 'right' },
+                        7: { cellWidth: 18, halign: 'center' },
                     },
                     didDrawPage: (data) => {
                         if (data.pageNumber > 1) drawPageHeader(doc, 'PRICE BREAKDOWN — SUPERVISOR (cont.)');

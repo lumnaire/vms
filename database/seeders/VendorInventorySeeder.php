@@ -62,7 +62,8 @@ class VendorInventorySeeder extends Seeder
             ->keyBy('name');
 
         // ── Price & stock basis (PHP/kg) per quality class ─────────────────
-        // Mirrors the PriceGuideSeeder brackets so prices fall into bracket bands.
+        // Demo price bands per class (the old price brackets). Real tariffs are
+        // entered by the supervisor, so none are seeded.
         $classBasis = [
             'Special Class' => ['cheap_max' => 360, 'moderate_max' => 640, 'stock' => [2,  10]],
             'First Class' => ['cheap_max' => 240, 'moderate_max' => 460, 'stock' => [8,  22]],
@@ -308,13 +309,15 @@ class VendorInventorySeeder extends Seeder
             $touched++;
         }
 
-        $staleCount = VendorInventory::all()
-            ->filter(fn ($e) => $e->isStale())
+        // Batches still on sale at or past the freshness limit: the next
+        // inventory:expire run (or page load) marks them expired.
+        $staleCount = VendorInventory::query()->open()
+            ->whereDate('entry_date', '<=', Carbon::today()->subDays($threshold)->toDateString())
             ->count();
 
         $this->command->info(
             "   ⚠️ Stale stock: {$touched} entr".($touched === 1 ? 'y' : 'ies')
-            ." forced unsold · {$staleCount} total flagged at {$threshold}+ days."
+            ." forced unsold · {$staleCount} at {$threshold}+ days, due to expire."
         );
     }
 }

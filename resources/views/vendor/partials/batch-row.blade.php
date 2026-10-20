@@ -39,7 +39,17 @@
         </div>
     </td>
     <td class="px-4 py-3 text-[12px] text-slate-500">{{ $entry->quality_class }}</td>
-    <td class="px-4 py-3 text-right text-[13px] font-semibold text-slate-700">₱{{ number_format((float) $entry->price_per_kg, 2) }}</td>
+    <td class="px-4 py-3 text-right">
+        <p class="text-[13px] font-semibold text-slate-700">₱{{ number_format((float) $entry->price_per_kg, 2) }}</p>
+        @if($entry->tariff_price !== null)
+            <x-tariff-diff :comparison="$entry->tariffComparison()" class="mt-0.5" />
+        @endif
+        @if($entry->price_note)
+            <p class="text-[10.5px] text-slate-400 mt-0.5 truncate max-w-[12rem] ml-auto" title="{{ $entry->price_note }}">
+                <x-icon name="bi-chat-left-text" size="2xs" /> {{ $entry->price_note }}
+            </p>
+        @endif
+    </td>
     <td class="px-4 py-3 text-right text-[12.5px] text-slate-600">{{ number_format((float) $entry->stock_kg, 1) }} kg</td>
     <td class="px-4 py-3 text-right text-[12.5px] font-semibold text-slate-800">
         @if($closed)
