@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\PriceGuide;
 use App\Models\VendorInventory;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class ConfirmationController extends Controller
@@ -85,18 +86,27 @@ class ConfirmationController extends Controller
     }
 
     // ─── Reject a pending inventory entry ────────────────────────
-    public function reject(VendorInventory $inventory)
+    public function reject(Request $request, VendorInventory $inventory)
     {
         abort_if($inventory->status !== 'pending', 422, 'This entry is no longer pending.');
 
-        $inventory->update(['status' => 'rejected']);
+        $request->validate([
+            'reject_reason' => ['nullable', 'string', 'max:500'],
+        ], [
+            'reject_reason.max' => 'Keep the reason under 500 characters.',
+        ]);
+
+        // Optional message to the vendor, shown beside the rejected batch
+        $reason = trim((string) $request->input('reject_reason')) ?: null;
+
+        $inventory->update(['status' => 'rejected', 'reject_reason' => $reason]);
 
         $label = "{$inventory->fishType->name} ({$inventory->quality_class} Class, {$inventory->batchLabel()})";
 
         ActivityLog::create([
             'user_id' => Auth::id(),
             'action' => 'reject_price',
-            'description' => "Rejected: {$label} from {$inventory->vendor->name}.",
+            'description' => "Rejected: {$label} from {$inventory->vendor->name}".($reason ? " — {$reason}" : '').'.',
         ]);
 
         return redirect()->route('staff.confirmations.index')

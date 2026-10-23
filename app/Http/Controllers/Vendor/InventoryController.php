@@ -112,7 +112,7 @@ class InventoryController extends Controller
             'price_per_kg.min' => 'Price must be at least ₱0.01.',
             'stock_kg.required' => 'Stock quantity is required.',
             'stock_kg.min' => 'Stock must be at least 0.1 kg.',
-            'price_note.max' => 'Keep the reason under 500 characters.',
+            'price_note.max' => 'Keep the note under 500 characters.',
         ]);
 
         $vendorId = Auth::id();
@@ -120,11 +120,11 @@ class InventoryController extends Controller
 
         // The tariff in force now is kept on the batch, so its markup (the
         // vendor's tubo) stays right after the tariff changes. Pricing above the
-        // tariff is allowed; the vendor's reason is kept only when it is above.
+        // tariff is allowed. The vendor's optional note explains the price to staff.
         $tariff = PriceGuide::tariffFor((int) $request->fish_type_id, $request->quality_class);
         $comparison = PriceGuide::compare((float) $request->price_per_kg, $tariff);
         $isAbove = ($comparison['state'] ?? null) === 'above';
-        $note = $isAbove ? (trim((string) $request->input('price_note')) ?: null) : null;
+        $note = trim((string) $request->input('price_note')) ?: null;
 
         // Submitting a fish the vendor already has makes the next batch. The form
         // only reminds them of what is already there; nothing to confirm.

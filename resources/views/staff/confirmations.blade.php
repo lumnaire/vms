@@ -201,11 +201,12 @@
 
                     </div>
 
-                    {{-- The vendor's reason for pricing above the tariff --}}
+                    {{-- The vendor's note on their price, e.g. why it is above the tariff --}}
                     @if($entry->price_note)
                     <div class="mt-3 rounded-lg px-3 py-2.5 bg-surface-subtle border border-slate-200">
                         <p class="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600">
-                            <x-icon name="bi-chat-left-text" size="xs" /> Vendor's reason for the markup
+                            <x-icon name="bi-chat-left-text" size="xs" />
+                            {{ $entry->isAboveTariff() ? "Vendor's reason for the markup" : "Vendor's note on the price" }}
                         </p>
                         <p class="mt-1 text-[12px] text-slate-700">{{ $entry->price_note }}</p>
                     </div>
@@ -390,6 +391,16 @@
 
             {{-- Contextual note --}}
             <div id="modalNote" class="rounded-xl px-4 py-3 mb-5 text-[12px] leading-[1.6]"></div>
+
+            {{-- Reject only: optional message the vendor sees on the rejected batch --}}
+            <div id="rejectReasonBox" class="hidden mb-5">
+                <label class="form-label" for="rejectReasonInput">
+                    Reason for rejecting <span class="font-normal text-slate-400">(optional)</span>
+                </label>
+                <textarea name="reject_reason" id="rejectReasonInput" form="modalForm" rows="2" maxlength="500" class="form-input"
+                          placeholder="e.g. Price is too far above the tariff, please resubmit"></textarea>
+                <p class="mt-1 text-slate-400 text-[11px]">The vendor sees this next to the rejected batch.</p>
+            </div>
         </div>
 
         {{-- Actions --}}
@@ -471,6 +482,10 @@
             document.getElementById('modalBtnIcon').className           = 'bi bi-x-circle';
             document.getElementById('modalBtnText').textContent         = 'Yes, Reject';
         }
+
+        // The reason box belongs to reject only and starts empty for each entry
+        document.getElementById('rejectReasonBox').classList.toggle('hidden', isApprove);
+        document.getElementById('rejectReasonInput').value = '';
 
         // ── Set form action & show ─────────────────────────────
         document.getElementById('modalForm').action = btn.dataset.url;

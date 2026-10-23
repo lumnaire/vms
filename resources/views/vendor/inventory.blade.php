@@ -255,14 +255,14 @@
                             </div>
                         </div>
 
-                        {{-- Optional reason for pricing above the tariff --}}
-                        <div id="priceNoteBox" class="{{ $formOld('price_note') ? '' : 'hidden' }} mt-3">
+                        {{-- Optional note explaining the price, e.g. why it is above the tariff --}}
+                        <div class="mt-3">
                             <label class="form-label" for="priceNoteInput">
-                                Why is it above the tariff? <span class="font-normal text-slate-400">(optional)</span>
+                                <span id="priceNoteLabel">Note on your price</span> <span class="font-normal text-slate-400">(optional)</span>
                             </label>
                             <textarea name="price_note" id="priceNoteInput" rows="2" maxlength="500" class="form-input"
                                       placeholder="e.g. Bigger size, caught this morning, higher boat fuel cost">{{ $formOld('price_note') }}</textarea>
-                            <p class="mt-1 text-slate-400 text-[11px]">Staff, the supervisor and consumers see this next to your price.</p>
+                            <p class="mt-1 text-slate-400 text-[11px]">Staff see this when they review your batch.</p>
                         </div>
                     </div>
 
@@ -509,7 +509,7 @@
     const guideHint     = document.getElementById('priceGuideHint');
     const guideWarning  = document.getElementById('priceGuideWarning');
     const guideWarnText = document.getElementById('priceGuideWarningText');
-    const noteBox       = document.getElementById('priceNoteBox');
+    const noteLabel     = document.getElementById('priceNoteLabel');
     const peso = (n) => '₱' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const kg   = (n) => Number(n).toLocaleString('en-PH', { minimumFractionDigits: 1, maximumFractionDigits: 2 }) + ' kg';
 
@@ -554,7 +554,7 @@
     }
 
     // Compares the price with the tariff as it is typed. Above the tariff is
-    // allowed: it shows the markup (tubo) and offers the optional reason box.
+    // allowed: it shows the markup (tubo) and asks why in the optional note box.
     function checkPriceGuide() {
         const tariff = fishSelect.value ? TARIFFS[fishSelect.value + '_' + qcSelect.value] : undefined;
         const price = parseFloat(priceInput.value);
@@ -562,7 +562,7 @@
         if (tariff === undefined) {
             priceInput.classList.remove('is-above-tariff');
             guideWarning.classList.add('hidden');
-            noteBox.classList.add('hidden');
+            noteLabel.textContent = 'Note on your price';
             guideHint.textContent = fishSelect.value
                 ? 'The supervisor has not set a tariff for this fish yet.'
                 : 'Select a fish type to see its tariff.';
@@ -578,7 +578,7 @@
 
         priceInput.classList.toggle('is-above-tariff', isAbove);
         guideWarning.classList.toggle('hidden', !isAbove);
-        noteBox.classList.toggle('hidden', !isAbove);
+        noteLabel.textContent = isAbove ? 'Why is it above the tariff?' : 'Note on your price';
 
         if (isAbove) {
             guideWarnText.textContent = ' Your markup (tubo) is ' + peso(diff) + ' per kg (+' + pct + '%) over the '

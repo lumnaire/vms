@@ -249,6 +249,11 @@
                                       style="background: #fee2e2">
                                     <i class="bi bi-x-circle-fill"></i> Rejected
                                 </span>
+                                @if($item->reject_reason)
+                                    <p class="text-[11px] text-danger-700 mt-1 max-w-[14rem]">
+                                        <span class="font-semibold">Staff:</span> {{ $item->reject_reason }}
+                                    </p>
+                                @endif
                             @endif
                         </td>
                         <td class="px-5 py-3 text-slate-500 text-[11.5px] font-semibold whitespace-nowrap">{{ $item->isCountingDown() ? $item->countdownLabel() : '—' }}</td>

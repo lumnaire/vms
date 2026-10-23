@@ -86,9 +86,9 @@ class MarketplaceFlowTest extends TestCase
 
         $html = $this->actingAs($vendor)->get('/vendor/inventory')->assertOk()->getContent();
 
-        // Above the tariff is flagged amber and offers the optional reason box.
+        // Above the tariff is flagged amber and the optional note box asks why.
         $this->assertStringContainsString("classList.toggle('is-above-tariff', isAbove)", $html);
-        $this->assertStringContainsString("noteBox.classList.toggle('hidden', !isAbove)", $html);
+        $this->assertStringContainsString("isAbove ? 'Why is it above the tariff?'", $html);
         $this->assertStringContainsString('name="price_note"', $html);
         $this->assertStringContainsString('Above the tariff.', $html);
 
@@ -145,7 +145,7 @@ class MarketplaceFlowTest extends TestCase
         $this->assertStringContainsString('₱10.00 above the ₱120.00 tariff', ActivityLog::latest('id')->value('description'));
     }
 
-    public function test_a_reason_is_not_kept_when_the_price_is_not_above_the_tariff(): void
+    public function test_a_price_note_is_kept_even_when_the_price_is_not_above_the_tariff(): void
     {
         $fish = $this->makeFishType();
         $this->makeGuide($fish, 120);
@@ -156,12 +156,12 @@ class MarketplaceFlowTest extends TestCase
             'quality_class' => 'First Class',
             'price_per_kg' => 115,
             'stock_kg' => 10,
-            'price_note' => 'Leftover text from an earlier price',
+            'price_note' => 'Small size, selling cheaper today',
         ])->assertSessionHasNoErrors();
 
         $entry = VendorInventory::firstWhere('vendor_id', $vendor->id);
         $this->assertSame('120.00', $entry->tariff_price);
-        $this->assertNull($entry->price_note);
+        $this->assertSame('Small size, selling cheaper today', $entry->price_note);
         $this->assertSame(-5.0, $entry->markupPerKg());
     }
 
@@ -559,6 +559,37 @@ class MarketplaceFlowTest extends TestCase
             ->assertRedirect('/staff/confirmations');
 
         $this->assertSame('rejected', $entry->fresh()->status);
+        $this->assertNull($entry->fresh()->reject_reason);
+    }
+
+    public function test_staff_can_give_a_reason_when_rejecting_and_the_vendor_sees_it(): void
+    {
+        $fish = $this->makeFishType();
+        $vendor = $this->makeUser('vendor');
+        $staff = $this->makeUser('staff');
+
+        $entry = VendorInventory::create([
+            'vendor_id' => $vendor->id,
+            'fish_type_id' => $fish->id,
+            'quality_class' => 'First Class',
+            'price_per_kg' => 700,
+            'stock_kg' => 10,
+            'released_kg' => 10,
+            'sold_kg' => 0,
+            'status' => 'pending',
+            'entry_date' => today(),
+            'is_locked' => false,
+        ]);
+
+        $this->actingAs($staff)
+            ->patch('/staff/confirmations/'.$entry->id.'/reject', ['reject_reason' => 'Price too far above the tariff'])
+            ->assertRedirect('/staff/confirmations');
+
+        $this->assertSame('Price too far above the tariff', $entry->fresh()->reject_reason);
+        $this->assertStringContainsString('Price too far above the tariff', ActivityLog::latest('id')->value('description'));
+
+        $this->actingAs($vendor)->get('/vendor/inventory')->assertOk()->assertSee('Price too far above the tariff');
+        $this->actingAs($vendor)->get('/vendor/dashboard')->assertOk()->assertSee('Price too far above the tariff');
     }
 
     // ─── Every page, with real data behind it ──────────────────────

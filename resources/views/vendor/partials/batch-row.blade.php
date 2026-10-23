@@ -75,6 +75,12 @@
         <span class="state-pill state-{{ $state }}">
             <x-icon name="{{ $stateText[0] }}" size="2xs" /> {{ $stateText[1] }}
         </span>
+        {{-- Staff's message on why the batch was rejected --}}
+        @if($entry->isRejected() && $entry->reject_reason)
+            <p class="text-[10.5px] text-danger-700 mt-1 max-w-[12rem] mx-auto text-left" title="{{ $entry->reject_reason }}">
+                <x-icon name="bi-chat-left-text" size="2xs" /> <span class="font-semibold">Staff:</span> {{ $entry->reject_reason }}
+            </p>
+        @endif
     </td>
     <td class="px-3 py-3 text-center">
         @unless($closed || $entry->isRejected())

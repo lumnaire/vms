@@ -35,6 +35,7 @@ class VendorInventory extends Model
         'price_per_kg',
         'tariff_price',
         'price_note',
+        'reject_reason',
         'stock_kg',
         'released_kg',
         'sold_kg',
