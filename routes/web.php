@@ -72,6 +72,7 @@ Route::middleware(['auth', 'role:supervisor'])
 
         Route::get('/forecasts', [ForecastController::class, 'index'])->name('forecasts.index');
         Route::get('/reports', [ReportController::class,   'index'])->name('reports.index');
+        Route::get('/reports/pdf', [ReportController::class, 'pdf'])->name('reports.pdf');
         // Daily history (supply, sales, prices vs tariff) as CSV, for reports and model retraining.
         Route::get('/reports/history.csv', [ReportController::class, 'history'])->name('reports.history');
 

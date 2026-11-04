@@ -117,6 +117,7 @@ class SupplyReport
             ->get();
 
         return [
+            'entries' => $batches->sortBy('entry_date')->values(),
             'totals' => $this->totals($batches) + [
                 'pulled_out_kg' => round((float) $pullOuts->sum('kg'), 2),
                 'pull_outs' => $pullOuts->count(),

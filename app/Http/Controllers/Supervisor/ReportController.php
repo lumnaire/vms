@@ -15,6 +15,14 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportController extends Controller
 {
+    public function pdf(Request $request)
+    {
+        // Share the official entrance form and archive logic with staff reports.
+        $request->merge(['period' => 'daily']);
+
+        return app(\App\Http\Controllers\Staff\ReportController::class)->pdf($request);
+    }
+
     public function index(Request $request)
     {
         $reportDate = $request->input('date', today()->toDateString());

@@ -485,6 +485,21 @@ class BatchStockTest extends TestCase
             ->assertSee('30.0 kg');
     }
 
+    public function test_supervisor_downloads_the_official_entrance_report(): void
+    {
+        $supervisor = $this->makeUser('supervisor');
+        $vendor = $this->makeUser('vendor', 'Report Demo Vendor');
+        $this->batch($vendor, $this->makeFishType(), 15);
+
+        $this->actingAs($supervisor)->get('/supervisor/reports?date='.today()->toDateString())
+            ->assertOk()->assertSee('/supervisor/reports/pdf?date=', false);
+        $pdf = $this->actingAs($supervisor)->get('/supervisor/reports/pdf?date='.today()->toDateString())->assertOk();
+        $this->assertSame('application/pdf', $pdf->headers->get('content-type'));
+        $this->assertStringStartsWith('%PDF', $pdf->getContent());
+        $this->assertDatabaseHas('reports', ['generated_by' => $supervisor->id, 'report_type' => 'supply_summary']);
+        $this->actingAs($vendor)->get('/supervisor/reports/pdf')->assertForbidden();
+    }
+
     public function test_staff_supply_report_previews_each_period_and_downloads_a_pdf(): void
     {
         $vendor = $this->makeUser('vendor');
