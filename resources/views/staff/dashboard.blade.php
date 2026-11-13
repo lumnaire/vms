@@ -1,12 +1,14 @@
 @extends('layouts.app')
+@section('body-class', 'dashboard-page')
 
 @section('title', 'Staff Dashboard')
 @section('subtitle', 'Price Confirmation & Vendor Management')
 
 @section('content')
+<div class="dashboard dashboard--staff">
 
 {{-- ── Stat Cards ────────────────────────────────────────────── --}}
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+<div class="dashboard-metrics grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
 
     {{-- Pending Confirmations (Action Required) --}}
     <div class="stat-card rounded-xl p-5 border overflow-hidden relative"
@@ -91,17 +93,17 @@
 </div>
 
 {{-- ── This week + who has not submitted ─────────────────────── --}}
-<div class="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
-    <x-card class="xl:col-span-2" title="Entries This Week" subtitle="Batches submitted per day, by review status">
-        <div class="relative h-[260px]"><canvas id="weekChart" aria-label="Entries this week by status"></canvas></div>
+<div class="dashboard-panels grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
+    <x-card class="dashboard-week xl:col-span-2" title="Entries This Week" subtitle="Batches submitted per day, by review status">
+        <div class="dashboard-chart relative h-[260px]"><canvas id="weekChart" aria-label="Entries this week by status"></canvas></div>
     </x-card>
 
-    <x-card :padded="false" title="Not Submitted Today"
+    <x-card class="dashboard-missing" :padded="false" title="Not Submitted Today"
             subtitle="{{ $notSubmitted->count() }} of {{ $totalVendors }} active {{ Str::plural('vendor', $totalVendors) }}">
         @if($notSubmitted->isEmpty())
             <x-empty-state icon="bi-check2-all" title="Every vendor has submitted" text="All active vendors logged a batch today." />
         @else
-            <ul class="divide-y divide-slate-100 overflow-y-auto" style="max-height: 290px;">
+            <ul data-dashboard-page-size="3" aria-label="Vendors not submitted today" class="divide-y divide-slate-100 overflow-y-auto" style="max-height: 290px;">
                 @foreach($notSubmitted as $vendor)
                     <li class="px-5 py-2.5 flex items-center justify-between gap-3">
                         <span class="text-slate-700 text-[12.5px] font-medium truncate">{{ $vendor->name }}</span>
@@ -114,8 +116,8 @@
 </div>
 
 {{-- ── Supply trend + markup leaderboard ────────────────────── --}}
-<div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
-    <x-card>
+<div class="dashboard-panels grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
+    <x-card class="dashboard-supply">
         <x-slot:header>
             <div class="min-w-0">
                 <h2 class="vpm-section-title">Supply (kg)</h2>
@@ -133,10 +135,10 @@
                 @endforeach
             </div>
         </x-slot:header>
-        <div class="relative h-[260px]"><canvas id="staffSupplyChart" aria-label="Confirmed supply in kilograms"></canvas></div>
+        <div class="dashboard-chart relative h-[260px]"><canvas id="staffSupplyChart" aria-label="Confirmed supply in kilograms"></canvas></div>
     </x-card>
 
-    <x-card :padded="false" title="Highest Markups · This Month"
+    <x-card class="dashboard-markups" :padded="false" title="Highest Markups · This Month"
             subtitle="Vendors ranked by average markup (tubo) over the tariff, per kilo">
         @if($markupBoard->isEmpty())
             <x-empty-state icon="bi-tags" title="No markups recorded yet"
@@ -152,7 +154,7 @@
                             <th class="vpm-th-right">Above tariff</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody data-dashboard-page-size="2">
                         @foreach($markupBoard as $i => $v)
                             <tr class="{{ $i === 0 && $v['avg_markup'] > 0 ? 'is-highlighted' : '' }}">
                                 <td>
@@ -175,10 +177,10 @@
 </div>
 
 {{-- ── Pending Entries + Repeat Submissions ───────────────────── --}}
-<div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+<div class="dashboard-panels grid grid-cols-1 xl:grid-cols-2 gap-4">
 
     {{-- Pending Queue --}}
-    <div class="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-card">
+    <div class="dashboard-queue bg-white rounded-xl border border-slate-100 overflow-hidden shadow-card">
         <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
             <div>
                 <h2 class="text-slate-700 font-bold text-[13.5px]">Pending Queue</h2>
@@ -192,7 +194,7 @@
         </div>
 
         @if($pendingEntries->isNotEmpty())
-            <ul class="divide-y divide-slate-50 overflow-y-auto" style="max-height: 360px;">
+            <ul data-dashboard-page-size="2" aria-label="Pending queue" class="divide-y divide-slate-50 overflow-y-auto" style="max-height: 360px;">
                 @foreach($pendingEntries as $entry)
                     <li class="flex items-center gap-3 px-5 py-3 hover:bg-slate-50 transition-colors">
                         <div class="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 bg-brand-50"
@@ -221,7 +223,7 @@
                 @endforeach
             </ul>
         @else
-            <div class="flex flex-col items-center justify-center" style="height: 360px;">
+            <div class="dashboard-empty flex flex-col items-center justify-center" style="height: 360px;">
                 <div class="w-10 h-10 rounded-full flex items-center justify-center mb-3 bg-success-50"
                     >
                     <x-icon name="bi-check2-all" size="lg" class="text-emerald-400" />
@@ -234,7 +236,7 @@
 
     {{-- Multiple Batches: the same vendor submitting the same fish and class
          more than once today, with the supply the batches add up to. --}}
-    <div class="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-card">
+    <div class="dashboard-repeats bg-white rounded-xl border border-slate-100 overflow-hidden shadow-card">
         <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
             <div>
                 <h2 class="text-slate-700 font-bold text-[13.5px]">
@@ -248,7 +250,7 @@
         </div>
 
         @if($repeatSubmissions->isNotEmpty())
-            <div class="divide-y divide-slate-100 overflow-y-auto" style="max-height: 360px;">
+            <div data-dashboard-page-size="1" aria-label="Multiple batches" class="divide-y divide-slate-100 overflow-y-auto" style="max-height: 360px;">
                 @foreach($repeatSubmissions as $group)
                     <div class="px-5 py-3.5">
                         <div class="flex items-start justify-between gap-3 mb-2">
@@ -271,7 +273,7 @@
                             </div>
                         </div>
 
-                        <ul class="space-y-1">
+                        <ul data-dashboard-page-size="2" aria-label="Batch details" class="space-y-1">
                             @foreach($group['lines'] as $line)
                                 <li class="flex items-center gap-2 text-[11.5px] {{ $line->isRejected() ? 'opacity-50 line-through' : '' }}">
                                     <span class="font-semibold text-slate-600 w-14">{{ $line->batchLabel() }}</span>
@@ -302,7 +304,7 @@
                 @endforeach
             </div>
         @else
-            <div class="flex flex-col items-center justify-center" style="height: 360px;">
+            <div class="dashboard-empty flex flex-col items-center justify-center" style="height: 360px;">
                 <div class="w-10 h-10 rounded-full flex items-center justify-center mb-3 bg-surface-subtle">
                     <x-icon name="bi-layers" size="lg" class="text-slate-300" />
                 </div>
@@ -314,6 +316,7 @@
 
 </div>
 
+</div>
 @endsection
 
 @push('scripts')

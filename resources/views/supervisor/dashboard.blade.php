@@ -1,12 +1,14 @@
 @extends('layouts.app')
+@section('body-class', 'dashboard-page')
 
 @section('title', 'Supervisor Dashboard')
 @section('subtitle', 'Market Overview · Virac Public Market')
 
 @section('content')
+<div class="dashboard dashboard--supervisor">
 
     {{-- ── Greeting + Account Shortcut ───────────────────────────── --}}
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+    <div class="dashboard-welcome flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
         <div>
             <p class="text-slate-800 font-bold" style="font-size: 16px;">
                 Good {{ now()->hour < 12 ? 'morning' : (now()->hour < 17 ? 'afternoon' : 'evening') }},
@@ -23,7 +25,7 @@
     </div>
 
     {{-- ── This month ────────────────────────────────────────────── --}}
-    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-4">
+    <div class="dashboard-metrics grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-4">
         <div class="vpm-card vpm-card-body">
             <p class="vpm-stat-label">Supply this month</p>
             <p class="vpm-stat-value vpm-num">{{ number_format($kpis['supply']['current'], 1) }} <span class="vpm-stat-value-unit">kg</span></p>
@@ -46,14 +48,14 @@
         </div>
     </div>
 
-    <div class="grid grid-cols-3 gap-3 mb-5">
+    <div class="dashboard-counts grid grid-cols-3 gap-3 mb-5">
         <x-stat-card tinted tone="brand" label="Total Vendors" :value="$totalVendors" decimals="0" />
         <x-stat-card tinted tone="success" label="Total Stalls" :value="$totalStalls" decimals="0" />
         <x-stat-card tinted tone="neutral" label="Active Staff" :value="$activeStaff" decimals="0" />
     </div>
 
     {{-- ── Period toggle ─────────────────────────────────────────── --}}
-    <div class="vpm-card px-4 py-3 mb-4 flex flex-wrap items-center justify-between gap-3">
+    <div class="dashboard-period vpm-card px-4 py-3 mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
             <h2 class="vpm-section-title">Market Trends</h2>
             <p class="vpm-section-sub" id="periodCaption">&nbsp;</p>
@@ -65,29 +67,29 @@
         </div>
     </div>
 
-    <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
+    <div class="dashboard-panels dashboard-primary-charts grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
         <x-card title="Supply vs Sold (kg)" subtitle="Confirmed supply against kilograms recorded as sold">
-            <div class="relative h-[280px]"><canvas id="supplySoldChart" aria-label="Supply versus sold, kilograms"></canvas></div>
+            <div class="dashboard-chart relative h-[280px]"><canvas id="supplySoldChart" aria-label="Supply versus sold, kilograms"></canvas></div>
         </x-card>
         <x-card title="Sales (₱)" subtitle="Sold kilograms × the batch price">
-            <div class="relative h-[280px]"><canvas id="salesChart" aria-label="Sales in pesos"></canvas></div>
+            <div class="dashboard-chart relative h-[280px]"><canvas id="salesChart" aria-label="Sales in pesos"></canvas></div>
         </x-card>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-        <x-card title="Top 5 Vendors (kg)" subtitle="Most confirmed supply in the period">
-            <div class="relative h-[240px]"><canvas id="topVendorsChart" aria-label="Top five vendors by supply"></canvas></div>
+    <div class="dashboard-panels grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+        <x-card class="dashboard-top-vendors" title="Top 5 Vendors (kg)" subtitle="Most confirmed supply in the period">
+            <div class="dashboard-chart relative h-[240px]"><canvas id="topVendorsChart" aria-label="Top five vendors by supply"></canvas></div>
         </x-card>
         <x-card title="Supply by Quality Class" subtitle="Share of confirmed kilograms">
-            <div class="relative h-[240px]"><canvas id="classChart" aria-label="Supply by quality class"></canvas></div>
+            <div class="dashboard-chart relative h-[240px]"><canvas id="classChart" aria-label="Supply by quality class"></canvas></div>
         </x-card>
         <x-card title="Where the Stock Went" subtitle="Batches submitted in the period">
-            <div class="relative h-[240px]"><canvas id="outcomeChart" aria-label="Sold, pulled out and expired stock"></canvas></div>
+            <div class="dashboard-chart relative h-[240px]"><canvas id="outcomeChart" aria-label="Sold, pulled out and expired stock"></canvas></div>
             <p class="vpm-meta mt-2 text-center" id="outcomeFoot"></p>
         </x-card>
     </div>
 
-    <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
+    <div class="dashboard-tables grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
         {{-- Who makes the most tubo --}}
         <x-card class="xl:col-span-2" :padded="false" title="Tubo Leaderboard · This Month"
                 subtitle="Vendors ranked by markup over the tariff on what they sold">
@@ -107,7 +109,7 @@
                                 <th class="vpm-th-right">Above tariff</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody data-dashboard-page-size="1">
                             @foreach($tuboBoard as $i => $v)
                                 <tr class="{{ $i === 0 && $v['tubo'] > 0 ? 'is-highlighted' : '' }}">
                                     <td class="vpm-cell-muted">{{ $i + 1 }}</td>
@@ -135,7 +137,7 @@
             @if($markupWatch->isEmpty())
                 <x-empty-state icon="bi-check2-circle" title="No stall is above the tariff" text="Or no tariffs are set yet." />
             @else
-                <ul class="divide-y divide-slate-100">
+                <ul data-dashboard-page-size="1" aria-label="Markup watch" class="divide-y divide-slate-100">
                     @foreach($markupWatch as $f)
                         <li class="px-5 py-3 flex items-center gap-3">
                             <div class="min-w-0 flex-1">
@@ -154,7 +156,7 @@
     </div>
 
     {{-- ── All-time records ──────────────────────────────────────── --}}
-    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+    <div class="dashboard-records grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         @php
             $hp = $records['highest_price'];
             $hm = $records['highest_markup'];
@@ -200,6 +202,7 @@
 
     {{-- The activity log lives on My Account (see supervisor/account.blade.php). --}}
 
+</div>
 @endsection
 
 @push('scripts')

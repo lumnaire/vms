@@ -29,7 +29,7 @@
     @stack('styles')
 </head>
 
-<body class="bg-slate-50">
+<body class="bg-slate-50 @yield('body-class')">
 
     {{-- Mobile sidebar overlay --}}
     <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-40 lg:hidden hidden" onclick="closeSidebar()">

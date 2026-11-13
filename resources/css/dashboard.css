@@ -1,0 +1,160 @@
+/* Only the three dashboard views opt in. Mobile retains its normal document flow.
+   Keep overflow accessible for zoom, unusually long text and short windows. */
+.dashboard-pager { display: none; }
+.dashboard [hidden] { display: none !important; }
+
+@media (min-width: 1024px) {
+    .dashboard-page .vpm-header { padding: 10px 16px; }
+    .dashboard-page .vpm-main { padding: 10px 12px; }
+    .dashboard-page .vpm-sidebar-nav { padding-top: 10px; padding-bottom: 10px; }
+    .dashboard-page .vpm-nav-link { padding-top: 6px; padding-bottom: 6px; }
+    .dashboard-page .vpm-nav-heading { margin-bottom: 5px; }
+    .dashboard-page .vpm-nav-heading:not(:first-child) { margin-top: 8px; }
+    .dashboard {
+        display: grid;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        gap: 8px;
+    }
+    .dashboard > * { min-width: 0; margin-bottom: 0; }
+    .dashboard > [role="alert"] { grid-column: 1 / -1; }
+    .dashboard-welcome, .dashboard-period, .dashboard-records { grid-column: 1 / -1; }
+    .dashboard-metrics { grid-column: span 9; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+    .dashboard-counts { grid-column: span 3; gap: 6px; }
+    .dashboard-panels { display: contents; }
+    .dashboard .vpm-card-body, .dashboard .stat-card { padding: 8px; }
+    .dashboard .vpm-card-header { padding: 8px 10px; gap: 6px; }
+    .dashboard .vpm-section-title { font-size: 12px; }
+    .dashboard .vpm-section-sub { font-size: 10.5px; line-height: 1.35; }
+    .dashboard .vpm-stat-value { font-size: 22px; margin-top: 5px; }
+    .dashboard .vpm-stat-foot { margin-top: 4px; line-height: 1.3; }
+    .dashboard .vpm-stat-tinted { padding: 8px 4px; display: flex; flex-direction: column; justify-content: center; }
+    .dashboard .vpm-stat-tinted .vpm-stat-value { margin-top: 0; }
+    .dashboard .vpm-stat-label { font-size: 10px; letter-spacing: 0.02em; }
+    .dashboard-period { padding: 6px 10px; gap: 6px; }
+    .dashboard .vpm-segment button { padding: 4px 7px; }
+    .dashboard .dashboard-chart { height: clamp(125px, 20vh, 220px); }
+    .dashboard .vpm-table th, .dashboard .vpm-table td,
+    .dashboard-batches th, .dashboard-batches td { padding: 6px 8px; }
+    .dashboard li { padding-top: 6px; padding-bottom: 6px; }
+    .dashboard [data-dashboard-page-size] { max-height: none !important; overflow: visible; }
+    .dashboard .vpm-empty { padding: 12px 10px; }
+    .dashboard .vpm-empty-icon { width: 28px; height: 28px; font-size: 16px; margin-bottom: 5px; }
+    .dashboard .vpm-empty-title { font-size: 12px; }
+    .dashboard .vpm-empty-text { font-size: 11px; margin-top: 3px; }
+    .dashboard-pager {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 6px;
+        padding: 4px 8px;
+        border-top: 1px solid var(--color-slate-100);
+        color: var(--color-slate-500);
+        font-size: 10.5px;
+    }
+    .dashboard-pager button {
+        padding: 2px 6px;
+        border: 1px solid var(--color-slate-200);
+        border-radius: 5px;
+        color: var(--color-brand-600);
+        cursor: pointer;
+    }
+    .dashboard-pager button:disabled { opacity: .35; cursor: default; }
+
+    /* Vendor: sales, stock outcome and personal record share one row. */
+    .dashboard--vendor .dashboard-welcome { padding: 6px 12px; gap: 8px; display: flex; flex-direction: row; align-items: center; }
+    .dashboard--vendor .dashboard-greeting { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; flex: 1; }
+    .dashboard--vendor .dashboard-welcome .relative > .flex { margin-top: 0; }
+    .dashboard--vendor .dashboard-welcome h2 { font-size: 15px !important; }
+    .dashboard--vendor .dashboard-welcome .mt-2 { margin-top: 3px; }
+    .dashboard-sales { grid-column: span 5; }
+    .dashboard-outcome { grid-column: span 3; }
+    .dashboard-best { grid-column: span 4; }
+    .dashboard-prices { grid-column: span 5; }
+    .dashboard-batches { grid-column: span 7; }
+    .dashboard--vendor .dashboard-best .dashboard-chart { height: clamp(70px, 11vh, 140px); margin-top: 6px; }
+    .dashboard--vendor .dashboard-sales .dashboard-chart { height: clamp(100px, 15vh, 180px); }
+    .dashboard--vendor .dashboard-outcome .dashboard-chart { height: clamp(70px, 10vh, 130px); }
+    .dashboard--vendor .dashboard-outcome .text-center { margin-top: 3px; }
+    .dashboard--vendor .dashboard-outcome #sellThrough { display: inline; margin-left: 4px; font-size: 15px; }
+    .dashboard--vendor .dashboard-outcome #vendorOnStall { display: block; line-height: 1.3; }
+    .dashboard-batches > :first-child { padding: 8px 10px; }
+    .dashboard-batches > .dashboard-empty { height: 110px !important; }
+    .dashboard--vendor .dashboard-batches table { table-layout: fixed; }
+    .dashboard-batches th, .dashboard-batches td { overflow-wrap: anywhere; font-size: 10.5px; }
+    .dashboard-batches td:last-child { white-space: normal; }
+    .dashboard-batches td:nth-child(6) .rounded-full { white-space: nowrap; padding-left: 4px; padding-right: 4px; font-size: 9.5px; }
+
+    /* Staff: two working rows below the action totals. */
+    .dashboard--staff .dashboard-metrics { grid-column: 1 / -1; order: 0; }
+    .dashboard-week { grid-column: span 5; order: 1; }
+    .dashboard-missing { grid-column: span 3; order: 2; }
+    .dashboard-queue { grid-column: span 4; order: 3; }
+    .dashboard-supply { grid-column: span 4; order: 4; }
+    .dashboard-markups { grid-column: span 4; order: 5; }
+    .dashboard-repeats { grid-column: span 4; order: 6; }
+    .dashboard--staff .dashboard-chart { height: clamp(110px, 18vh, 250px); }
+    .dashboard--staff .stat-card a { margin-top: 5px; }
+    .dashboard--staff .stat-card .text-\[28px\] { font-size: 24px; }
+    .dashboard-queue > :first-child, .dashboard-repeats > :first-child { padding: 8px 10px; }
+    .dashboard-queue > .dashboard-empty, .dashboard-repeats > .dashboard-empty { height: 150px !important; padding: 10px; text-align: center; }
+    .dashboard-repeats [data-dashboard-page-size] > div { padding: 8px; }
+    .dashboard-repeats li { flex-wrap: wrap; gap: 4px; padding: 3px 0; }
+    .dashboard-repeats .dashboard-pager { flex-wrap: wrap; }
+    .dashboard-queue li { padding-left: 8px; padding-right: 8px; gap: 6px; }
+    .dashboard-queue li > .w-7 { display: none; }
+    .dashboard-queue .truncate, .dashboard-repeats .truncate, .dashboard-missing .truncate { white-space: normal; }
+
+    /* Supervisor: all five charts share a row, then tables and records. */
+    .dashboard--supervisor .dashboard-welcome { gap: 6px; }
+    .dashboard--supervisor .dashboard-welcome > div { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    .dashboard--supervisor .dashboard-panels > .vpm-card { grid-column: span 2; }
+    .dashboard--supervisor .dashboard-primary-charts > .vpm-card { grid-column: span 3; }
+    .dashboard--supervisor .dashboard-chart { height: clamp(90px, 14vh, 170px); }
+    .dashboard-tables { grid-column: 1 / -1; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 8px; }
+    .dashboard-tables > .vpm-card { grid-column: auto; }
+    .dashboard-tables .vpm-card-header { align-items: flex-start; }
+    .dashboard-records { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+    .dashboard-records .vpm-badge { padding: 2px 4px; font-size: 9px; }
+}
+
+@media (min-width: 1024px) and (max-height: 760px) {
+    .dashboard { gap: 6px; }
+    .dashboard--supervisor .dashboard-chart { height: clamp(75px, 12vh, 92px); }
+    .dashboard--supervisor .vpm-card-body { padding: 6px; }
+    .dashboard--supervisor .vpm-table th, .dashboard--supervisor .vpm-table td { padding-top: 4px; padding-bottom: 4px; }
+    .dashboard-records .vpm-stat-value { font-size: 18px; margin-top: 3px; }
+    .dashboard-records .vpm-stat-foot { margin-top: 2px; }
+}
+
+/* Browser toolbars on 720px laptops can leave roughly 620px of content height. */
+@media (min-width: 1024px) and (max-height: 660px) {
+    .dashboard-page #sidebar { width: 180px; }
+    .dashboard-page .vpm-header { padding-top: 6px; padding-bottom: 6px; }
+    .dashboard-page .vpm-main { padding: 5px 8px; }
+    .dashboard { gap: 4px; }
+    .dashboard .vpm-card-header { padding-top: 5px; padding-bottom: 5px; }
+    .dashboard .vpm-table th, .dashboard .vpm-table td { padding-top: 3px; padding-bottom: 3px; }
+    .dashboard--vendor .dashboard-sales .dashboard-chart { height: 90px; }
+    .dashboard--vendor .dashboard-outcome .dashboard-chart { height: 60px; }
+    .dashboard--vendor .dashboard-best .dashboard-chart { height: 60px; }
+    .dashboard--staff .dashboard-chart { height: 95px; }
+    .dashboard--staff .stat-card { padding-top: 6px; padding-bottom: 6px; }
+    .dashboard-repeats li { padding-top: 1px; padding-bottom: 1px; }
+    .dashboard-repeats .mb-2 { margin-bottom: 4px; }
+    .dashboard--supervisor .dashboard-chart { height: 65px; }
+    .dashboard--supervisor .dashboard-top-vendors .dashboard-chart { height: 90px; }
+    .dashboard-records .vpm-card-body { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 6px; }
+    .dashboard-records .vpm-card-body > div { width: 100%; }
+    .dashboard-records .vpm-stat-value { margin-top: 0; }
+    .dashboard-records .vpm-stat-foot { flex: 1; margin-top: 0; }
+}
+
+/* Avoid squeezing the five supervisor plots at narrower laptop widths. */
+@media (min-width: 1024px) and (max-width: 1199px) {
+    .dashboard-page #sidebar { width: 190px; }
+}
+
+@media print {
+    .dashboard-pager { display: none; }
+    .dashboard [data-dashboard-page-size] > [hidden] { display: revert !important; }
+}

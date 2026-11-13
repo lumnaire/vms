@@ -1,4 +1,5 @@
 @extends('layouts.app')
+@section('body-class', 'dashboard-page')
 
 @section('title', 'My Dashboard')
 @section('subtitle')
@@ -6,17 +7,18 @@
 @endsection
 
 @section('content')
+<div class="dashboard dashboard--vendor">
 
 <x-alert />
 
 {{-- ── Welcome Banner ──────────────────────────────────────── --}}
-<div class="rounded-xl p-5 mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 overflow-hidden relative"
+<div class="dashboard-welcome rounded-xl p-5 mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 overflow-hidden relative"
      style="background: linear-gradient(135deg, #0f2d5e 0%, #1a4a8a 100%); box-shadow: 0 4px 14px rgba(15,45,94,0.3);">
     {{-- Decorative circles --}}
     <div class="absolute" style="right: -20px; top: -20px; width: 120px; height: 120px; border-radius: 50%; background: rgba(255,255,255,0.05)"></div>
     <div class="absolute" style="right: 60px; bottom: -30px; width: 80px; height: 80px; border-radius: 50%; background: rgba(255,255,255,0.04)"></div>
 
-    <div class="relative">
+    <div class="dashboard-greeting relative">
         <p class="text-blue-300 text-[11.5px] font-semibold">Good {{ now()->setTimezone('Asia/Manila')->hour < 12 ? 'morning' : (now()->setTimezone('Asia/Manila')->hour < 17 ? 'afternoon' : 'evening') }},</p>
         <h2 class="text-white font-bold mt-0.5" style="font-size: 18px;">{{ auth()->user()->name }}</h2>
         <div class="flex items-center gap-2 mt-2 flex-wrap">
@@ -44,7 +46,7 @@
 </div>
 
 {{-- ── Sales and stock ───────────────────────────────────────── --}}
-<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-4">
+<div class="dashboard-metrics grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-4">
     <div class="vpm-card vpm-card-body">
         <p class="vpm-stat-label">Sales today</p>
         <p class="vpm-stat-value vpm-num">₱{{ number_format($salesToday, 2) }}</p>
@@ -67,14 +69,14 @@
     </div>
 </div>
 
-<div class="grid grid-cols-3 gap-3 mb-5">
+<div class="dashboard-counts grid grid-cols-3 gap-3 mb-5">
     <x-stat-card tinted tone="brand" label="Today's Entries" :value="$todayEntries ?? 0" decimals="0" />
     <x-stat-card tinted tone="success" label="Confirmed" :value="$confirmedEntries ?? 0" decimals="0" />
     <x-stat-card tinted tone="warning" label="Pending" :value="$pendingEntries ?? 0" decimals="0" />
 </div>
 
 {{-- ── Charts ────────────────────────────────────────────────── --}}
-<div class="vpm-card px-4 py-3 mb-4 flex flex-wrap items-center justify-between gap-3">
+<div class="dashboard-period vpm-card px-4 py-3 mb-4 flex flex-wrap items-center justify-between gap-3">
     <div>
         <h2 class="vpm-section-title">My Sales</h2>
         <p class="vpm-section-sub" id="vendorPeriodCaption">&nbsp;</p>
@@ -86,12 +88,12 @@
     </div>
 </div>
 
-<div class="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
-    <x-card class="xl:col-span-2" title="My Sales (₱)" subtitle="What you recorded as sold × your price">
-        <div class="relative h-[270px]"><canvas id="vendorSalesChart" aria-label="My sales in pesos"></canvas></div>
+<div class="dashboard-panels grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
+    <x-card class="dashboard-sales xl:col-span-2" title="My Sales (₱)" subtitle="What you recorded as sold × your price">
+        <div class="dashboard-chart relative h-[270px]"><canvas id="vendorSalesChart" aria-label="My sales in pesos"></canvas></div>
     </x-card>
-    <x-card title="Where My Stock Went" subtitle="Batches you submitted in the period">
-        <div class="relative h-[220px]"><canvas id="vendorOutcomeChart" aria-label="Sold, pulled out and expired stock"></canvas></div>
+    <x-card class="dashboard-outcome" title="Where My Stock Went" subtitle="Batches you submitted in the period">
+        <div class="dashboard-chart relative h-[220px]"><canvas id="vendorOutcomeChart" aria-label="Sold, pulled out and expired stock"></canvas></div>
         <p class="text-center mt-2">
             <span class="vpm-stat-label">Sell-through</span>
             <span class="text-slate-800 font-bold text-[18px] vpm-num block" id="sellThrough">—</span>
@@ -100,8 +102,8 @@
     </x-card>
 </div>
 
-<div class="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-6">
-    <div class="vpm-card vpm-card-body">
+<div class="dashboard-panels grid grid-cols-1 xl:grid-cols-3 gap-4 mb-6">
+    <div class="dashboard-best vpm-card vpm-card-body">
         <div class="flex items-center justify-between gap-2"><p class="vpm-stat-label">My best day</p><x-badge variant="warning">All-time high</x-badge></div>
         @if($bestDay)
             <p class="vpm-stat-value vpm-num">₱{{ number_format($bestDay['value'], 2) }}</p>
@@ -110,12 +112,12 @@
             <p class="vpm-stat-value text-slate-300">—</p>
             <p class="vpm-stat-foot">Use ⋮ → Release on a batch to record sales</p>
         @endif
-        <div class="relative h-[120px] mt-3"><canvas id="vendorTuboChart" aria-label="My tubo in pesos"></canvas></div>
+        <div class="dashboard-chart relative h-[120px] mt-3"><canvas id="vendorTuboChart" aria-label="My tubo in pesos"></canvas></div>
         <p class="vpm-meta text-center">Tubo (markup over tariff) per period</p>
     </div>
 
     {{-- My prices against the tariff and the other stalls --}}
-    <x-card class="xl:col-span-2" :padded="false" title="My Prices vs Tariff"
+    <x-card class="dashboard-prices xl:col-span-2" :padded="false" title="My Prices vs Tariff"
             subtitle="Fish on your stall now, against the official tariff and other stalls">
         @if($myPrices->isEmpty())
             <x-empty-state icon="bi-tags" title="Nothing on your stall right now" text="Confirmed batches with fish left show here." />
@@ -130,7 +132,7 @@
                             <th class="vpm-th-right">Other stalls</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody data-dashboard-page-size="1">
                         @foreach($myPrices as $row)
                             <tr>
                                 <td>
@@ -162,7 +164,7 @@
 </div>
 
 {{-- ── Today's Inventory Table ──────────────────────────────── --}}
-<div class="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-card">
+<div class="dashboard-batches bg-white rounded-xl border border-slate-100 overflow-hidden shadow-card">
     <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
         <div>
             <h2 class="text-slate-700 font-bold text-[13.5px]">Today's Batches</h2>
@@ -179,7 +181,7 @@
 
     @if($todayInventory->isEmpty())
         {{-- Empty State --}}
-        <div class="flex flex-col items-center justify-center" style="height: 200px;">
+        <div class="dashboard-empty flex flex-col items-center justify-center" style="height: 200px;">
             <div class="w-12 h-12 rounded-full flex items-center justify-center mb-3 bg-surface-subtle"
                 >
                 <x-icon name="bi-inbox" size="2xl" class="text-slate-300" />
@@ -210,7 +212,7 @@
                            >Days Left</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-50">
+                <tbody data-dashboard-page-size="1" class="divide-y divide-slate-50">
                     @foreach($todayInventory as $item)
                     <tr class="hover:bg-slate-50 transition-colors">
                         <td class="px-5 py-3 text-slate-700 font-medium text-[12.5px]">
@@ -267,6 +269,7 @@
 </div>
 
 
+</div>
 @endsection
 
 @push('scripts')
