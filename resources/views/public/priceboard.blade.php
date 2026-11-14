@@ -369,8 +369,30 @@
         .pb-fish-total-num.is-zero { color: var(--color-danger-600); }
 
         /* Tariff line under each fish: the official price and the stall's markup. */
-        .pb-tariff { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.5rem; margin-top: 0.55rem; font-size: 0.72rem; color: var(--color-slate-500); }
-        .pb-tariff-val { font-weight: 700; color: var(--color-slate-700); }
+        .pb-tariff { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin-top: 0.75rem; padding: 0.75rem; border-radius: var(--radius-control); background: var(--color-slate-50); font-size: 0.875rem; color: var(--color-slate-600); }
+        .pb-tariff-val { font-size: 1.125rem; font-weight: 800; color: var(--color-navy-800); }
+        .pb-tariff .vpm-badge { font-size: 0.8125rem; }
+
+        /* Larger reading area for the consumer tariff comparison. */
+        .pb-compare-heading { padding: 1.5rem; border-bottom: 1px solid var(--color-slate-200); }
+        .pb-compare-heading h2 { font-size: 1.375rem; font-weight: 800; color: var(--color-navy-800); }
+        .pb-compare-heading p { margin-top: 0.375rem; font-size: 0.9375rem; color: var(--color-slate-600); }
+        .pb-compare-scroll { overflow-x: auto; }
+        .pb-compare-scroll:focus-visible { outline: 2px solid var(--color-navy-700); outline-offset: -2px; }
+        .pb-compare-table { min-width: 900px; }
+        .pb-compare-table th { padding: 1rem 1.5rem; font-size: 0.8125rem; }
+        .pb-compare-table td { padding: 1.25rem 1.5rem; font-size: 1rem; }
+        .pb-compare-table .vpm-cell-strong { font-size: 1.0625rem; }
+        .pb-compare-table .vpm-cell-muted { font-size: 0.875rem; line-height: 1.5; }
+        .pb-compare-table .vpm-badge { font-size: 0.8125rem; padding: 0.375rem 0.625rem; }
+        .pb-compare-table .pb-compare-price { font-size: 1.375rem; font-weight: 800; color: var(--color-navy-800); }
+        .pb-compare-stall { font-size: 0.9375rem; font-weight: 600; color: var(--color-slate-700); }
+        .pb-compare-hint { display: none; }
+        @media (max-width: 960px) {
+            .pb-compare-hint { display: block; }
+            .pb-compare-heading { padding: 1rem; }
+            .pb-compare-table th, .pb-compare-table td { padding-left: 1rem; padding-right: 1rem; }
+        }
         .pb-note { margin-top: 0.4rem; font-size: 0.72rem; color: var(--color-slate-500); font-style: italic; }
 
         .pb-soldout-tag {
@@ -747,8 +769,13 @@
     {{-- ── TARIFF COMPARISON: one row per fish across every stall ── --}}
     <div x-show="view === 'compare'">
         <div class="vpm-card overflow-hidden">
-            <div class="overflow-x-auto">
-                <table class="vpm-table">
+            <div class="pb-compare-heading">
+                <h2 id="consumerTariffTitle">Tariff and stall prices</h2>
+                <p>Compare the official tariff with the lowest and highest prices available. All prices are per kilogram.</p>
+                <p class="pb-compare-hint">Scroll sideways to see all price comparisons.</p>
+            </div>
+            <div class="pb-compare-scroll" role="region" aria-labelledby="consumerTariffTitle" tabindex="0">
+                <table class="vpm-table pb-compare-table">
                     <thead>
                         <tr>
                             <th>Fish Type</th>
@@ -776,7 +803,7 @@
                                     <span :class="qualityClass(row.quality_class)" x-text="row.quality_class"></span>
                                 </td>
                                 <td class="vpm-td-right vpm-num">
-                                    <span class="font-bold text-slate-900" x-text="row.tariff !== null ? peso(row.tariff) : 'Not set'"></span>
+                                    <span class="pb-compare-price" x-text="row.tariff !== null ? peso(row.tariff) : 'Not set'"></span>
                                 </td>
                                 <td class="vpm-td-right vpm-num">
                                     <span class="font-semibold" x-text="peso(row.min)"></span>
@@ -790,7 +817,7 @@
                                     <template x-if="row.top">
                                         <div>
                                             <span class="vpm-badge vpm-badge-warning vpm-num" x-text="'+' + peso(row.top.diff) + ' (+' + row.top.pct.toFixed(1) + '%)'"></span>
-                                            <span class="text-slate-700 text-[12px] font-semibold ml-1" x-text="'Stall ' + row.top.stall"></span>
+                                            <span class="pb-compare-stall ml-1" x-text="'Stall ' + row.top.stall"></span>
                                             <p class="vpm-cell-muted italic mt-1" x-show="row.top.note" x-text="'Reason: ' + row.top.note"></p>
                                         </div>
                                     </template>
