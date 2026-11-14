@@ -1,288 +1,301 @@
-# Dashboard Computations and Formulas
+﻿# Understanding the Dashboard Figures
 
-This document explains the implemented vendor, staff, and supervisor dashboard computations in the Virac Market System for researchers. It describes the existing application behavior and provides examples that can be reproduced manually.
+This guide explains how the Virac Market System calculates the figures shown on the vendor, staff, and supervisor dashboards. It is written for researchers and research panel members, with everyday explanations and sample computations.
 
-## 1. Data sources and scope
+## 1. What information does the system use?
 
-| Source | Fields used | Purpose |
-| --- | --- | --- |
-| `vendor_inventories` | `vendor_id`, `fish_type_id`, `quality_class`, `entry_date`, `status`, `stock_kg`, `released_kg`, `sold_kg`, `pulled_out_kg`, `price_per_kg`, `tariff_price`, `disposed_at`, `carried_out_at` | Batch counts, declared supply, remaining stock, price comparisons, and stock outcomes |
-| `batch_releases` | `vendor_inventory_id`, `vendor_id`, `kind`, `kg`, `created_at` | Dated records of sold quantities and unsold withdrawals |
-| `price_guides` | `fish_type_id`, `quality_class`, `tariff_price`, `is_active` | Current official tariff; previous versions remain in history |
-| `users` | `role`, `status` | Active vendor and staff counts |
-| `vendor_profiles` | `user_id`, `stall_number` | Stall count and identification |
+The dashboards use the fish deliveries submitted by vendors, the entries confirmed by staff, the quantities vendors record as sold or removed, and the official market tariff.
 
-Vendor computations are limited to the authenticated vendor's ID. Staff and supervisor computations cover the market. Active account counts filter `status = active`; market supply and sales queries do not automatically exclude historical records belonging to inactive users.
+A **batch** is one submitted delivery of fish. If a vendor submits the same kind of fish twice, the system counts two batches.
 
-The application timezone defaults to `Asia/Manila` and can be overridden by `APP_TIMEZONE`. “Today” follows that configuration. Supply uses the batch's `entry_date`; sales use the date of the release's `created_at`. SQL extracts those stored dates directly, without an explicit timezone conversion in the analytics query.
-
-### Symbols and units
-
-| Symbol | Meaning | Unit |
-| --- | --- | --- |
-| `W_i` | Declared stock of batch i (`stock_kg`) | kg |
-| `R_i` | Stock initially made available (`released_kg`) | kg |
-| `S_i` | Cumulative sold quantity (`sold_kg`) | kg |
-| `U_i` | Cumulative unsold withdrawal (`pulled_out_kg`) | kg |
-| `P_i` | Batch selling price (`price_per_kg`) | PHP/kg |
-| `T_i` | Tariff saved on that batch (`tariff_price`) | PHP/kg |
-| `q_j` | Quantity in sold release j (`batch_releases.kg`) | kg |
-
-`SUM(...)` means add the indicated values over all qualifying records. `COUNT(...)` counts records, rather than fish types or vendors. Each repeated submission is a separate batch.
-
-## 2. Shared computations
-
-### 2.1 Confirmed supply
-
-```text
-Supply on date d = SUM(W_i where status = confirmed and entry_date = d)
-Supply for a period = SUM(daily supply within the period)
-```
-
-Supply measures fish brought in and confirmed. Selling, withdrawing, or expiring that fish does not subtract it from historical supply. Pending and rejected batches do not contribute.
-
-### 2.2 Sold kilograms and sales value
-
-```text
-Sold kg on date d = SUM(q_j where kind = sold and DATE(created_at) = d)
-Sales on date d = SUM(q_j * P_i for those sold releases joined to their batches)
-```
-
-Only releases recorded as `sold` generate sales. A `pulled_out` release reduces remaining stock but creates no sales. The query uses the linked batch's price, rather than a separate transaction price stored on the release. The sales query itself does not add a batch-status filter; the normal release workflow requires confirmation before selling.
-
-### 2.3 Markup and tubo
-
-```text
-Markup per kg = P_i - T_i
-Markup percentage = ((P_i - T_i) / T_i) * 100
-Tubo for a sold release = q_j * (P_i - T_i)
-Tubo for a period = SUM(tubo for sold releases recorded in the period)
-```
-
-Historical tubo uses the tariff saved when the batch was submitted. Updating the current tariff does not replace that saved value. A batch with a null tariff contributes zero to tubo, while its sold quantity still contributes to sales. A price below the saved tariff produces negative tubo; it is not clamped to zero.
-
-**Research interpretation:** “Tubo” in this system means the value of the selling-price difference relative to the official tariff on quantities sold. It is not accounting net profit: purchase cost, transport, ice, labor, rent, and other expenses are not deducted.
-
-For comparison badges, `PriceGuide::compare()` returns no comparison if the tariff is missing or nonpositive. It rounds `P - T` to two decimals and the percentage to one decimal. The rounded difference is above tariff when greater than `0.004`, below when less than `-0.004`, and otherwise at tariff.
-
-### 2.4 Remaining stock
-
-```text
-Remaining_i = MAX(0, R_i - S_i - U_i)
-```
-
-Remaining stock is zero for disposed/expired batches and legacy carried-out batches. For current submissions, `released_kg` starts equal to `stock_kg`; despite its name, it represents the initial available quantity, not cumulative sales.
-
-An open batch is confirmed, has neither disposal nor legacy carry-out recorded, and has `released_kg > sold_kg + pulled_out_kg`. Open stock may include batches submitted on previous dates.
-
-### 2.5 Percentage change and month-to-date comparisons
-
-```text
-Change (%) = ((Current - Previous) / Previous) * 100, if Previous > 0
-Change = null, if Previous <= 0
-```
-
-The result is rounded to one decimal. A null comparison displays “No figure to compare with yet.” A previous value of zero does not produce a numeric percentage, even if the current value is also zero.
-
-Month-to-date (MTD) totals cover the first day of this month through today, inclusive. The comparison covers the first day of the previous month through the same day number, capped at that month's last day. For example, March 31 compares March 1–31 with February 1–28 (or 29 in a leap year), not the full previous month in every case.
-
-### 2.6 Time-series chart aggregation
-
-| Toggle | Window | Each plotted value |
-| --- | --- | --- |
-| Daily | Today and the preceding 29 days | Sum for one calendar date |
-| Monthly | Current month and preceding 11 months | Sum for one calendar month |
-| Quarterly | Current quarter and preceding 7 quarters | Sum for one calendar quarter |
-| Yearly | Current year and preceding 4 years | Sum for one calendar year |
-
-Quarters are January–March, April–June, July–September, and October–December. Buckets appear oldest first, missing buckets contain zero, and series exclude dates after today. The current bucket is incomplete until its period ends. Aggregation sums values; it does not average daily totals. The default chart toggle is monthly unless a saved viewer preference exists.
-
-Changing the toggle changes the charts and associated period breakdowns. MTD cards, today's counts, and all-time records retain their own date definitions.
-
-### 2.7 Stock outcomes and sell-through
-
-For the chosen window, select confirmed batches with `entry_date >= window start`. These are batch-cohort outcomes: their cumulative disposition is measured now, regardless of when each release happened.
-
-```text
-Sold = ROUND(SUM(S_i), 2)
-Pulled out = ROUND(SUM(U_i), 2)
-Expired = ROUND(MAX(0, SUM(R_i - S_i - U_i for disposed or carried-out batches)), 2)
-On stall = ROUND(MAX(0, SUM(R_i) - Sold - Pulled out - Expired), 2)
-Gone = Sold + Pulled out + Expired
-Sell-through (%) = ROUND(Sold / Gone * 100, 1), if Gone > 0
-```
-
-When `Gone = 0`, sell-through is null and displayed as a dash. Its denominator is stock that has left the stall; unsold stock still on the stall is excluded. This differs from a sold/initial-stock ratio. The outcome doughnut uses Sold, Pulled out, and Expired. Each tooltip percentage is that category's quantity divided by their total, multiplied by 100. The supervisor's class doughnut similarly divides each class's supply by total class supply.
-
-**Date-boundary detail:** `stockOutcome`, `topSuppliers`, `supplyByClass`, and leaderboard queries enforce a starting date but do not explicitly cap their queries at today. Time-series bucket aggregation does enforce an upper date bound. Future-dated data could therefore make breakdown totals differ from series totals.
-
-## 3. Vendor dashboard
-
-Source: [Vendor DashboardController](app/Http/Controllers/Vendor/DashboardController.php).
-
-| Metric or panel | Computation and inclusion rules |
+| Term | Meaning |
 | --- | --- |
-| Today's entries | Count the vendor's batches with `entry_date = today`, regardless of status |
-| Confirmed / pending entries today | Count today's batches separately for `confirmed` and `pending` status |
-| Remaining stock | Sum `Remaining_i` over all the vendor's open batches, including earlier dates |
-| Sales today | Sum sold-release sales dated today |
-| Sales change | Compare today's sales with yesterday's using the shared change formula |
-| Sales this month | MTD sales, compared with the same days of last month |
-| Tubo this month | MTD tubo based on sold releases and saved batch tariffs |
-| Best sales day | Date with the largest positive daily sales total over all available history; no positive total returns no record |
-| Sales and tubo charts | Vendor-only series aggregated using the selected chart period |
-| Stock outcome / sell-through | Shared outcome computation for this vendor's confirmed batches in the selected cohort |
-| Today's inventory table | Today's batches of all statuses, ordered by fish type and batch number; confirmed rows show remaining kilograms |
+| Supply | The weight of fish submitted by vendors and confirmed by staff |
+| Sales | The peso value of fish recorded as sold |
+| Tariff | The official reference price per kilogram set for a fish |
+| Markup | The difference between the vendor's selling price and the tariff |
+| Tubo | The markup multiplied by the quantity sold |
+| Remaining stock | Fish still available for sale |
+| Pulled-out stock | Fish removed from sale without being sold |
+| Expired stock | Unsold fish taken off sale after reaching the allowed freshness limit |
 
-The controller also prepares a price-comparison dataset (`myPrices`) grouped by fish ID and quality class. It uses the highest price among the vendor's open batches, compares it with the **current** tariff, and supplies the market minimum, maximum, distinct vendor count, and highest-markup indicator. The current vendor dashboard template does not render a separate `myPrices` panel.
+Weights are measured in kilograms (kg), and money is measured in Philippine pesos (PHP).
 
-The inventory table's freshness countdown is `MAX(0, freshnessDays - batchAgeInDays)`. Batch age is the number of calendar days from `entry_date` to today. `freshnessDays` comes from `inventory.stale_after_days`, with a minimum of one day.
+**How to read the formulas:** Add (+) combines amounts, subtract (-) finds a difference, multiply (×) repeats an amount, and divide (÷) finds a share or average.
 
-## 4. Staff dashboard
+## 2. Basic calculations used by the dashboards
 
-Source: [Staff DashboardController](app/Http/Controllers/Staff/DashboardController.php).
+### A. Total supply
 
-| Metric or panel | Computation and inclusion rules |
+Add the weight of all confirmed batches for the chosen dates.
+
+**Formula:** Total supply = Weight of the first confirmed batch + Weight of the second confirmed batch + Other confirmed batches
+
+**Example:** Three confirmed deliveries contain 20 kg, 15 kg, and 10 kg.
+
+**Computation:** 20 + 15 + 10 = **45 kg of supply**
+
+Pending and rejected entries are excluded. Once a delivery is counted as supply, selling or removing some of it does not erase the original delivery from the supply record.
+
+### B. Sales
+
+Multiply the quantity recorded as sold by that batch's selling price per kilogram. When several batches are sold, add their sales values.
+
+**Formula:** Sales = Kilograms sold × Selling price per kilogram
+
+**Example:** A vendor records 8 kg sold at PHP 150 per kilogram.
+
+**Computation:** 8 × 150 = **PHP 1,200 in sales**
+
+Only fish recorded as sold contributes to sales. Fish removed without being sold does not generate sales. The calculation uses the selling price recorded for the batch.
+
+### C. Markup compared with the tariff
+
+Subtract the official tariff from the vendor's selling price.
+
+**Formula:** Markup per kilogram = Selling price per kilogram - Tariff per kilogram
+
+**Example:** The selling price is PHP 150 and the tariff is PHP 120.
+
+**Computation:** 150 - 120 = **PHP 30 markup per kilogram**
+
+The system can also express this difference as a percentage of the tariff.
+
+**Formula:** Markup percentage = (Markup per kilogram ÷ Tariff per kilogram) × 100
+
+**Computation:** (30 ÷ 120) × 100 = **25% above the tariff**
+
+A lower selling price produces a negative difference, meaning the price is below the tariff. If no valid tariff is available, the system cannot show a percentage comparison.
+
+### D. Tubo on fish sold
+
+Multiply the markup per kilogram by the kilograms sold.
+
+**Formula:** Tubo = Kilograms sold × (Selling price per kilogram - Tariff per kilogram)
+
+**Example:** A vendor sells 8 kg at PHP 150 per kilogram, with a recorded tariff of PHP 120.
+
+**Computation:** 8 × (150 - 120) = **PHP 240 tubo**
+
+**Meaning for the study:** The system uses the word "tubo" for the amount above the tariff on fish sold. This does not represent final business profit because buying costs, transport, ice, rent, wages, and other expenses are not deducted.
+
+For this calculation, the system uses the tariff recorded when the batch was submitted. A later tariff change does not replace that earlier reference. A batch without a recorded tariff adds zero to tubo, although its recorded sales still count. Selling below the recorded tariff produces a negative tubo amount.
+
+### E. Remaining stock
+
+Subtract fish sold and fish pulled out from the original available quantity.
+
+**Formula:** Remaining stock = Original available kilograms - Kilograms sold - Kilograms pulled out
+
+**Example:** A vendor starts with 20 kg, sells 8 kg, and pulls out 2 kg.
+
+**Computation:** 20 - 8 - 2 = **10 kg remaining**
+
+Expired fish is no longer counted as available. Remaining stock cannot be shown as a negative amount. The total can include confirmed batches from earlier days if they are still available for sale.
+
+### F. Increase or decrease in a figure
+
+Compare the current amount with the earlier amount.
+
+**Formula:** Percentage change = [(Current amount - Previous amount) ÷ Previous amount] × 100
+
+**Example:** Sales increased from PHP 12,000 to PHP 15,000.
+
+**Computation:** [(15,000 - 12,000) ÷ 12,000] × 100 = **25% increase**
+
+If the current amount is lower, the result shows a decrease. When the earlier amount is zero or below, the system shows that no comparison is available.
+
+## 3. Vendor dashboard: the individual vendor's records
+
+The vendor dashboard shows the signed-in vendor's own activity.
+
+| Figure shown | How it is calculated or selected |
 | --- | --- |
-| Pending today | Count today's batches currently pending across vendors |
-| Confirmed today | Count today's batches currently confirmed |
-| Rejected today | Count today's batches currently rejected |
-| Active vendors | Count users with `role = vendor` and `status = active` |
-| Pending preview | Latest five pending batches whose entry date is today; this list is shorter than the full pending count when more than five exist |
-| Last seven days' entries | For each date from today minus six days through today, count batches by current confirmed/rejected/pending status; missing counts are zero |
-| Vendors without submissions | Active vendor users with no inventory batch dated today; any submitted status means they have submitted |
-| Above tariff today | Count today's pending or confirmed batches with selling price greater than the saved tariff; if saved tariff is null, use the current matching tariff; exclude missing-tariff and rejected batches |
-| Supply this month | MTD confirmed supply and percentage change versus the same days of last month |
-| Supply chart | Market-wide confirmed kilograms aggregated by selected period |
-| Markup leaderboard | Up to eight vendors ranked using the current month's qualifying batches; sales and tubo totals are omitted |
+| Today's entries | Count all batches the vendor submitted for today, including pending, confirmed, and rejected entries |
+| Confirmed entries | Count today's entries that staff have confirmed |
+| Pending entries | Count today's entries still waiting for review |
+| Remaining stock | Add the fish still available across the vendor's confirmed batches, including earlier deliveries |
+| Sales today | Add the sales recorded today |
+| Sales change | Compare today's sales with yesterday's sales using the percentage-change formula |
+| Sales this month | Add sales from the first day of the current month through today |
+| Tubo this month | Add the tubo on sales recorded from the first day of this month through today |
+| Best sales day | Find the day with the highest positive total sales in the vendor's recorded history |
+| Sales and tubo charts | Add the vendor's sales and tubo for each day, month, quarter, or year displayed |
+| Today's inventory | List today's submitted batches, showing their prices, quantities, review status, and applicable freshness countdown |
 
-“Confirmed today” refers to a batch entered today with confirmed status, rather than a count of confirmation actions performed today. Historical weekly bars also reflect current status, rather than preserving the status a batch had on each earlier day.
+**Freshness countdown:** Days left = Allowed freshness period - Days since submission. The countdown stops at zero. The allowed period follows the market's system setting.
+
+The stock-outcome chart and selling percentage are explained in Section 6.
+
+## 4. Staff dashboard: reviewing market submissions
+
+The staff dashboard helps staff monitor submissions across vendors.
+
+| Figure shown | How it is calculated or selected |
+| --- | --- |
+| Pending today | Count today's entries still awaiting review |
+| Confirmed today | Count today's entries currently confirmed |
+| Rejected today | Count today's entries currently rejected |
+| Active vendors | Count vendor accounts currently marked active |
+| Pending list | Show the five most recent pending entries submitted for today |
+| Entries over the last seven days | Count entries for each day, separated into pending, confirmed, and rejected groups |
+| Vendors without submissions | List active vendors who have no entry for today; even a pending or rejected entry counts as a submission |
+| Above tariff today | Count today's pending or confirmed entries priced above their recorded tariff; use the current tariff if no earlier tariff was recorded |
+| Supply this month | Add all confirmed supply from the start of this month through today |
+| Supply chart | Add confirmed supply for each displayed day, month, quarter, or year |
+| Vendor markup ranking | Show up to eight vendors with the highest average markup per kilogram for qualifying deliveries this month |
+
+"Confirmed today" counts entries submitted for today that are currently confirmed. It does not count every approval action staff performed today. The seven-day chart also reflects each entry's current review status.
 
 ### Repeated submissions
 
-Group today's batches by `(vendor_id, fish_type_id, quality_class)` and retain groups containing more than one batch, including all statuses in group membership.
+When the same vendor submits the same fish and quality class more than once today, staff see those batches together.
 
-```text
-Confirmed kg per group = SUM(stock_kg of confirmed batches in the group)
-Pending kg per group = SUM(stock_kg of pending batches in the group)
-Pending count per group = COUNT(pending batches in the group)
-```
+**Example:** A vendor submits 10 kg and 15 kg of the same fish and class. Both are confirmed.
 
-Groups containing pending work appear first, then sort by vendor name. Rejected rows can appear in a group but add to neither confirmed nor pending kilograms. Multiple batches indicate repeated submissions and do not by themselves establish duplicate or invalid supply.
+**Computation:** 10 + 15 = **25 kg confirmed supply for that group**
 
-## 5. Supervisor dashboard
+If another 5 kg batch is pending, the group shows **25 kg confirmed** and **5 kg pending**. Rejected quantities add to neither amount. Repeated submissions are separate deliveries and do not automatically mean that an entry is incorrect.
 
-Source: [Supervisor DashboardController](app/Http/Controllers/Supervisor/DashboardController.php).
+Staff rankings show price markups. They do not display vendors' sales or total tubo.
 
-| Metric or panel | Computation and inclusion rules |
+## 5. Supervisor dashboard: the whole market
+
+The supervisor dashboard combines records across vendors to show market activity.
+
+| Figure shown | How it is calculated or selected |
 | --- | --- |
-| Active vendors | Count active users with vendor role |
-| Total stalls | Count all `vendor_profiles` rows; no active-user filter or distinct-stall-number calculation |
-| Active staff | Count active users with staff role |
-| Today's confirmed stock | Sum `stock_kg` of confirmed batches entered today; this is supplied stock, not remaining stock |
-| MTD supply | Confirmed supply from month start through today |
-| MTD sales | Sold-release quantity times linked batch price, from month start through today |
-| MTD sold kg | Sum sold-release kilograms from month start through today |
-| MTD tubo | Sum sold-release quantity times the saved tariff difference, from month start through today |
-| KPI change badges | Compare each MTD measure with the same days of the previous month |
-| Supply, sold, sales, tubo trends | Market-wide daily measures summed into the selected chart buckets |
-| Top suppliers | Sum confirmed `stock_kg` by vendor since the selected window start, sort descending, show the top five |
-| Supply by class | Sum confirmed `stock_kg` by quality class since the window start; include all configured classes with zero where absent |
-| Stock outcomes | Shared cohort outcome and sell-through calculation across vendors |
-| Tubo leaderboard | Up to eight vendors, using the rules below |
-| Biggest supply day | Highest positive daily confirmed-supply total over all history |
-| Biggest sales day | Highest positive daily sales total over all history |
-| Highest price record | Confirmed batch with maximum `price_per_kg`; equal prices sort by earliest entry date |
-| Highest markup record | Confirmed batch with a saved tariff and positive `P_i - T_i`, ranked by the largest peso/kg difference |
-| Markup watch | From current open-stock groups, take the five largest positive markup percentages against current tariffs |
+| Total vendors | Count vendor accounts currently marked active |
+| Total stalls | Count registered stall profiles, including profiles whose vendor accounts may no longer be active |
+| Active staff | Count staff accounts currently marked active |
+| Today's confirmed stock | Add the original weight of confirmed deliveries submitted for today |
+| Supply this month | Add confirmed supply from the first day of the month through today |
+| Sales this month | Add sales recorded from the first day of the month through today |
+| Kilograms sold this month | Add the quantities recorded as sold during that time |
+| Tubo this month | Add the tariff-based tubo on sales recorded during that time |
+| Supply and sales charts | Show totals for each displayed day, month, quarter, or year |
+| Top five suppliers | Rank vendors by the total confirmed kilograms they supplied within the selected delivery period |
+| Supply by quality class | Add confirmed supply separately for each fish quality class |
+| Tubo ranking | Show up to eight qualifying vendors, with the highest total tubo first |
+| Biggest supply day | Find the day with the highest positive confirmed-supply total in the recorded history |
+| Biggest sales day | Find the day with the highest positive sales total in the recorded history |
+| Highest price recorded | Find the highest selling price per kilogram among confirmed batches |
+| Highest markup recorded | Find the largest positive peso difference per kilogram between a confirmed batch's price and its recorded tariff |
+| Current markup watch | Show up to five fish-and-class groups with the largest percentage markups currently available on stalls |
 
-Best-day computations return the first encountered maximum if daily values tie; the underlying grouped query does not explicitly order tied days. Researchers should not assume a defined earliest/latest tie-break for those records.
+Today's confirmed stock measures deliveries, while remaining stock measures fish still available. For example, a confirmed 20 kg delivery remains 20 kg of supply even after the vendor sells 8 kg.
 
-## 6. Leaderboard and live-board formulas
+## 6. What happened to the fish?
 
-### 6.1 Vendor markup leaderboard
+The stock-outcome chart follows confirmed deliveries submitted from the beginning of the selected period. It shows how much of that fish has since been sold, pulled out, or expired. A related figure shows how much remains on the stall.
 
-For each vendor, use confirmed batches entered since month start with a saved tariff greater than zero.
+| Outcome | Meaning |
+| --- | --- |
+| Sold | Fish the vendor recorded as sold |
+| Pulled out | Fish removed without being sold |
+| Expired | Fish left unsold when the batch was taken off sale because of expiry |
+| Still on the stall | Fish remaining available for sale |
 
-```text
-Batches = COUNT(qualifying batches)
-Above tariff = COUNT(qualifying batches where P_i > T_i)
-Weighted average markup (PHP/kg) = SUM((P_i - T_i) * W_i) / SUM(W_i)
-Weighted average markup (%) = SUM(((P_i - T_i) / T_i) * W_i) / SUM(W_i) * 100
-Maximum markup (PHP/kg) = MAX(P_i - T_i)
-```
+### Selling percentage, called sell-through
 
-If total stock weight is zero, both weighted averages return zero. Weights are declared stock, rather than sold kilograms or remaining kilograms. Percentage markup is the weighted average of each batch's percentage; it is not computed by dividing average peso markup by an arbitrary tariff.
+The dashboard calculates the percentage of fish that was sold out of all fish that has already left the stall.
 
-Staff rankings sort by weighted average peso/kg markup descending, then maximum markup descending. Supervisor rankings sort by tubo descending, then weighted average peso/kg markup descending.
+**Formula:** Selling percentage = [Kilograms sold ÷ (Kilograms sold + Kilograms pulled out + Kilograms expired)] × 100
 
-Supervisor leaderboard tubo sums sold releases recorded since month start for batches with a non-null saved tariff. These releases may come from batches entered before the month. However, the displayed vendor list is built from the qualifying current-month markup batches. A vendor with only sales from older batches can therefore contribute to the MTD sales/tubo cards without appearing in this leaderboard. Leaderboard totals are not an exhaustive reconciliation of market-wide KPI cards.
+**Example:** A batch has 8 kg sold, 2 kg pulled out, and 10 kg still available.
 
-### 6.2 Current prices and tariff comparison
+**Computation:** [8 ÷ (8 + 2)] × 100 = **80%**
 
-`MarketAnalytics::boardByFish()` groups open batches by fish ID and quality class:
+The 10 kg still available is excluded because it has not yet left the stall. If that 10 kg later expires:
 
-```text
-Market minimum price = MIN(P_i among the group's open batches)
-Market maximum price = MAX(P_i among the group's open batches)
-Market average price = SUM(P_i) / COUNT(open batches)
-Available kg = SUM(remaining stock of the group's open batches)
-Stalls selling = COUNT(distinct vendor IDs in the group)
-Each stall's representative price = MAX(P_i for that vendor in the group)
-```
+**New computation:** [8 ÷ (8 + 2 + 10)] × 100 = **40%**
 
-The average is an unweighted batch average. The live board compares prices with current tariffs, while historical tubo uses saved batch tariffs. A stall is flagged as highest markup only when its representative price is above the current tariff. The supervisor markup watch sorts these group winners by percentage, whereas the all-time highest-markup record ranks by pesos per kilogram.
+If no fish has left the stall, the system shows a dash because there is no selling percentage to calculate yet.
 
-## 7. Worked examples
+For a circular chart, each slice's percentage is its quantity divided by the total quantity shown in that chart, multiplied by 100. The same method applies to the supervisor's supply-by-class chart.
 
-### 7.1 One batch: supply, sales, tubo, and stock
+## 7. How vendor markup rankings work
 
-Assume a confirmed batch has 20 kg of initial stock, a price of PHP 150/kg, and a saved tariff of PHP 120/kg. The vendor records 8 kg sold and 2 kg pulled out.
+For average markup rankings, the system uses this month's confirmed deliveries with a recorded tariff greater than zero. Larger deliveries have more influence on the average because they represent more fish.
 
-| Computation | Substitution | Result |
+**Example:** A vendor has two confirmed deliveries:
+
+| Delivery | Quantity | Markup per kilogram | Markup percentage |
+| --- | --- | --- | --- |
+| First delivery | 10 kg | PHP 30 | 25% |
+| Second delivery | 30 kg | PHP 10 | 10% |
+
+**Formula:** Average markup = Total of (Each delivery's markup × Its quantity) ÷ Total quantity
+
+**Computation:** [(30 × 10) + (10 × 30)] ÷ (10 + 30) = **PHP 15 average markup per kilogram**
+
+The average percentage is calculated separately using each delivery's percentage and quantity:
+
+**Computation:** [(25 × 10) + (10 × 30)] ÷ 40 = **13.8%**, rounded to one decimal place.
+
+The staff ranking places the highest average peso markup first. If averages are equal, the larger single-batch markup comes first. The supervisor ranking places the highest total tubo first, then uses average peso markup when tubo amounts are equal.
+
+The supervisor's ranking can include tubo from older deliveries sold this month, but a vendor must also have a qualifying confirmed delivery this month to appear. As a result, adding the displayed ranking rows may not equal the whole market's monthly tubo.
+
+## 8. How to read the dates and charts
+
+### This month compared with last month
+
+"This month" means the first day of the current month through today.
+
+**Example:** On November 14, the monthly figure covers November 1-14. Its comparison covers October 1-14.
+
+If the previous month has fewer days, the comparison stops at that month's last day. For example, March 1-31 is compared with February 1-28, or February 1-29 in a leap year.
+
+### Chart periods
+
+| Selected view | Dates shown | Meaning of each point or bar |
 | --- | --- | --- |
-| Confirmed supply | 20 | 20 kg on the entry date |
-| Sales | 8 * 150 | PHP 1,200 on the sold-release date |
-| Markup | 150 - 120 | PHP 30/kg |
-| Markup percentage | 30 / 120 * 100 | 25.0% |
-| Tubo | 8 * 30 | PHP 240 |
-| Remaining stock | 20 - 8 - 2 | 10 kg |
-| Sell-through before expiry | 8 / (8 + 2) * 100 | 80.0% |
+| Daily | Today and the previous 29 days | Total for one day |
+| Monthly | This month and the previous 11 months | Total for one month |
+| Quarterly | This quarter and the previous 7 quarters | Total for one quarter |
+| Yearly | This year and the previous 4 years | Total for one year |
 
-If the remaining 10 kg expires, expired stock becomes 10 kg and on-stall stock becomes zero. Sell-through becomes `8 / (8 + 2 + 10) * 100 = 40.0%`. Historical supply remains 20 kg, sales PHP 1,200, and tubo PHP 240.
+A quarter is three months: January-March, April-June, July-September, or October-December. A period with no recorded activity appears as zero. The current month, quarter, or year is still ongoing, so its total may be lower simply because it is not finished.
 
-If this batch was submitted yesterday and sold today, yesterday receives the 20 kg supply, while today receives the PHP 1,200 sales. This is why same-day supply and sales do not necessarily describe the same fish.
+Changing the chart period changes the charts and their related breakdowns. Figures labeled "today," "this month," or "all-time" keep those meanings.
 
-### 7.2 Weighted markup across two batches
+### Delivery date and sale date answer different questions
 
-| Batch | Stock | Price | Saved tariff | Markup/kg | Markup % |
-| --- | --- | --- | --- | --- | --- |
-| A | 10 kg | PHP 150 | PHP 120 | PHP 30 | 25% |
-| B | 30 kg | PHP 110 | PHP 100 | PHP 10 | 10% |
+**Example:** A vendor submits 20 kg yesterday and sells 8 kg today at PHP 150 per kilogram.
 
-```text
-Weighted markup = (30 * 10 + 10 * 30) / (10 + 30) = PHP 15.00/kg
-Weighted percentage = (0.25 * 10 + 0.10 * 30) / 40 * 100 = 13.8% after rounding
-Above-tariff batches = 2
-Maximum markup = PHP 30.00/kg
-```
+- Yesterday's supply includes the 20 kg delivery.
+- Today's sales include 8 × 150 = PHP 1,200.
+- The stock-outcome chart follows what happened to that delivery, including sales recorded after its submission date.
 
-### 7.3 Change comparison
+Therefore, today's supply and today's sales do not necessarily refer to the same deliveries.
 
-If MTD sales are PHP 15,000 and the comparable previous-month sales are PHP 12,000, change is `(15,000 - 12,000) / 12,000 * 100 = 25.0%`. If the previous total is zero, the comparison is unavailable.
+## 9. Understanding the consumer tariff comparison
 
-## 8. Precision and interpretation for research
+The consumer tariff display compares fish and quality classes currently available for sale.
 
-Stored monetary and quantity fields use two decimal places. Chart buckets, date-range sums, outcome quantities, and leaderboard peso figures round to two decimals; comparison and sell-through percentages round to one. Templates may display kilograms with fewer decimals and axes may abbreviate large numbers, so rounded screen labels may not add exactly to the underlying totals.
+| Figure | Meaning |
+| --- | --- |
+| Official tariff | The current reference price per kilogram |
+| Lowest price | The lowest price among available batches of that fish and class |
+| Highest price | The highest price among available batches of that fish and class |
+| Stalls selling | The number of different vendors offering that fish and class |
+| Highest markup | The stall with the highest price above the current tariff for that fish and class |
 
-These dashboards describe recorded submissions and vendor-recorded releases. They do not independently measure actual consumer purchases, unrecorded sales, costs, or net profit. Status changes, corrected batch prices, and later releases can change derived historical results. Stock-cohort charts and release-date charts answer different questions and should be identified separately in research tables.
+If one stall has several available batches of the same fish and class, its highest batch price is used to represent that stall in the markup comparison. Any overall average price prepared by the system is the total of available batch prices divided by the number of batches; batch quantities do not affect that average.
 
-## 9. Implementation references
+Current price comparisons use today's active tariff. Historical tubo uses the tariff recorded with the delivery, so the two can differ after a tariff change.
 
-- [Shared analytics service](app/Services/MarketAnalytics.php): `dailySupply`, `dailySales`, `monthToDate`, `change`, `bucketize`, `stockOutcome`, `tuboLeaderboard`, and live-board/record methods.
-- [Inventory model](app/Models/VendorInventory.php): `scopeOpen`, `getRemainingStock`, `release`, tariff helpers, and freshness methods.
-- [Tariff model](app/Models/PriceGuide.php): `tariffMap`, `tariffFor`, `setTariff`, and `compare`.
-- Dashboard templates: [Vendor](resources/views/vendor/dashboard.blade.php), [Staff](resources/views/staff/dashboard.blade.php), and [Supervisor](resources/views/supervisor/dashboard.blade.php).
-- [Shared chart kit](resources/views/partials/chart-kit.blade.php) and [change badge](resources/views/components/delta.blade.php): display formats and tooltip percentages.
-- [Consumer board](resources/views/public/priceboard.blade.php): public tariff and stall-price comparisons.
-- [Analytics tests](tests/Feature/TariffAnalyticsTest.php) and [batch stock tests](tests/Feature/BatchStockTest.php): executable examples of calculation behavior.
+## 10. Points to explain during the research presentation
+
+1. **The figures come from recorded activity.** Supply depends on confirmed submissions, and sales depend on what vendors record as sold. The dashboard does not independently observe every purchase.
+2. **Supply, sales, and remaining stock have different meanings.** Supply measures deliveries, sales measures the value sold, and remaining stock measures what is still available.
+3. **Tubo is measured against the tariff.** It does not deduct business expenses and should not be presented as net profit.
+4. **The selling percentage covers fish that has left the stall.** It excludes fish still available for sale.
+5. **Historical figures can be updated.** Corrections, approvals, and later recorded sales can change what the dashboard shows. Older market records remain relevant even if an account later becomes inactive.
+6. **Displayed values are rounded.** Money usually appears to two decimal places and percentages to one. Small differences can occur when adding rounded screen figures.
+7. **Use correctly dated records.** Some rankings and stock breakdowns include records from the selected starting date onward. Future-dated entries could make them differ from charts that stop at today.
+
+### Suggested explanation to the panel
+
+> The dashboards summarize the records submitted by vendors and reviewed by market staff. Supply is the total confirmed weight of fish delivered. Sales are calculated by multiplying the quantity recorded as sold by its selling price. Remaining stock is the original available quantity less fish sold and removed. The system also compares selling prices with the official tariff. It calls the price difference on quantities sold "tubo," which is a tariff-based measure and does not deduct business expenses. Vendors see their own records, staff monitor submissions and prices, and supervisors review totals across the market.
