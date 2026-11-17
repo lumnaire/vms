@@ -18,6 +18,13 @@
         <li>If B = 0, a positive F is upward and F = 0 is stable. Percentage change is undefined; the value comparisons still work.</li>
         <li>For price, upward means a higher estimated ₱/kg. For supply, upward means more incoming kg. These are separate models; one does not cause the other inside this implementation.</li>
     </ul>
+    <h3>Highest and lowest forecast values</h3>
+    <p>The highest and lowest cards compare only the published forecast values for the selected future dates.
+        They exclude historical values, the average reference line and the prediction-range boundaries.</p>
+    <div class="calc-equation">Example future values: 100, 110, 90<br>Highest forecast = max(100, 110, 90) = <strong>110</strong><br>Lowest forecast = min(100, 110, 90) = <strong>90</strong></div>
+    <p class="calc-small">A historical value of 300 or an upper range boundary of 130 does not change that highest forecast of 110.
+        The graph joins daily points with straight segments and labels the same High/Low values used by the cards and table.
+        The shaded band describes the separate prediction range.</p>
     <h3>The forecast table’s Δ Change column</h3>
     <div class="calc-equation">First displayed Δ = first prediction − last real actual visible in the historical chart<br>Later displayed Δ = current prediction − previous prediction</div>
     <p>This is a difference in {{ $metric === 'price' ? '₱/kg' : 'kg' }}, not a percentage. If the historical chart has no actual value, the first comparison is unavailable.

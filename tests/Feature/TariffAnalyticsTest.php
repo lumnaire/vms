@@ -134,8 +134,8 @@ class TariffAnalyticsTest extends TestCase
         $highLabel = 'Day '.$summary['high']['day'].' · '.$summary['high']['date']->format('D, M j');
         if (! $summary['flat']) {
             $response->assertSee($highLabel);
-            $response->assertSee('>Highest<', false);
-            $response->assertSee('>Lowest<', false);
+            $response->assertSee('Highest forecast');
+            $response->assertSee('Lowest forecast');
         }
         $response->assertSee('Lowest in Period');
         $response->assertSee('Highest in Period');

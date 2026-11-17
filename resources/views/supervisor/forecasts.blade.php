@@ -74,8 +74,28 @@
     $pastLabels = $pastPredictions->keys()->values()->toArray();
     $pastVals   = $pastPredictions->values()->toArray();
 
-    /* ── Merged, sorted label set ────────────────────────────── */
-    $allLabels  = collect(array_unique(array_merge($histLabels, $fcLabels)))->sort()->values()->toArray();
+    /* Keep calendar days evenly spaced, including the unobserved current day. */
+    $axisDates = array_merge($histLabels, $fcLabels, $pastLabels);
+    $allLabels = [];
+    if ($axisDates) {
+        $axisDates[] = today()->toDateString();
+        $axisEnd = max($axisDates);
+        for ($date = \Illuminate\Support\Carbon::parse(min($axisDates)); $date->toDateString() <= $axisEnd; $date->addDay()) {
+            $allLabels[] = $date->toDateString();
+        }
+    }
+
+    $forecastChartData = [
+        'allLabels' => $allLabels, 'histLabels' => $histLabels, 'histVals' => $histVals,
+        'histFilled' => $histFilled, 'fcLabels' => $fcLabels, 'fcVals' => $fcVals,
+        'fcMins' => $fcMins, 'fcMaxs' => $fcMaxs, 'pastLabels' => $pastLabels, 'pastVals' => $pastVals,
+        'todayStr' => today()->toDateString(), 'isPrice' => $isMetricPrice,
+        'prefix' => $metricPrefix, 'unit' => $metricUnit, 'avgFc' => $avgForecast, 'tariff' => $tariff,
+        'highDate' => ! $summary['flat'] && $highPoint ? $highPoint['date']->format('Y-m-d') : null,
+        'lowDate' => ! $summary['flat'] && $lowPoint ? $lowPoint['date']->format('Y-m-d') : null,
+        'highValue' => $highPoint['value'] ?? null, 'lowValue' => $lowPoint['value'] ?? null,
+        'flat' => $summary['flat'],
+    ];
 
     /* ── ARIMA model params ──────────────────────────────────── */
     $arimaParams  = $latestForecast?->arima_params;
@@ -231,7 +251,7 @@
                   >
                     Avg Forecast
                 </p>
-                <p class="text-slate-800 font-bold mt-2 leading-[1]" style="font-size:24px">
+                <p class="text-slate-800 font-bold mt-2 leading-[1]" style="font-size:24px" data-forecast-average="{{ $avgForecast }}">
                     @if($avgForecast !== null)
                         {{ $metricPrefix }}{{ number_format($avgForecast, 2) }}
                         <span class="text-[12px] font-semibold text-slate-400">{{ $metricUnit }}</span>
@@ -271,6 +291,7 @@
                         <span class="text-slate-300">—</span>
                     @endif
                 </p>
+                <p class="text-slate-400 mt-1.5 text-[11px]">Forecast values only</p>
                 <p class="text-slate-400 mt-1.5 text-[11px]" data-forecast-low-day>
                     @if($lowPoint && $summary['flat'])
                         Same on all {{ $forecasts->count() }} days
@@ -305,6 +326,7 @@
                         <span class="text-slate-300">—</span>
                     @endif
                 </p>
+                <p class="text-slate-400 mt-1.5 text-[11px]">Forecast values only</p>
                 <p class="text-slate-400 mt-1.5 text-[11px]" data-forecast-high-day>
                     @if($highPoint && $summary['flat'])
                         Same on all {{ $forecasts->count() }} days
@@ -400,11 +422,11 @@
             @if($hasForecasts && ! $summary['flat'])
                 <div class="flex items-center gap-1.5">
                     <span class="w-2.5 h-2.5 rounded-full bg-success-500"></span>
-                    <span class="text-slate-500 text-[11px]">Highest</span>
+                    <span class="text-slate-500 text-[11px]">Highest forecast</span>
                 </div>
                 <div class="flex items-center gap-1.5">
                     <span class="w-2.5 h-2.5 rounded-full bg-danger-500"></span>
-                    <span class="text-slate-500 text-[11px]">Lowest</span>
+                    <span class="text-slate-500 text-[11px]">Lowest forecast</span>
                 </div>
             @endif
             @if($hasForecasts)
@@ -433,8 +455,13 @@
     @if($hasForecasts || $hasHistorical)
         <div style="padding:20px 20px 14px;">
             <div class="relative" style="height:360px">
-                <canvas id="forecastChart"></canvas>
+                <canvas id="forecastChart" role="img" aria-label="{{ $metricChartTitle }} for {{ $fishTypeName }}. Exact predictions, highest and lowest values are listed in the forecast breakdown below."></canvas>
             </div>
+            <p class="text-slate-500 mt-3 text-[11px] leading-relaxed" data-forecast-chart-explanation>
+                <strong>Highest and lowest refer only to the {{ $forecasts->count() }} forecast values</strong>@if ($hasForecasts)
+                    from {{ $forecasts->first()->forecast_date->format('M j') }} to {{ $forecasts->last()->forecast_date->format('M j') }}@endif.
+                Historical values and the shaded prediction range are separate. Lines connect the recorded points; hover over a forecast point for its exact value and range.
+            </p>
         </div>
     @else
         <div class="flex flex-col items-center justify-center"
@@ -727,6 +754,7 @@
      CHART.JS INITIALIZATION
 ═══════════════════════════════════════════════════════════════════ --}}
 @push('scripts')
+<script type="application/json" id="forecast-chart-data">{!! \Illuminate\Support\Js::encode($forecastChartData) !!}</script>
 <script>
     // ── Filter bar: keep the fish type list in sync with quality class ──
     (function () {
@@ -775,25 +803,12 @@
     const canvasEl = document.getElementById('forecastChart');
     if (!canvasEl) return;
 
-    // ── Raw PHP data ───────────────────────────────────────────
-    const allLabels  = @json($allLabels);
-    const histLabels = @json($histLabels);
-    const histVals   = @json($histVals);
-    const histFilled = @json($histFilled);
-    const fcLabels   = @json($fcLabels);
-    const fcVals     = @json($fcVals);
-    const fcMins     = @json($fcMins);
-    const fcMaxs     = @json($fcMaxs);
-    const todayStr   = '{{ today()->format('Y-m-d') }}';
-    const isPrice    = {{ $isMetricPrice ? 'true' : 'false' }};
-    const prefix     = {!! json_encode($metricPrefix) !!};
-    const unit       = {!! json_encode($metricUnit) !!};
-    const pastLabels = @json($pastLabels);
-    const pastVals   = @json($pastVals);
-    const avgFc      = @json($avgForecast);
-    const tariff     = @json($tariff);
-    const highDate   = @json(! $summary['flat'] && $highPoint ? $highPoint['date']->format('Y-m-d') : null);
-    const lowDate    = @json(! $summary['flat'] && $lowPoint ? $lowPoint['date']->format('Y-m-d') : null);
+    // The chart, cards and table share the same rounded stored predictions.
+    const {
+        allLabels, histLabels, histVals, histFilled, fcLabels, fcVals, fcMins, fcMaxs,
+        todayStr, isPrice, prefix, unit, pastLabels, pastVals, avgFc, tariff,
+        highDate, lowDate, highValue, lowValue, flat,
+    } = JSON.parse(document.getElementById('forecast-chart-data').textContent);
 
     if (!allLabels.length) return;
 
@@ -833,6 +848,50 @@
         return months[parseInt(p[1]) - 1] + ' ' + parseInt(p[2]);
     }
 
+    function fmtValue(value) {
+        return prefix + Number(value).toLocaleString('en-PH', {
+            minimumFractionDigits: 2, maximumFractionDigits: 2,
+        }) + (isPrice ? '/kg' : ' kg');
+    }
+
+    // Label the actual forecast extrema, rather than the edge of the range or
+    // a historical peak. Straight segments cannot invent extra peaks or dips.
+    const forecastExtremesPlugin = {
+        id: 'forecastExtremes',
+        afterDatasetsDraw(chart) {
+            const labels = flat && fcLabels.length
+                ? [{ date: fcLabels[fcLabels.length - 1], value: highValue, title: 'All forecasts', color: '#2563eb', above: true }]
+                : [
+                    { date: highDate, value: highValue, title: 'High', color: '#047857', above: true },
+                    { date: lowDate, value: lowValue, title: 'Low', color: '#b91c1c', above: false },
+                ];
+            const ctx = chart.ctx;
+            const area = chart.chartArea;
+            const meta = chart.getDatasetMeta(3);
+            ctx.save();
+            ctx.font = '600 11px "Plus Jakarta Sans", sans-serif';
+            ctx.textBaseline = 'middle';
+            ctx.textAlign = 'left';
+            labels.forEach(({ date, value, title, color, above }) => {
+                if (!date || value === null) return;
+                const point = meta.data[allLabels.indexOf(date)];
+                if (!point || point.skip) return;
+                const text = `${title}: ${fmtValue(value)}`;
+                const width = ctx.measureText(text).width + 12;
+                const x = Math.max(area.left, Math.min(point.x - width / 2, area.right - width));
+                const y = Math.max(area.top + 2, Math.min(point.y + (above ? -30 : 10), area.bottom - 24));
+                ctx.fillStyle = 'rgba(255,255,255,0.96)';
+                ctx.fillRect(x, y, width, 22);
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1;
+                ctx.strokeRect(x, y, width, 22);
+                ctx.fillStyle = color;
+                ctx.fillText(text, x + 6, y + 11);
+            });
+            ctx.restore();
+        },
+    };
+
     // ── "Today" divider inline plugin ────────────────────────
     const todayLinePlugin = {
         id: 'todayLine',
@@ -869,7 +928,7 @@
     // ── Chart config ─────────────────────────────────────────
     new Chart(canvasEl, {
         type: 'line',
-        plugins: [todayLinePlugin],
+        plugins: [todayLinePlugin, forecastExtremesPlugin],
         data: {
             labels: allLabels,
             datasets: [
@@ -883,7 +942,7 @@
                     borderColor: 'transparent',
                     borderWidth: 0,
                     pointRadius: 0,
-                    tension: 0.4,
+                    tension: 0,
                     spanGaps: false,
                 },
 
@@ -896,7 +955,7 @@
                     borderWidth: 1,
                     borderDash: [3, 3],
                     pointRadius: 0,
-                    tension: 0.4,
+                    tension: 0,
                     spanGaps: false,
                 },
 
@@ -914,7 +973,7 @@
                     pointBackgroundColor: allLabels.map(d => filledSet.has(d) ? '#ffffff' : '#2563eb'),
                     pointBorderColor: allLabels.map(d => filledSet.has(d) ? '#2563eb' : '#ffffff'),
                     pointBorderWidth: 1.5,
-                    tension: 0.35,
+                    tension: 0,
                     spanGaps: false,
                 },
 
@@ -932,7 +991,7 @@
                     pointBackgroundColor: fcPointColor,
                     pointBorderColor: fcPointBorder,
                     pointBorderWidth: 1.5,
-                    tension: 0.35,
+                    tension: 0,
                     spanGaps: false,
                 },
 
@@ -984,6 +1043,11 @@
             plugins: {
                 legend: { display: false },
                 tooltip: {
+                    // Chart.js expects filter here, alongside callbacks.
+                    // The band is described once as a range, not as forecasts.
+                    filter(item) {
+                        return item.datasetIndex >= 2 && item.parsed.y !== null;
+                    },
                     backgroundColor: '#0f172a',
                     titleColor: '#94a3b8',
                     bodyColor: '#f1f5f9',
@@ -1002,28 +1066,22 @@
                         title(items) {
                             return fmtDate(items[0].label);
                         },
-                        // Show only meaningful datasets, skip band lines
-                        filter(item) {
-                            return item.datasetIndex >= 2 && item.parsed.y !== null;
-                        },
                         label(item) {
-                            const val = item.parsed.y.toFixed(2);
-                            if (item.datasetIndex === 3 && item.label === highDate) return ` Forecast (highest): ${prefix}${val} ${unit}`;
-                            if (item.datasetIndex === 3 && item.label === lowDate)  return ` Forecast (lowest): ${prefix}${val} ${unit}`;
+                            const val = fmtValue(item.parsed.y);
+                            if (item.datasetIndex === 3 && item.label === highDate) return ` Forecast (highest): ${val}`;
+                            if (item.datasetIndex === 3 && item.label === lowDate)  return ` Forecast (lowest): ${val}`;
                             const note = item.datasetIndex === 2 && filledSet.has(item.label)
                                 ? (isPrice ? ' (no batch – last price)' : ' (no batch)')
                                 : '';
-                            return ` ${item.dataset.label}: ${prefix}${val} ${unit}${note}`;
+                            return ` ${item.dataset.label}: ${val}${note}`;
                         },
                         // Append CI range for forecast points
                         afterBody(items) {
                             if (!items.length) return;
                             const label  = items[0].label;
                             const fcIdx  = fcLabels.indexOf(label);
-                            if (fcIdx < 0 || fcMins[fcIdx] === null) return;
-                            const lo = Number(fcMins[fcIdx]).toFixed(2);
-                            const hi = Number(fcMaxs[fcIdx]).toFixed(2);
-                            return [` 95% CI: ${prefix}${lo} – ${prefix}${hi} ${unit}`];
+                            if (fcIdx < 0 || fcMins[fcIdx] == null || fcMaxs[fcIdx] == null) return;
+                            return [` Prediction range: ${fmtValue(fcMins[fcIdx])} – ${fmtValue(fcMaxs[fcIdx])}`];
                         }
                     }
                 }
@@ -1049,6 +1107,7 @@
                     }
                 },
                 y: {
+                    title: { display: true, text: isPrice ? 'Price (₱/kg)' : 'Supply (kg)' },
                     grid: {
                         color: 'rgba(226,232,240,0.5)',
                         drawBorder: false,
@@ -1056,8 +1115,7 @@
                     border: { display: false },
                     ticks: {
                         callback(value) {
-                            if (value >= 1000) return prefix + (value / 1000).toFixed(1) + 'k';
-                            return prefix + value.toFixed(isPrice ? 0 : 1);
+                            return prefix + Number(value).toLocaleString('en-PH', { maximumFractionDigits: 2 });
                         },
                         color: '#94a3b8',
                         font: {
