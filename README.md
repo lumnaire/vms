@@ -277,8 +277,9 @@ php artisan inventory:lock
 
 ## Calculation Guide
 
-Researchers can open **`/calculation`** without signing in. The public board,
-every role's sidebar and the supervisor forecast page link to it.
+Researchers can open **`/calculation`** directly without signing in. The consumer
+price board does not link to it. Every role's sidebar and the supervisor forecast
+page retain their links.
 
 The guide explains supply, remaining stock, sales, tariff markup, tubo,
 weighted and unweighted averages, dashboard periods, report totals, ARIMA,

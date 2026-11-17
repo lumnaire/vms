@@ -446,9 +446,6 @@
             </div>
         </div>
         <div class="pb-header-actions">
-            <a href="{{ route('calculation') }}" class="pb-account-btn">
-                <x-icon name="bi-calculator" /> Calculation Guide
-            </a>
             {{-- ── Sign-in ───────────────────────────────────────────────
                  Only vendor, staff and supervisor accounts have credentials,
                  so the form is hidden from anyone already signed in and the
@@ -845,7 +842,6 @@
     <strong>Virac Public Market</strong> — Commodity Supply Projection &amp; Price Monitoring System
     &nbsp;|&nbsp; Prices are verified by Market Staff &amp; updated daily
     &nbsp;|&nbsp; Catanduanes State University &copy; {{ date('Y') }}
-    &nbsp;|&nbsp; <a href="{{ route('calculation') }}">Calculations explained</a>
 </footer>
 
 {{-- ═══════════════════════════════════════════════════════════
