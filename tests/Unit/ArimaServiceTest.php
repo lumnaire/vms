@@ -208,4 +208,20 @@ class ArimaServiceTest extends TestCase
         // cannot reintroduce demand rows.
         $this->assertSame(0, $this->arima->generate(1, 'First Class', 'demand'));
     }
+
+    public function test_explanation_exposes_reproducible_unrounded_working(): void
+    {
+        $trace = $this->arima->explain($this->exampleSeries());
+
+        $this->assertSame([1, 2, -1, 3, -1, 4, -1, 4, -1], $trace['differences']);
+        $this->assertEqualsWithDelta(10 / 9, $trace['mean_diff'], 1e-12);
+        $this->assertEqualsWithDelta(-1 / 9, $trace['residuals'][0], 1e-12);
+        $this->assertEqualsWithDelta($trace['mean_diff'], $trace['difference_steps'][0]['previous_difference'], 1e-12);
+        $this->assertSame(0.0, $trace['forecast_steps'][1]['previous_residual']);
+        $this->assertSame($trace['forecast_steps'][0]['value'], $trace['forecast_steps'][1]['previous_value']);
+        $this->assertNotEquals($trace['projections'][0]['value'], $trace['forecast_steps'][1]['previous_value']);
+        $this->assertEqualsWithDelta(747 / 7, $trace['baseline'], 1e-12);
+        $this->assertSame(114.95, $trace['final']);
+        $this->assertSame([], $this->arima->explain([1, 2])['projections']);
+    }
 }

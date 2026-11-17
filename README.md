@@ -12,6 +12,8 @@ A web-based commodity supply projection and price monitoring system for the fish
 - [Installation & Setup](#installation--setup)
 - [Default Login Credentials](#default-login-credentials)
 - [Running the App](#running-the-app)
+- [Calculation Guide](#calculation-guide)
+- [Hostinger Deployment](#hostinger-deployment)
 - [ARIMA Forecasting](#arima-forecasting)
 - [Sale Reports](#sale-reports)
 - [Stale Stock Alerts](#stale-stock-alerts)
@@ -26,8 +28,8 @@ A web-based commodity supply projection and price monitoring system for the fish
 | ---------- | ---------------------------------------------------------- |
 | Backend    | PHP 8.2+, Laravel 11                                       |
 | Database   | MySQL 8.0+                                                 |
-| Frontend   | Tailwind CSS (CDN), Alpine.js (CDN), Bootstrap Icons (CDN) |
-| Build Tool | Vite (for asset bundling if needed)                        |
+| Frontend   | Tailwind CSS (Vite), Alpine.js (CDN), Bootstrap Icons (CDN) |
+| Build Tool | Vite (required for dashboard CSS and JavaScript)           |
 | Auth       | Custom session-based with role middleware                  |
 
 ---
@@ -50,7 +52,7 @@ Make sure you have these installed before starting:
 - **PHP** `>= 8.2` — [php.net/downloads](https://www.php.net/downloads)
 - **Composer** `>= 2.x` — [getcomposer.org](https://getcomposer.org)
 - **MySQL** `>= 8.0` — included in [Laragon](https://laragon.org) ✅, XAMPP, or standalone
-- **Node.js** `>= 18.x` + **npm** — [nodejs.org](https://nodejs.org) _(only needed if you run Vite for assets)_
+- **Node.js** `20.19+` or `22.12+` + **npm** — [nodejs.org](https://nodejs.org) _(required to build frontend assets)_
 - **Git** — [git-scm.com](https://git-scm.com)
 
 > 💡 **Recommended local stack: [Laragon](https://laragon.org)** — comes with PHP, MySQL, Apache/Nginx, and automatic `.test` virtual hosts all in one installer. Your `APP_URL=http://vms.test` is already set up for this.
@@ -196,16 +198,20 @@ php artisan storage:link
 
 ---
 
-### 9. (Optional) Install and build frontend assets
+### 9. Install and build frontend assets
 
-The app uses **CDN versions** of Tailwind and Alpine by default, so this step is only needed if you want to build assets locally with Vite:
+The app loads its Tailwind styles and dashboard CSS/JavaScript through Vite.
+This step is required: updating files under `resources/` does not update the
+production files served from `public/build/`.
 
 ```bash
-npm install
+npm ci
 npm run dev      # development mode with hot reload
 # or
 npm run build    # production build
 ```
+
+Use `npm run build` for deployment. `npm run dev` is only for local development.
 
 ---
 
@@ -266,6 +272,84 @@ php artisan forecast:generate
 # Lock previous day entries manually
 php artisan inventory:lock
 ```
+
+---
+
+## Calculation Guide
+
+Researchers can open **`/calculation`** without signing in. The public board,
+every role's sidebar and the supervisor forecast page link to it.
+
+The guide explains supply, remaining stock, sales, tariff markup, tubo,
+weighted and unweighted averages, dashboard periods, report totals, ARIMA,
+trend labels, forecast ranges and MAPE. It includes a variable glossary and
+the implementation's research limitations.
+
+Its editable worked examples run through `ArimaService::explain()`, the same
+calculation used by `project()`. They show unrounded fitting and forecast steps
+without reading private vendor data, expiring inventory or saving forecasts.
+Example selections and custom input are shareable through the page URL.
+Use **Print / save PDF** to print the guide with detailed working expanded.
+
+---
+
+## Hostinger Deployment
+
+The dashboard layout is built from `resources/css/dashboard.css` and
+`resources/js/dashboard.js`, imported by the Vite entry points. The generated
+`public/build/` directory is intentionally ignored by Git. **An hPanel Git
+deployment or `git pull` alone does not update the production frontend.**
+
+After deploying the latest source, open SSH in the deployed Laravel directory
+(the folder containing `artisan`) and run:
+
+```bash
+git log -1 --oneline             # Confirm the expected source commit is deployed
+npm ci --include=dev            # Vite and Tailwind are development dependencies
+npm run build                   # Generate public/build/manifest.json and assets/
+php artisan route:clear         # Make newly deployed routes available
+php artisan view:clear
+php artisan view:cache
+```
+
+Stop if any command fails. Run the build and view commands after each Git
+deployment, either over SSH or in your deployment pipeline. Rebuilding and
+uploading assets locally is also supported; Node.js is only needed where the
+build runs.
+
+### When Node.js is unavailable on Hostinger
+
+1. Deploy the latest source through Git as usual.
+2. On your computer, check out the same commit and run `npm ci` followed by
+   `npm run build` (use `npm.cmd` in PowerShell if script execution is disabled).
+3. Upload the **entire** generated `public/build/` directory, including
+   `manifest.json` and `assets/`, to the deployed application's `public/build/`.
+   Upload the asset files before replacing the manifest, and keep older hashed
+   assets until existing pages no longer reference them.
+4. Run `php artisan route:clear`, `php artisan view:clear` and
+   `php artisan view:cache` over SSH.
+
+With this repository's root `.htaccess` and the project installed directly in
+`public_html/`, the destination is `public_html/public/build/`. If your domain
+serves a different Laravel installation, use that installation's `public/build/`.
+Uploading to a different copy of the project will not update the live site.
+
+Do not upload the local `public/hot` file; remove it from the production
+application if it exists. Laravel uses that file to select the development
+server instead of the production manifest.
+
+### Verify the deployed dashboard
+
+- Compare the live `public/build/manifest.json` with the generated local manifest.
+  In browser developer tools, the dashboard's `/build/assets/` CSS and JavaScript
+  filenames should match the manifest, and both requests should return HTTP 200.
+- In hPanel, open the site's **Cache Manager** and purge the cache. Purge any
+  enabled CDN cache as well, then reload the dashboard with **Ctrl+Shift+R**.
+- If it still looks old, verify the Git branch, deployed commit and application
+  directory serving the domain before deploying again.
+
+See [Laravel's production asset build instructions](https://laravel.com/docs/12.x/vite#running-vite)
+and [Hostinger's Cache Manager instructions](https://www.hostinger.com/support/6215624-how-to-use-cache-manager-at-hostinger/).
 
 ---
 

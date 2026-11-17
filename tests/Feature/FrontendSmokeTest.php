@@ -42,7 +42,7 @@ class FrontendSmokeTest extends TestCase
             'vendor' => [
                 '/vendor/dashboard', '/vendor/inventory',
             ],
-            default => ['/'],
+            default => ['/', '/calculation'],
         };
     }
 
@@ -63,11 +63,13 @@ class FrontendSmokeTest extends TestCase
 
     public function test_guest_pages_render(): void
     {
-        // "/" is the price board and carries the navbar sign-in form, so it is
-        // the only guest page: there is no separate /prices or /login page.
+        // The public board carries the navbar sign-in form; researchers can
+        // also visit the calculation guide without signing in.
         $this->get('/')
             ->assertOk()
             ->assertDontSee('Whoops', false);
+
+        $this->get('/calculation')->assertOk()->assertSee('Calculations explained');
 
         $this->get('/prices')->assertNotFound();
 
@@ -231,6 +233,7 @@ class FrontendSmokeTest extends TestCase
 
         $pages = [
             'guest:/' => ['/', null],
+            'guest:/calculation' => ['/calculation', null],
         ];
 
         foreach (['supervisor', 'staff', 'vendor'] as $role) {
@@ -281,7 +284,7 @@ class FrontendSmokeTest extends TestCase
                     '/^Tag (?:header|main|section|nav|footer|article|aside|figure|'
                     .'figcaption|time|mark|summary|details|template|picture|search|'
                     .'dialog|slot|canvas|svg|path|line|circle|rect|polyline|polygon|g|'
-                    .'defs|use|ellipse|text|tspan|defs)\b.*\binvalid\b/i',
+                    .'defs|use|ellipse|text|tspan|desc)\b.*\binvalid\b/i',
                     trim($e->message)
                 )
             );

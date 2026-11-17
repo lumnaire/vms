@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Public\CalculationController;
 use App\Http\Controllers\Public\PriceboardController;
 use App\Http\Controllers\Staff\ConfirmationController;
 use App\Http\Controllers\Supervisor\AccountController;
@@ -19,6 +20,10 @@ use Illuminate\Support\Facades\Route;
 // no separate /prices route; signing in happens from the navbar on "/".
 Route::get('/', [PriceboardController::class, 'index'])
     ->name('home');
+
+Route::get('/calculation', [CalculationController::class, 'index'])
+    ->withoutMiddleware(\App\Http\Middleware\ExpireOldBatches::class)
+    ->name('calculation');
 
 // ── Auth ─────────────────────────────────────────────────────────
 // Signing in happens from the navbar form on "/", which POSTs here. There is no
