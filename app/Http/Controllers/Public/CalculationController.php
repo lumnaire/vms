@@ -62,10 +62,14 @@ class CalculationController extends Controller
         // These are illustrative observations only. Never read or write a
         // vendor's inventory, sales, or stored forecasts from this public page.
         $trace = $arima->explain($series);
+        $methodExample = $arima->explain(array_map(
+            fn ($value) => 100 + 2 * $value,
+            $examples['worked']['values'],
+        ));
 
         return response()->view('public.calculation', compact(
             'settings', 'examples', 'example', 'metric', 'seriesInput',
-            'inputErrors', 'custom', 'trace', 'maximum',
+            'inputErrors', 'custom', 'trace', 'maximum', 'methodExample',
         ), $inputErrors === [] ? 200 : 422);
     }
 

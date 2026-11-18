@@ -45,6 +45,44 @@ class CalculationGuideTest extends TestCase
                 && $trace['projections'][0]['value'] === 0.0);
     }
 
+    public function test_the_method_section_shows_all_ten_worked_computations_without_expanding_details(): void
+    {
+        $response = $this->get('/calculation')->assertOk()
+            ->assertViewHas('methodExample', fn ($sample) => $sample['projections'][0]['value'] === 325.83
+                && $sample['projections'][1]['value'] === 324.87
+                && $sample['projections'][2]['value'] === 329.9);
+
+        $document = new \DOMDocument;
+        $previous = libxml_use_internal_errors(true);
+        $document->loadHTML($response->getContent());
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        $xpath = new \DOMXPath($document);
+        $sample = $xpath->query('//section[@id="arima-method"]//div[@id="arima-worked-example"]')->item(0);
+
+        $this->assertNotNull($sample, 'The worked computation must be in the method section itself.');
+        $this->assertSame(0, $xpath->query('ancestor::details', $sample)->length);
+        $this->assertSame(10, $xpath->query('.//h3[starts-with(normalize-space(.), "Step ")]', $sample)->length);
+        $text = preg_replace('/\s+/u', ' ', $sample->textContent);
+        foreach (['302.00 − 300.00 = 2.000000', '-137.382716 ÷ 155.555556',
+            '18.772476 ÷ (9 − 1)', '3.002423', '313.428571',
+            '(325.83 + 324.87 + 329.90) ÷ 3', '₱326.87/kg',
+            '₱324.87/kg on Day 2', '₱329.90/kg on Day 3'] as $calculation) {
+            $this->assertStringContainsString($calculation, $text);
+        }
+    }
+
+    public function test_the_fixed_price_computation_stays_independent_of_the_interactive_supply_example(): void
+    {
+        $this->get('/calculations?metric=supply&example=zero')->assertOk()
+            ->assertViewHas('metric', 'supply')
+            ->assertViewHas('trace', fn ($trace) => $trace['projections'][0]['value'] === 0.0)
+            ->assertViewHas('methodExample', fn ($sample) => $sample['observations'][0] === 300
+                && $sample['projections'][0]['value'] === 325.83)
+            ->assertSee('Sample computation: Pusit')
+            ->assertSee('illustrative daily average prices in ₱/kg');
+    }
+
     public function test_custom_observations_are_calculated_by_the_production_model(): void
     {
         $this->get('/calculation?'.http_build_query([
@@ -85,7 +123,9 @@ class CalculationGuideTest extends TestCase
             ->assertViewHas('settings', fn ($settings) => $settings['minimum'] === 12
                 && $settings['freshness'] === 5)
             ->assertViewHas('trace', fn ($trace) => count($trace['projections']) === 4
-                && count($trace['observations']) >= 12);
+                && count($trace['observations']) >= 12)
+            ->assertViewHas('methodExample', fn ($sample) => count($sample['projections']) === 4
+                && count($sample['observations']) >= 12);
     }
 
     public function test_the_public_guide_neither_exposes_private_data_nor_expires_batches(): void

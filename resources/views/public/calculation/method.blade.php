@@ -42,6 +42,8 @@
     <div class="calc-note"><strong>How steps connect.</strong> Start with the last actual level, last actual difference and last residual.
         After each forecast, feed its <em>unrounded</em> level and difference into the next step. The future residual is set to 0 after step 1,
         so the MA term contributes only to the first forecast’s expected value.</div>
+    @include('public.calculation.method-example', ['sample' => $methodExample])
+
     <details class="calc-details"><summary>Active configuration used by the examples and the system</summary><div class="calc-details-body">
         <div class="calc-table-wrap"><table class="calc-table">
             <thead><tr><th scope="col">Setting</th><th scope="col">Active value</th><th scope="col">Effect</th></tr></thead>
