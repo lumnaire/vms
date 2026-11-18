@@ -8,6 +8,7 @@ use App\Models\PriceGuide;
 use App\Models\Report;
 use App\Models\User;
 use App\Models\VendorInventory;
+use App\Services\FishEntranceReport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -17,19 +18,25 @@ class ReportController extends Controller
 {
     public function pdf(Request $request)
     {
-        // Share the official entrance form and archive logic with staff reports.
-        $request->merge(['period' => 'daily']);
-
+        // Both roles use the supplied forms and the same bounded-memory exporter.
         return app(\App\Http\Controllers\Staff\ReportController::class)->pdf($request);
     }
 
     public function index(Request $request)
     {
-        $reportDate = $request->input('date', today()->toDateString());
+        $entranceReport = FishEntranceReport::fromRequest($request);
+        $reportDate = $entranceReport->range->start->toDateString();
+        $reportVendors = User::where('role', 'vendor')->orderBy('name')->get(['id', 'name']);
+        $reportTotals = $entranceReport->totals();
+
+        if ($entranceReport->range->period !== 'daily') {
+            return view('supervisor.reports', compact('entranceReport', 'reportVendors', 'reportTotals', 'reportDate'));
+        }
         $fishTypes = FishType::where('is_active', true)->orderBy('name')->get();
 
         // Per-vendor sales summary for the selected date
         $vendorSummaries = User::where('role', 'vendor')
+            ->when($entranceReport->vendorId !== null, fn ($q) => $q->where('id', $entranceReport->vendorId))
             ->with([
                 'vendorProfile',
                 'vendorInventories' => fn ($q) => $q->with('fishType')
@@ -63,6 +70,7 @@ class ReportController extends Controller
         // Price summary per fish type + quality class, against the tariff
         $tariffs = PriceGuide::tariffMap();
         $priceBreakdown = VendorInventory::with(['fishType', 'vendor.vendorProfile'])
+            ->when($entranceReport->vendorId !== null, fn ($q) => $q->where('vendor_id', $entranceReport->vendorId))
             ->where('status', 'confirmed')
             ->whereDate('entry_date', $reportDate)
             ->get()
@@ -83,7 +91,7 @@ class ReportController extends Controller
             ->values();
 
         // Archive this snapshot to the reports table
-        if ($vendorSummaries->isNotEmpty()) {
+        if ($vendorSummaries->isNotEmpty() && $entranceReport->vendorId === null) {
             Report::updateOrCreate(
                 [
                     'generated_by' => Auth::id(),
@@ -117,6 +125,9 @@ class ReportController extends Controller
             'activeVendors',
             'priceBreakdown',
             'fishTypes',
+            'entranceReport',
+            'reportVendors',
+            'reportTotals',
         ));
     }
 

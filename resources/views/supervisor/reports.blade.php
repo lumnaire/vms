@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Daily Market Report — ' . \Carbon\Carbon::parse($reportDate)->format('M d, Y'))
+@section('title', ucfirst($entranceReport->range->period) . ' Fish Entrance Report — ' . $entranceReport->range->label())
 
 @push('styles')
 <style>
@@ -81,40 +81,18 @@
                 Supervisor Portal
             </div>
             <h1 class="font-bold" style="font-size:1.5rem; color:#111827; margin:0 0 .25rem">
-                Daily Market Report
+                Fish Entrance Reports
             </h1>
             <p style="font-size:0.8125rem; color:#6b7280; margin:0;">
-                {{ \Carbon\Carbon::parse($reportDate)->format('l, F d, Y') }}
+                {{ $entranceReport->range->label() }}
             </p>
         </div>
 
-        <div style="display:flex; flex-wrap:wrap; align-items:center; gap:.625rem;">
-            <form method="GET" action="{{ request()->url() }}"
-                  style="display:flex; align-items:center; gap:.5rem;">
-                <input type="date" name="date" value="{{ $reportDate }}" class="date-input">
-                <button type="submit" class="btn-filter">
-                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/>
-                    </svg>
-                    Filter
-                </button>
-            </form>
-
-            <a href="{{ route('supervisor.reports.history') }}" class="btn-filter" style="text-decoration:none"
-               title="Daily supply, sales and prices vs tariff for the past year, for reports and model retraining">
-                <i class="bi bi-filetype-csv"></i> History (CSV)
-            </a>
-
-            <a id="btnGeneratePdf" class="btn-pdf" href="{{ route('supervisor.reports.pdf', ['date' => $reportDate]) }}">
-                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                          d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                </svg>
-                <span id="pdfBtnText">Generate PDF</span>
-            </a>
-        </div>
     </div>
 
+    @include('supervisor.report-forms')
+
+    @if($entranceReport->range->period === 'daily')
     {{-- ── Summary Cards ──────────────────────────────────────── --}}
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <x-stat-card tinted tone="brand"
@@ -254,6 +232,7 @@
         </div>
     </div>
 
+    @endif
 </div>{{-- /max-width --}}
 </div>{{-- /min-height --}}
 @endsection

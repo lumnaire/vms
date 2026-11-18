@@ -25,6 +25,9 @@ Route::get('/calculation', [CalculationController::class, 'index'])
     ->withoutMiddleware(\App\Http\Middleware\ExpireOldBatches::class)
     ->name('calculation');
 
+Route::get('/calculations', [CalculationController::class, 'index'])
+    ->withoutMiddleware(\App\Http\Middleware\ExpireOldBatches::class);
+
 // ── Auth ─────────────────────────────────────────────────────────
 // Signing in happens from the navbar form on "/", which POSTs here. There is no
 // standalone sign-in page, so an old link or a remembered bookmark that still

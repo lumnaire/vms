@@ -178,10 +178,6 @@
                     </a>
                 @endif
 
-                <p class="vpm-nav-heading">Research</p>
-                <a href="{{ route('calculation') }}" class="vpm-nav-link">
-                    <x-icon name="bi-calculator" class="vpm-nav-icon" /> Calculation Guide
-                </a>
             </nav>
 
             {{-- User Info + Logout --}}

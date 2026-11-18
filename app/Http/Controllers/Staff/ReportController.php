@@ -5,8 +5,9 @@ namespace App\Http\Controllers\Staff;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Report;
+use App\Services\FishEntrancePdf;
+use App\Services\FishEntranceReport;
 use App\Services\SupplyReport;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -25,8 +26,16 @@ class ReportController extends Controller
 
     public function pdf(Request $request)
     {
-        $report = $this->resolve($request);
-        $data = $report->build();
+        $entrance = FishEntranceReport::fromRequest($request);
+        $report = $entrance->range;
+        $content = app(FishEntrancePdf::class)->render($entrance);
+
+        // A preview is read-only. Archive only a successfully generated download.
+        if ($request->boolean('preview')) {
+            return response($content)->header('Content-Type', 'application/pdf')
+                ->header('Content-Disposition', 'inline; filename="'.$report->filename().'"')
+                ->header('Cache-Control', 'private, no-store');
+        }
 
         // Archive a snapshot of what was handed out. report_type is an enum that
         // predates the period split, so the period lives in the data.
@@ -37,9 +46,10 @@ class ReportController extends Controller
             'report_data' => [
                 'period' => $report->period,
                 'label' => $report->label(),
-                'totals' => $data['totals'],
-                'by_fish' => $data['byFish']->all(),
-                'pull_outs' => $data['pullOuts']->all(),
+                'vendor_id' => $entrance->vendorId,
+                'template' => $report->period,
+                'totals' => $entrance->totals(),
+                'total_price_basis' => 'stock_kg * price_per_kg',
             ],
         ]);
 
@@ -49,13 +59,9 @@ class ReportController extends Controller
             'description' => 'Generated '.strtolower($report->title()).' for '.$report->label().'.',
         ]);
 
-        return Pdf::loadView('staff.reports-pdf', [
-            'report' => $report,
-            'generatedBy' => Auth::user(),
-            'generatedAt' => now(),
-        ] + $data)
-            ->setPaper('a4', 'portrait')
-            ->download($report->filename());
+        return response($content)->header('Content-Type', 'application/pdf')
+            ->header('Content-Disposition', 'attachment; filename="'.$report->filename().'"')
+            ->header('Cache-Control', 'private, no-store');
     }
 
     private function resolve(Request $request): SupplyReport

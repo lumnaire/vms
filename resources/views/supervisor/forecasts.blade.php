@@ -30,12 +30,6 @@
 
 @section('content')
 
-<div class="mb-4 flex justify-end">
-    <a href="{{ route('calculation') }}#arima-lab" class="vpm-btn vpm-btn-secondary">
-        <x-icon name="bi-calculator" /> How is this forecast calculated?
-    </a>
-</div>
-
 @php
     /* ── Resolved names & flags ──────────────────────────────── */
     $metricMeta   = config("forecast.metric_meta.{$selectedMetric}");
