@@ -33,9 +33,7 @@
     <div class="section-heading">{{ ucfirst($entranceReport->range->period) }} Fish Entrance Report &middot; {{ $entranceReport->range->label() }}</div>
     <div style="padding:.75rem 1.25rem; font-size:.8125rem; color:#4b5563">
         {{ number_format($reportTotals['supply_kg'], 2) }} kg &middot; {{ $reportTotals['vendors'] }} vendors
-        @if($entranceReport->range->period === 'daily')
-            <span style="display:block; margin-top:.25rem">Arrival time is left blank for entry by the market office.</span>
-        @elseif($entranceReport->range->period === 'yearly')
+        @if($entranceReport->range->period === 'yearly')
             <span style="display:block; margin-top:.25rem">Total Price is the value of fish entered: kilograms &times; price per kilogram.</span>
         @endif
     </div>

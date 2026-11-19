@@ -92,26 +92,37 @@ class FishEntrancePdf
         $this->center('DAILY RECORDS OF FISH ENTRANCE', 72, 132, 468, 16, 12, true);
         $this->center('For the Month of '.$report->range->start->format('F Y'), 72, 147, 468, 16, 12);
 
-        $widths = array_map(fn ($w) => $w / 20, [1313, 1440, 2430, 1170, 1260, 1530, 1710]);
-        $headers = ['DATE', 'Time of Arrival', 'Name of Supplier/ Vendor', 'Kilo’s', 'Price', 'Fish Class', 'Fish Type'];
+        // Column widths and indent from Fish-Entrance-Form-Daily_Revised.docx.
+        $widths = array_map(fn ($w) => $w / 20, [1313, 2430, 1170, 1260, 1530, 1710]);
+        $headers = ['DATE', 'Name of Supplier/ Vendor', 'Kilo’s', 'Price', 'Fish Class', 'Fish Type'];
         $top = 182.0;
-        $x = 41.4; // Word's 1 inch margin plus the table's -612 DXA indent.
+        $left = 71.75; // Word's 1 inch margin plus the revised table's -5 DXA indent.
+        $right = $left + array_sum($widths);
+        $bottom = $top + 28 + 50 * 14.4;
+        // Draw each grid line once so blank cells retain their column borders.
+        $this->canvas->line($left, $top, $right, $top, [0, 0, 0], 0.5);
+        for ($i = 0; $i <= 50; $i++) {
+            $y = $top + 28 + $i * 14.4;
+            $this->canvas->line($left, $y, $right, $y, [0, 0, 0], 0.5);
+        }
+        $x = $left;
         foreach ($headers as $index => $header) {
-            $this->cell($header, $x, $top, $widths[$index], 28, 11, true);
+            $this->canvas->line($x, $top, $x, $bottom, [0, 0, 0], 0.5);
+            $this->center($header, $x + 2, $top, $widths[$index] - 4, 28, 11, true, $this->tableHeadingFont);
             $x += $widths[$index];
         }
+        $this->canvas->line($right, $top, $right, $bottom, [0, 0, 0], 0.5);
         $rows = array_values($rows);
         for ($i = 0; $i < 50; $i++) {
             $row = $rows[$i] ?? null;
             $values = $row ? [
                 Carbon::parse($row->entry_date)->format('m/d/Y'),
-                // Arrival time is not captured by the application. Leave the official field blank.
-                '', $row->vendor, number_format($row->stock_kg, 2),
+                $row->vendor, number_format($row->stock_kg, 2),
                 number_format($row->price_per_kg, 2), $row->quality_class, $row->fish ?? '',
-            ] : array_fill(0, 7, '');
-            $x = 41.4;
+            ] : array_fill(0, 6, '');
+            $x = $left;
             foreach ($values as $column => $value) {
-                $this->cell($value, $x, $top + 28 + $i * 14.4, $widths[$column], 14.4, 9);
+                $this->center($value, $x + 2, $top + 28 + $i * 14.4, $widths[$column] - 4, 14.4, 9);
                 $x += $widths[$column];
             }
         }

@@ -82,7 +82,7 @@ class FishEntranceReportTest extends TestCase
         foreach (['daily&date=2026-01-03', 'monthly&month=2026-01', 'yearly&year=2026'] as $filter) {
             $this->actingAs($supervisor)->get('/supervisor/reports?period='.$filter.'&vendor_id='.$vendor->id)
                 ->assertOk()->assertSee('Template Vendor')->assertSee('Open report preview')
-                ->assertSee('preview=1', false);
+                ->assertSee('preview=1', false)->assertDontSee('Arrival time');
         }
         $before = Report::count();
         $beforeLogs = ActivityLog::count();
@@ -115,9 +115,9 @@ class FishEntranceReportTest extends TestCase
         }
     }
 
-    public function test_daily_form_has_only_the_reference_columns_and_fifty_rows_per_page(): void
+    public function test_daily_form_has_the_revised_columns_and_fifty_rows_per_page(): void
     {
-        $vendor = User::factory()->vendor()->create();
+        $vendor = User::factory()->vendor()->create(['name' => 'Revised Form Vendor']);
         for ($i = 0; $i < 51; $i++) {
             $this->batch($vendor, '2026-01-03', 1, 200);
         }
@@ -127,6 +127,8 @@ class FishEntranceReportTest extends TestCase
         $text = $this->contentStreams($pdf);
         $this->assertStringContainsString('Price', $text);
         $this->assertStringContainsString('Fish Type', $text);
+        $this->assertStringNotContainsString('Time of Arrival', $text);
+        $this->assertStringContainsString('01/03/2026 Revised Form Vendor 1.00 200.00 First Class Bammer', $text);
         $this->assertStringNotContainsString('NET', $text);
         $this->assertStringNotContainsString('GROSS', $text);
         $this->assertStringNotContainsString('Signature', $text);
