@@ -14,10 +14,10 @@
     <div class="calc-table-wrap"><table class="calc-table">
         <caption>Dashboard chart periods</caption>
         <thead><tr><th scope="col">Toggle</th><th scope="col">Window</th><th scope="col">Calculation</th></tr></thead>
-        <tbody><tr><td>Daily</td><td>Last 30 days, including today</td><td>One sum per calendar day.</td></tr><tr><td>Monthly</td><td>Current month + 11 preceding months</td><td>Sum daily values by year and month.</td></tr><tr><td>Quarterly</td><td>Current quarter + 7 preceding quarters</td><td>Q1: Jan–Mar; Q2: Apr–Jun; Q3: Jul–Sep; Q4: Oct–Dec.</td></tr><tr><td>Yearly</td><td>Current year + 4 preceding years</td><td>Sum daily values by calendar year.</td></tr></tbody>
+        <tbody><tr><td>Daily</td><td>Last 30 days, including today</td><td>One sum per calendar day.</td></tr><tr><td>Monthly</td><td>Current month + 11 preceding months</td><td>Sum daily values by year and month.</td></tr><tr><td>Yearly</td><td>Current year + 4 preceding years</td><td>Sum daily values by calendar year.</td></tr></tbody>
     </table></div>
-    <p class="calc-small">Chart buckets without events are 0. Monthly, quarterly and yearly totals are sums of daily quantities or values; they are not averages of the chart’s bars.
-        The current bucket can be incomplete because the day, month, quarter or year is still in progress.</p>
+    <p class="calc-small">Chart buckets without events are 0. Monthly and yearly totals are sums of daily quantities or values; they are not averages of the chart’s bars.
+        The current bucket can be incomplete because the day, month or year is still in progress.</p>
     <h3>What the dashboard cards and rankings count</h3>
     <div class="calc-table-wrap"><table class="calc-table">
         <thead><tr><th scope="col">Figure</th><th scope="col">Definition</th></tr></thead>

@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Tariff (Price Guide)')
+@section('title', 'Tariff')
 @section('subtitle', 'Official tariff vs vendor prices on the board')
 
 @section('content')

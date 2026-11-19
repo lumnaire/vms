@@ -120,7 +120,7 @@ The vendor dashboard shows the signed-in vendor's own activity.
 | Sales this month | Add sales from the first day of the current month through today |
 | Tubo this month | Add the tubo on sales recorded from the first day of this month through today |
 | Best sales day | Find the day with the highest positive total sales in the vendor's recorded history |
-| Sales and tubo charts | Add the vendor's sales and tubo for each day, month, quarter, or year displayed |
+| Sales and tubo charts | Add the vendor's sales and tubo for each day, month, or year displayed |
 | Today's inventory | List today's submitted batches, showing their prices, quantities, review status, and applicable freshness countdown |
 
 **Freshness countdown:** Days left = Allowed freshness period - Days since submission. The countdown stops at zero. The allowed period follows the market's system setting.
@@ -142,7 +142,7 @@ The staff dashboard helps staff monitor submissions across vendors.
 | Vendors without submissions | List active vendors who have no entry for today; even a pending or rejected entry counts as a submission |
 | Above tariff today | Count today's pending or confirmed entries priced above their recorded tariff; use the current tariff if no earlier tariff was recorded |
 | Supply this month | Add all confirmed supply from the start of this month through today |
-| Supply chart | Add confirmed supply for each displayed day, month, quarter, or year |
+| Supply chart | Add confirmed supply for each displayed day, month, or year |
 | Vendor markup ranking | Show up to eight vendors with the highest average markup per kilogram for qualifying deliveries this month |
 
 "Confirmed today" counts entries submitted for today that are currently confirmed. It does not count every approval action staff performed today. The seven-day chart also reflects each entry's current review status.
@@ -169,11 +169,11 @@ The supervisor dashboard combines records across vendors to show market activity
 | Total stalls | Count registered stall profiles, including profiles whose vendor accounts may no longer be active |
 | Active staff | Count staff accounts currently marked active |
 | Today's confirmed stock | Add the original weight of confirmed deliveries submitted for today |
-| Supply this month | Add confirmed supply from the first day of the month through today |
-| Sales this month | Add sales recorded from the first day of the month through today |
-| Kilograms sold this month | Add the quantities recorded as sold during that time |
-| Tubo this month | Add the tariff-based tubo on sales recorded during that time |
-| Supply and sales charts | Show totals for each displayed day, month, quarter, or year |
+| Supply today / this month / this year | Add confirmed supply for today, the current month, or the current year, according to the selected filter |
+| Sales today / this month / this year | Add sales recorded within the selected calendar period through today |
+| Kilograms sold in the selected period | Add the quantities recorded as sold during that time |
+| Tubo today / this month / this year | Add the tariff-based tubo on sales recorded during that time |
+| Supply and sales charts | Show totals for each displayed day, month, or year |
 | Top five suppliers | Rank vendors by the total confirmed kilograms they supplied within the selected delivery period |
 | Supply by quality class | Add confirmed supply separately for each fish quality class |
 | Tubo ranking | Show up to eight qualifying vendors, with the highest total tubo first |
@@ -253,12 +253,13 @@ If the previous month has fewer days, the comparison stops at that month's last 
 | --- | --- | --- |
 | Daily | Today and the previous 29 days | Total for one day |
 | Monthly | This month and the previous 11 months | Total for one month |
-| Quarterly | This quarter and the previous 7 quarters | Total for one quarter |
 | Yearly | This year and the previous 4 years | Total for one year |
 
-A quarter is three months: January-March, April-June, July-September, or October-December. A period with no recorded activity appears as zero. The current month, quarter, or year is still ongoing, so its total may be lower simply because it is not finished.
+A period with no recorded activity appears as zero. The current month or year is still ongoing, so its total may be lower simply because it is not finished.
 
-Changing the chart period changes the charts and their related breakdowns. Figures labeled "today," "this month," or "all-time" keep those meanings.
+All dashboards offer Daily, Monthly, and Yearly filters. On the supervisor dashboard, these also switch the supply, sales, and tubo cards to today, this month, and this year respectively. Comparisons use yesterday, the same days last month, or the same dates last year. The chart caption describes its wider historical window.
+
+Today's stock, account counts, the explicitly monthly tubo leaderboard, current markup watch, and all-time records keep their stated meanings when the supervisor changes the filter. On the staff and vendor dashboards, the period filter changes the charts and their related breakdowns.
 
 ### Delivery date and sale date answer different questions
 

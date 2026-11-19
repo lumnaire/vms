@@ -143,7 +143,7 @@
                         {{ $ft->name }}
                     </span>
                     @unless($ft->is_active)
-                        <x-badge variant="neutral" class="ml-1" title="Removed from the tariff list; restore it from Price Guides">Removed</x-badge>
+                        <x-badge variant="neutral" class="ml-1" title="Removed from the tariff list; restore it from Tariff">Removed</x-badge>
                     @endunless
                     @if($ft->english_name)
                         <span class="block text-slate-400 text-[11.5px]">{{ $ft->english_name }}</span>

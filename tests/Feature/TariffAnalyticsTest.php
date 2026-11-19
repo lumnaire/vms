@@ -227,8 +227,8 @@ class TariffAnalyticsTest extends TestCase
 
         $this->assertCount(30, $analytics->buckets('daily'));
         $this->assertCount(12, $analytics->buckets('monthly'));
-        $this->assertCount(8, $analytics->buckets('quarterly'));
         $this->assertCount(5, $analytics->buckets('yearly'));
+        $this->assertSame(['daily', 'monthly', 'yearly'], array_keys(MarketAnalytics::PERIODS));
 
         $daily = [
             today()->toDateString() => 5.0,
@@ -252,12 +252,15 @@ class TariffAnalyticsTest extends TestCase
         $staff = User::factory()->create(['role' => 'staff']);
 
         $sup = $this->actingAs($supervisor)->get('/supervisor/dashboard')->assertOk();
+        $sup->assertDontSee('data-period="quarterly"', false);
         $this->assertSame(300.0, $sup->viewData('kpis')['sales']['current']);
         $this->assertSame(60.0, $sup->viewData('kpis')['tubo']['current']);
         $sup->assertSee('Highest fish price');
         $sup->assertSee('Markup Watch');
 
         $st = $this->actingAs($staff)->get('/staff/dashboard')->assertOk();
+        $st->assertDontSee('data-period="quarterly"', false);
+        $this->assertSame(['daily', 'monthly', 'yearly'], array_keys($st->viewData('supplyCharts')));
         $st->assertSee('id="weekChart"', false);
         $st->assertSee('Not Submitted Today');
         $st->assertSee($idle->name);
@@ -267,9 +270,77 @@ class TariffAnalyticsTest extends TestCase
         $this->assertSame(1, $st->viewData('aboveTariffToday'));
 
         $ven = $this->actingAs($vendor)->get('/vendor/dashboard')->assertOk();
+        $ven->assertDontSee('data-period="quarterly"', false);
+        $this->assertSame(['daily', 'monthly', 'yearly'], array_keys($ven->viewData('charts')));
         $this->assertSame(300.0, $ven->viewData('salesToday'));
         $this->assertSame(60.0, $ven->viewData('tuboMonth')['current']);
         $ven->assertSee('My Prices vs Tariff');
         $ven->assertSee('Highest markup on the board');
+    }
+
+    public function test_supervisor_periods_have_distinct_totals_and_no_quarterly_filter(): void
+    {
+        $this->travelTo(now()->setDate(2026, 11, 19)->setTime(12, 0));
+        $fish = $this->fish();
+        $vendor = $this->vendor('A-01');
+
+        foreach ([
+            '2020-01-01' => 1000,
+            '2022-01-01' => 100,
+            '2025-12-01' => 40,
+            '2026-01-01' => 20,
+            '2026-10-20' => 10,
+            '2026-11-01' => 8,
+            '2026-11-18' => 4,
+            '2026-11-19' => 2,
+        ] as $date => $kg) {
+            $this->batch($vendor, $fish, 150, [
+                'entry_date' => $date,
+                'tariff_price' => 120,
+                'stock_kg' => $kg,
+                'released_kg' => $kg,
+                'sold_kg' => $kg / 2,
+            ]);
+        }
+        BatchRelease::backfillFromTotals();
+
+        $response = $this->actingAs(User::factory()->supervisor()->create())
+            ->get('/supervisor/dashboard')->assertOk();
+        $charts = $response->viewData('charts');
+
+        $this->assertSame(['daily', 'monthly', 'yearly'], array_keys($charts));
+        $response->assertDontSee('data-period="quarterly"', false);
+        foreach (['daily' => [2, 14, 30], 'monthly' => [14, 84, 12], 'yearly' => [44, 184, 5]] as $period => [$current, $window, $points]) {
+            $data = $charts[$period];
+            $this->assertSame((float) $current, $data['kpis']['supply']['current']);
+            $this->assertSame($current / 2.0, $data['kpis']['sold']['current']);
+            $this->assertSame($current * 75.0, $data['kpis']['sales']['current']);
+            $this->assertSame($current * 15.0, $data['kpis']['tubo']['current']);
+            $this->assertCount($points, $data['labels']);
+            $this->assertSame((float) $window, array_sum($data['series']['supply']));
+            $this->assertSame($window * 75.0, array_sum($data['series']['sales']));
+            $this->assertSame((float) $window, $data['top_vendors'][0]['kg']);
+            $this->assertSame((float) $window, $data['by_class']['First Class']);
+            $this->assertSame($window / 2.0, $data['outcome']['sold']);
+        }
+        $response->assertSee('Sales today')->assertSee('Sales this month')->assertSee('Sales this year');
+    }
+
+    public function test_period_totals_compare_matching_dates_and_handle_leap_day(): void
+    {
+        $this->travelTo(now()->setDate(2024, 2, 29)->setTime(12, 0));
+        $analytics = app(MarketAnalytics::class);
+        $daily = [
+            '2023-02-28' => 10.0,
+            '2023-03-01' => 999.0,
+            '2024-01-01' => 5.0,
+            '2024-02-28' => 20.0,
+            '2024-02-29' => 30.0,
+            '2024-03-01' => 999.0,
+        ];
+
+        $this->assertSame(['current' => 30.0, 'previous' => 20.0, 'change' => 50.0], $analytics->periodToDate($daily, 'daily'));
+        $this->assertSame($analytics->monthToDate($daily), $analytics->periodToDate($daily, 'monthly'));
+        $this->assertSame(['current' => 55.0, 'previous' => 10.0, 'change' => 450.0], $analytics->periodToDate($daily, 'yearly'));
     }
 }

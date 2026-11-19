@@ -113,7 +113,7 @@
                     </a>
                     <a href="{{ route('supervisor.price-guides.index') }}"
                         class="vpm-nav-link {{ request()->routeIs('supervisor.price-guides.*') ? 'is-active' : '' }}">
-                        <x-icon name="bi-tags" class="vpm-nav-icon" /> Price Guides
+                        <x-icon name="bi-tags" class="vpm-nav-icon" /> Tariff
                     </a>
 
                     <p class="vpm-nav-heading">
@@ -159,7 +159,7 @@
 
                     <a href="{{ route('staff.price-guides.index') }}"
                         class="vpm-nav-link {{ request()->routeIs('staff.price-guides.*') ? 'is-active' : '' }}">
-                        <x-icon name="bi-tags" class="vpm-nav-icon" /> Price Guide
+                        <x-icon name="bi-tags" class="vpm-nav-icon" /> Tariff
                     </a>
                     <a href="{{ route('staff.reports.index') }}"
                         class="vpm-nav-link {{ request()->routeIs('staff.reports.*') ? 'is-active' : '' }}">

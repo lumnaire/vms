@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Tariff (Price Guide)')
+@section('title', 'Tariff')
 @section('subtitle', 'Official tariff per kilo · enter it from the municipal tariff list')
 
 @section('content')

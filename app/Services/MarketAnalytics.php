@@ -28,7 +28,7 @@ use Illuminate\Support\Facades\DB;
  *   markup   — batch price − its tariff, per kilo.
  *
  * Sums are done in SQL per day and bucketed in PHP, so the same daily totals
- * feed the daily, monthly, quarterly and yearly views.
+ * feed the daily, monthly and yearly views.
  */
 class MarketAnalytics
 {
@@ -36,7 +36,6 @@ class MarketAnalytics
     public const PERIODS = [
         'daily' => ['Daily', 'Last 30 days'],
         'monthly' => ['Monthly', 'Last 12 months'],
-        'quarterly' => ['Quarterly', 'Last 8 quarters'],
         'yearly' => ['Yearly', 'Last 5 years'],
     ];
 
@@ -92,7 +91,6 @@ class MarketAnalytics
         return match ($period) {
             'daily' => today()->subDays(29),
             'monthly' => today()->startOfMonth()->subMonths(11),
-            'quarterly' => today()->firstOfQuarter()->subQuarters(7),
             default => today()->startOfYear()->subYears(4),
         };
     }
@@ -102,7 +100,6 @@ class MarketAnalytics
         return match ($period) {
             'daily' => $date->format('Y-m-d'),
             'monthly' => $date->format('Y-m'),
-            'quarterly' => $date->year.'-Q'.$date->quarter,
             default => (string) $date->year,
         };
     }
@@ -117,14 +114,12 @@ class MarketAnalytics
             $buckets[$this->bucketKey($cursor, $period)] = match ($period) {
                 'daily' => $cursor->format('M j'),
                 'monthly' => $cursor->format('M Y'),
-                'quarterly' => 'Q'.$cursor->quarter.' '.$cursor->year,
                 default => (string) $cursor->year,
             };
 
             $cursor = match ($period) {
                 'daily' => $cursor->copy()->addDay(),
                 'monthly' => $cursor->copy()->addMonth(),
-                'quarterly' => $cursor->copy()->addQuarter(),
                 default => $cursor->copy()->addYear(),
             };
         }
@@ -181,6 +176,23 @@ class MarketAnalytics
         $prevStart = today()->startOfMonth()->subMonthNoOverflow();
         $prevEnd = $prevStart->copy()->addDays(min(today()->day, $prevStart->daysInMonth) - 1);
         $previous = $this->sumBetween($daily, $prevStart, $prevEnd, $pick);
+
+        return ['current' => $current, 'previous' => $previous, 'change' => $this->change($current, $previous)];
+    }
+
+    /** Today, this month or this year against the same elapsed part of the previous period. */
+    public function periodToDate(array $daily, string $period, ?callable $pick = null): array
+    {
+        if ($period === 'monthly') {
+            return $this->monthToDate($daily, $pick);
+        }
+
+        [$start, $previousStart, $previousEnd] = match ($period) {
+            'daily' => [today(), today()->subDay(), today()->subDay()],
+            'yearly' => [today()->startOfYear(), today()->subYear()->startOfYear(), today()->subYearNoOverflow()],
+        };
+        $current = $this->sumBetween($daily, $start, today(), $pick);
+        $previous = $this->sumBetween($daily, $previousStart, $previousEnd, $pick);
 
         return ['current' => $current, 'previous' => $previous, 'change' => $this->change($current, $previous)];
     }

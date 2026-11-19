@@ -25,21 +25,33 @@
     </div>
 
     {{-- ── This month ────────────────────────────────────────────── --}}
-    <div class="dashboard-metrics grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-4">
+    <div class="dashboard-metrics grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-4" aria-live="polite">
         <div class="vpm-card vpm-card-body">
-            <p class="vpm-stat-label">Supply this month</p>
-            <p class="vpm-stat-value vpm-num">{{ number_format($kpis['supply']['current'], 1) }} <span class="vpm-stat-value-unit">kg</span></p>
-            <x-delta :change="$kpis['supply']['change']" class="mt-1.5" />
+            @foreach($charts as $period => $data)
+                <div data-supervisor-period="{{ $period }}" @if($period !== 'monthly') hidden @endif>
+                    <p class="vpm-stat-label">Supply {{ $data['kpi_label'] }}</p>
+                    <p class="vpm-stat-value vpm-num">{{ number_format($data['kpis']['supply']['current'], 1) }} <span class="vpm-stat-value-unit">kg</span></p>
+                    <x-delta :change="$data['kpis']['supply']['change']" :label="$data['comparison_label']" class="mt-1.5" />
+                </div>
+            @endforeach
         </div>
         <div class="vpm-card vpm-card-body">
-            <p class="vpm-stat-label">Sales this month</p>
-            <p class="vpm-stat-value vpm-num">₱{{ number_format($kpis['sales']['current'], 2) }}</p>
-            <x-delta :change="$kpis['sales']['change']" class="mt-1.5" />
+            @foreach($charts as $period => $data)
+                <div data-supervisor-period="{{ $period }}" @if($period !== 'monthly') hidden @endif>
+                    <p class="vpm-stat-label">Sales {{ $data['kpi_label'] }}</p>
+                    <p class="vpm-stat-value vpm-num">₱{{ number_format($data['kpis']['sales']['current'], 2) }}</p>
+                    <x-delta :change="$data['kpis']['sales']['change']" :label="$data['comparison_label']" class="mt-1.5" />
+                </div>
+            @endforeach
         </div>
         <div class="vpm-card vpm-card-body">
-            <p class="vpm-stat-label">Tubo this month</p>
-            <p class="vpm-stat-value vpm-num">₱{{ number_format($kpis['tubo']['current'], 2) }}</p>
-            <p class="vpm-stat-foot">Vendors' markup over the tariff on {{ number_format($kpis['sold']['current'], 1) }} kg sold</p>
+            @foreach($charts as $period => $data)
+                <div data-supervisor-period="{{ $period }}" @if($period !== 'monthly') hidden @endif>
+                    <p class="vpm-stat-label">Tubo {{ $data['kpi_label'] }}</p>
+                    <p class="vpm-stat-value vpm-num">₱{{ number_format($data['kpis']['tubo']['current'], 2) }}</p>
+                    <p class="vpm-stat-foot">Vendors' markup over the tariff on {{ number_format($data['kpis']['sold']['current'], 1) }} kg sold</p>
+                </div>
+            @endforeach
         </div>
         <div class="vpm-card vpm-card-body">
             <p class="vpm-stat-label">Today's Stock</p>
@@ -61,8 +73,8 @@
             <p class="vpm-section-sub" id="periodCaption">&nbsp;</p>
         </div>
         <div class="vpm-segment" id="supPeriods" role="group" aria-label="Period">
-            @foreach(App\Services\MarketAnalytics::PERIODS as $key => [$label])
-                <button type="button" data-period="{{ $key }}" aria-pressed="false">{{ $label }}</button>
+            @foreach($charts as $key => $data)
+                <button type="button" data-period="{{ $key }}" aria-pressed="false">{{ App\Services\MarketAnalytics::PERIODS[$key][0] }}</button>
             @endforeach
         </div>
     </div>
@@ -239,6 +251,9 @@
 
     VPM.periods('supPeriods', p => {
         const d = DATA[p];
+        document.querySelectorAll('[data-supervisor-period]').forEach(el => {
+            el.hidden = el.dataset.supervisorPeriod !== p;
+        });
         document.getElementById('periodCaption').textContent = d.caption;
         VPM.update(supplySold, d.labels, [d.series.supply, d.series.sold]);
         VPM.update(sales, d.labels, [d.series.sales]);

@@ -28,13 +28,6 @@ class DashboardController extends Controller
         $supply = $analytics->dailySupply();
         $sales = $analytics->dailySales();
 
-        $kpis = [
-            'supply' => $analytics->monthToDate($supply),
-            'sales' => $analytics->monthToDate($sales, fn ($d) => $d['value']),
-            'sold' => $analytics->monthToDate($sales, fn ($d) => $d['kg']),
-            'tubo' => $analytics->monthToDate($sales, fn ($d) => $d['tubo']),
-        ];
-
         // Every period's chart series, so the toggle needs no reload.
         $charts = $analytics->periodPayload([
             'supply' => [$supply],
@@ -43,12 +36,25 @@ class DashboardController extends Controller
             'tubo' => [$sales, fn ($d) => $d['tubo']],
         ]);
 
-        foreach (array_keys(MarketAnalytics::PERIODS) as $period) {
+        foreach (array_keys($charts) as $period) {
             $from = $analytics->windowStart($period);
+            [$charts[$period]['kpi_label'], $charts[$period]['comparison_label']] = match ($period) {
+                'daily' => ['today', 'vs yesterday'],
+                'monthly' => ['this month', 'vs same days last month'],
+                'yearly' => ['this year', 'vs same dates last year'],
+            };
+            $charts[$period]['kpis'] = [
+                'supply' => $analytics->periodToDate($supply, $period),
+                'sales' => $analytics->periodToDate($sales, $period, fn ($d) => $d['value']),
+                'sold' => $analytics->periodToDate($sales, $period, fn ($d) => $d['kg']),
+                'tubo' => $analytics->periodToDate($sales, $period, fn ($d) => $d['tubo']),
+            ];
             $charts[$period]['top_vendors'] = $analytics->topSuppliers($from)->values()->all();
             $charts[$period]['by_class'] = $analytics->supplyByClass($from);
             $charts[$period]['outcome'] = $analytics->stockOutcome($from);
         }
+
+        $kpis = $charts['monthly']['kpis'];
 
         $tuboBoard = $analytics->tuboLeaderboard(today()->startOfMonth(), 8);
 
