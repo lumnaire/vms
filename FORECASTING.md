@@ -142,7 +142,7 @@ sukatan** (presyo at suplay):
 
 | #   | Hakbang                    | Ano ang nangyayari |
 | --- | -------------------------- | ------------------- |
-| 1   | **Kunin ang kasaysayan**   | Hanggang 30 calendar days; kailangan ng 7 consecutive recorded days hanggang kahapon. |
+| 1   | **Kunin ang kasaysayan**   | Sa loob ng huling 30 calendar days; kailangan ng 7 consecutive recorded days hanggang sa latest actual record. |
 | 2   | **Kunin ang pagbabago**    | Ibawas ang kahapon sa ngayon para sa bawat araw. Halimbawa: 100 → 101 → 103 ay nagiging **+1, +2**. |
 | 3   | **Fitted drift (μ)**      | Tinatantiya kasama ng φ at θ gamit ang maximum likelihood; maaaring iba sa simpleng average ng changes. |
 | 4   | **Ugali ng pagbabago (φ)** | Gaano kalakas sumusunod ang pagbabago ngayon sa pagbabago kahapon? Ang **positibo** ay "tuloy-tuloy." Ang **negatibo** ay "pabalik-balik." Ang **malapit sa 0** ay "walang kinalaman." |
@@ -259,12 +259,12 @@ error" ay ang karaniwang mintis sa mga araw na may totoong batch.
 
 ## 11. Kailan walang forecast
 
-Kailangan ng ARIMA ng **hindi bababa sa 7 magkakasunod na recorded days hanggang kahapon** na may kumpirmadong batch ng
+Kailangan ng ARIMA ng **hindi bababa sa 7 magkakasunod na recorded days hanggang sa latest actual record** na may kumpirmadong batch ng
 isang isda (sa loob ng huling 30 araw). Ang bilang na 7 ay operational minimum, hindi patunay na statistically sufficient ang sample. Kung kulang:
 
 - Hindi gagawa ng hula ang sistema. **Sinasadya ito.** Mas mabuting walang hula
   kaysa sa hulang galing sa hula-hula.
-- Sa listahan ng isda, may nakasulat na **"· not enough data"**.
+- Sa listahan ng isda, makikita ang **"no confirmed history"** o bilang tulad ng **"2/7 consecutive days"**. Ang may sapat na records pero wala pang saved run ay **"ready to forecast"**.
 - Sa graph, may mensaheng nagsasabing kailangan pa ng kasaysayan.
 
 Normal na **maraming isda ang walang forecast**. May 125 na uri ng isda sa
@@ -275,6 +275,11 @@ pagkalipas ng isang linggo.
 ---
 
 ## 12. Kailan ina-update ang forecast
+
+Sa hosting, maaaring patakbuhin ang `php artisan forecast:status` para makita ang
+server date, daily history at bilang ng forecasts mula sa kasalukuyang model.
+Read-only ito. Kapag may eligible history pero wala pang bagong forecasts, gamitin
+ang `php artisan forecast:generate`. Hindi nito pinupunan ang nawawalang inventory records.
 
 | Kailan                         | Ano ang nangyayari |
 | ------------------------------ | ------------------ |
@@ -397,7 +402,7 @@ Presyo:  y[t] = (1 / Nₜ) · Σ price_per_kgᵦ        (average ng Nₜ na batc
 Suplay:  y[t] = Σ stock_kgᵦ                        (kabuuang kilo)
 ```
 
-Ang latest consecutive recorded segment ending yesterday ang kasama, sa loob ng `ngayon − 30` hanggang
+Ang latest consecutive recorded segment hanggang sa huling actual record ang kasama, sa loob ng `ngayon − 30` hanggang
 `kahapon`. Kailangan ng `n ≥ 7` na araw.
 
 ### B. Unang pagkakaiba (d = 1)
@@ -436,9 +441,11 @@ predicted change = μ + φ(previous change − μ) + θ(previous filtered shock)
 raw next level = previous raw level + predicted change
 ```
 
-Expected future shocks ay zero. Dahil hanggang kahapon ang training data,
-kinukuwenta muna ang unobserved na araw ngayon bago i-publish ang bukas at ang
-kasunod na mga araw. Raw unrounded levels ang ginagamit sa recursion.
+Expected future shocks ay zero. Mula sa tunay na petsa ng latest observation,
+kinukuwenta ang bawat unobserved day hanggang ngayon bago i-publish ang bukas at ang
+kasunod na mga araw. Halimbawa, kung November 17 ang latest record at November 24
+ngayon, ang November 25 forecast ay model step 8. Kasama ang lahat ng steps sa variance.
+Raw unrounded levels ang ginagamit sa recursion; walang idinadagdag na inventory records.
 
 ### F. Prediction interval
 

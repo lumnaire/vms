@@ -68,6 +68,7 @@
     <p>The forecast chart displays the last {{ $settings['chart_days'] }} calendar days before today. Within that display, a date without confirmed batches is flagged as filled:
         supply shows 0 kg; price carries forward the latest known daily price, including a prior price from before the window if available.
         With no earlier price, price is blank. If the entire window has no actual batches, the historical overlay is empty.</p>
-    <div class="calc-note">These filled chart values are for display. Training uses the most recent consecutive recorded segment ending yesterday. Filled chart values are <strong>not inserted into the fitting series</strong> and are <strong>excluded from MAPE</strong>.
+    <div class="calc-note">These filled chart values are for display. Training uses the most recent consecutive recorded segment within the window.
+        Later unrecorded dates increase the forecast lead. Filled chart values are <strong>not inserted into the fitting series</strong> and are <strong>excluded from MAPE</strong>.
         A chart-filled zero is not proof that data collection established zero supply.</div>
 </section>

@@ -18,34 +18,35 @@ class ForecastController extends Controller
         $qualityClasses = FishType::QUALITY_CLASSES;
         $metrics = $this->metricOptions();
         $horizon = config('forecast.horizon');
+        $selectedMetric = $this->resolveMetric($request->input('metric'), array_keys($metrics));
 
-        // Fish that currently have a forecast are listed first, so the dropdown
-        // does not open on one of the many fish nobody has sold yet.
-        $forecastFishIds = Forecast::where('forecast_date', '>=', today())
+        $storedSeries = Forecast::where('forecast_date', '>=', today())
             ->where('arima_params->model_version', ArimaMaximumLikelihood::VERSION)
             ->where('arima_params->history_days', config('forecast.history_days'))
+            ->where('metric', $selectedMetric)
+            ->select('fish_type_id', 'quality_class')
             ->distinct()
-            ->pluck('fish_type_id')
-            ->flip();
+            ->get();
+        $forecastFishIds = $storedSeries->pluck('fish_type_id')->flip();
+        $storedKeys = $storedSeries->mapWithKeys(fn ($row) => [$row->fish_type_id.'|'.$row->quality_class => true]);
 
         $fishTypes = FishType::where('is_active', true)
             ->orderBy('name')
-            ->get()
-            // A block body, not an arrow fn: each() stops at a callback that
-            // returns false, which the assignment would for the first fish
-            // without a forecast.
-            ->each(function ($ft) use ($forecastFishIds) {
-                $ft->has_forecast = $forecastFishIds->has($ft->id);
-            })
-            ->sortBy(fn ($ft) => ($ft->has_forecast ? '0' : '1').strtolower($ft->name))
-            ->values();
+            ->get();
+        $coverage = $arima->historyCoverage($fishTypes->modelKeys());
+        $preferredHistory = $coverage
+            ->when($request->filled('quality_class'), fn ($rows) => $rows->where('quality_class', $request->input('quality_class')))
+            ->sort(fn ($a, $b) => [min($b['consecutive_days'], config('forecast.min_history')), -$b['age_days'], $b['consecutive_days']]
+                <=> [min($a['consecutive_days'], config('forecast.min_history')), -$a['age_days'], $a['consecutive_days']])
+            ->first();
 
-        // With nothing picked, open on the forecast fish with the most history:
-        // the series the model has learned the most from.
+        // After a model upgrade there may be no saved forecasts yet. Prefer a
+        // fish with recent history so on-demand generation can actually run.
         $defaultFishTypeId = $forecastFishIds->isEmpty()
-            ? $fishTypes->first()?->id
+            ? ($preferredHistory['fish_type_id'] ?? $fishTypes->first()?->id)
             : VendorInventory::where('status', 'confirmed')
                 ->whereIn('fish_type_id', $forecastFishIds->keys())
+                ->whereDate('entry_date', '<', today())
                 ->whereDate('entry_date', '>=', today()->subDays(config('forecast.history_days')))
                 ->selectRaw('fish_type_id, COUNT(*) as n')
                 ->groupBy('fish_type_id')
@@ -54,8 +55,21 @@ class ForecastController extends Controller
 
         $selectedFishTypeId = (int) $request->input('fish_type_id', $defaultFishTypeId);
         $selectedFishType = $fishTypes->firstWhere('id', $selectedFishTypeId);
-        $selectedQuality = $request->input('quality_class', $selectedFishType?->quality_class ?? 'First Class');
-        $selectedMetric = $this->resolveMetric($request->input('metric'), array_keys($metrics));
+        $defaultQuality = $storedSeries->firstWhere('fish_type_id', $selectedFishTypeId)?->quality_class
+            ?? (($preferredHistory['fish_type_id'] ?? null) === $selectedFishTypeId ? $preferredHistory['quality_class'] : null)
+            ?? $selectedFishType?->quality_class ?? 'First Class';
+        $selectedQuality = $request->input('quality_class', $defaultQuality);
+
+        $fishTypes->each(function ($fish) use ($coverage, $storedKeys, $selectedQuality) {
+            $history = $coverage->get($fish->id.'|'.$selectedQuality);
+            $fish->has_forecast = $storedKeys->has($fish->id.'|'.$selectedQuality);
+            $fish->consecutive_history_days = $history['consecutive_days'] ?? 0;
+            $fish->latest_history_date = $history['latest_record'] ?? null;
+            $fish->history_age_days = $history['age_days'] ?? null;
+            $fish->forecast_ready = $fish->consecutive_history_days >= config('forecast.min_history');
+            $fish->forecast_label = $fish->has_forecast ? '' : ($fish->forecast_ready ? 'ready to forecast'
+                : ($history === null ? 'no confirmed history' : $fish->consecutive_history_days.'/'.config('forecast.min_history').' consecutive days'));
+        });
 
         // Confirmed daily history overlaid behind the forecast
         $historical = $arima->historicalSeries($selectedFishTypeId, $selectedQuality, $selectedMetric);
@@ -75,8 +89,13 @@ class ForecastController extends Controller
             if ($arima->generate($selectedFishTypeId, $selectedQuality, $selectedMetric) > 0) {
                 $forecasts = $this->forecastSeries($arima, $selectedFishTypeId, $selectedQuality, $selectedMetric, $horizon);
                 $selectedFishType->has_forecast = true;
+                $selectedFishType->forecast_label = '';
+            } elseif ($selectedFishType->forecast_ready) {
+                $selectedFishType->forecast_label = 'model fit unavailable';
             }
         }
+
+        $fishTypes = $fishTypes->sortBy(fn ($fish) => ($fish->has_forecast ? '0' : ($fish->forecast_ready ? '1' : '2')).strtolower($fish->name))->values();
 
         // Trend indicator carried on every row of the generated series
         $latestForecast = $forecasts->first();

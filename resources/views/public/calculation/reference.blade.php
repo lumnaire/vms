@@ -57,7 +57,7 @@
         <li>No weather, fishing conditions, holidays or external predictors enter the model. Sudden disruptions may not be reflected in the history.</li>
         <li>There is no automatic seasonal model or price–supply causal model. Each fish/class/metric history is fitted independently.</li>
         <li>The minimum observation count is a processing rule, not evidence that the sample is statistically sufficient for every research question.</li>
-        <li>Training requires consecutive recorded dates ending yesterday. Chart-filled dates are excluded; gaps can prevent a new forecast.</li>
+        <li>Training uses the latest consecutive recorded segment within the window. Internal gaps shorten it; trailing gaps increase the actual forecast lead. Chart-filled dates are excluded.</li>
         <li>The range is approximate, lower bounds are clipped at zero, and empirical coverage should be evaluated separately.</li>
         <li>Historical supply remains the original incoming weight after sale or expiry. Remaining stock is a different quantity.</li>
         <li>Full-precision coefficients, training dates and model version are stored for audit; display coefficients use 4 decimals and predictions/bounds use 2. Rounding can affect borderline trend decisions.</li>
@@ -68,7 +68,8 @@
         Opening the supervisor forecast page can also generate that selected series if it has no run from today.</p>
     <p>Each run stores its generation time, target dates, predictions, bounds, direction and model parameters.
         Rerunning the same series on the same day replaces that day’s run; runs from earlier days are retained.
-        History ends yesterday; the model bridges today before publishing tomorrow onward. For backtesting, only predictions produced before their target date count as eligible.</p>
+        The actual last observation anchors the model, which advances across all unobserved days before publishing tomorrow onward.
+        The stored training dates, unobserved-day count and model steps preserve that distinction. For backtesting, only predictions produced before their target date count as eligible.</p>
     <details class="calc-details"><summary>Checklist for reproducing a result in a research paper</summary><div class="calc-details-body">
         <ol class="calc-list" style="list-style-type: decimal">
             <li>Identify fish type, quality class, metric, unit and the application time zone.</li>

@@ -122,7 +122,7 @@
                 <option value="{{ $ft->id }}"
                         data-quality-class="{{ $ft->quality_class }}"
                         {{ $selectedFishTypeId == $ft->id ? 'selected' : '' }}>
-                    {{ $ft->name }}{{ $ft->has_forecast ? '' : ' · not enough data' }}
+                    {{ $ft->name }}{{ $ft->forecast_label === '' ? '' : ' · '.$ft->forecast_label }}
                 </option>
             @endforeach
         </select>
@@ -183,6 +183,13 @@
 </div>
 </form>
 
+@if($hasForecasts && ($arimaParams['unobserved_days'] ?? 1) > 1)
+    <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 mb-5 text-sm text-amber-900">
+        <strong>History through {{ \Illuminate\Support\Carbon::parse($arimaParams['training_end'])->format('M j, Y') }}.</strong>
+        The first displayed forecast is {{ $arimaParams['model_step'] }} days beyond that observation.
+        Its prediction interval accounts for the full forecast lead. Confirm newer daily entries to refresh the training history.
+    </div>
+@endif
 
 {{-- ═══════════════════════════════════════════════════════════════
      SUMMARY STAT CARDS
@@ -205,7 +212,7 @@
                         <i class="bi bi-arrow-up-circle-fill"></i> Upward
                     </p>
                     <p class="text-slate-400 mt-1.5 text-[11px]">
-                        Day {{ $horizon }} above the last 7-day avg{{ $trendBaseline !== null ? ' (' . $metricPrefix . number_format($trendBaseline, 2) . ')' : '' }}
+                        Day {{ $horizon }} above the recent recorded avg{{ $trendBaseline !== null ? ' (' . $metricPrefix . number_format($trendBaseline, 2) . ')' : '' }}
                     </p>
                 @elseif($trendLabel === 'downward')
                     <p class="font-bold mt-2 flex items-center gap-1.5 leading-[1]"
@@ -213,7 +220,7 @@
                         <i class="bi bi-arrow-down-circle-fill"></i> Downward
                     </p>
                     <p class="text-slate-400 mt-1.5 text-[11px]">
-                        Day {{ $horizon }} below the last 7-day avg{{ $trendBaseline !== null ? ' (' . $metricPrefix . number_format($trendBaseline, 2) . ')' : '' }}
+                        Day {{ $horizon }} below the recent recorded avg{{ $trendBaseline !== null ? ' (' . $metricPrefix . number_format($trendBaseline, 2) . ')' : '' }}
                     </p>
                 @elseif($trendLabel === 'stable')
                     <p class="font-bold mt-2 flex items-center gap-1.5 leading-[1] text-slate-500"
@@ -221,7 +228,7 @@
                         <i class="bi bi-dash-circle-fill"></i> Stable
                     </p>
                     <p class="text-slate-400 mt-1.5 text-[11px]">
-                        Within 2% of the last 7-day avg{{ $trendBaseline !== null ? ' (' . $metricPrefix . number_format($trendBaseline, 2) . ')' : '' }}
+                        Within 2% of the recent recorded avg{{ $trendBaseline !== null ? ' (' . $metricPrefix . number_format($trendBaseline, 2) . ')' : '' }}
                     </p>
                 @else
                     <p class="font-bold mt-2 text-slate-300 leading-[1]"
@@ -469,9 +476,13 @@
                 No forecast data available
             </p>
             <p class="text-slate-400 text-center mt-2 text-[12px] leading-[1.6]" style="max-width:300px">
+                @if($selectedFishType?->forecast_label === 'model fit unavailable')
+                Recent records are available, but a new forecast could not be fitted for this selection.
+                @else
                 A new forecast needs at least {{ config('forecast.min_history') }} consecutive days of confirmed
-                batches for <strong>{{ $fishTypeName }}</strong>, ending yesterday and within the last {{ config('forecast.history_days') }} days.
-                Fish marked "not enough data" in the list are waiting for that history.
+                batches for <strong>{{ $fishTypeName }}</strong> within the last {{ config('forecast.history_days') }} days.
+                The latest continuous segment has {{ $selectedFishType?->consecutive_history_days ?? 0 }} recorded days.
+                @endif
             </p>
         </div>
     @endif

@@ -428,7 +428,7 @@ estimator, verified numerically against statsmodels; Python is not required on t
 
 Training reads up to **30 calendar days**, as specified in Chapters 1–3 of
 `thesis_chpt1_3.pdf` (printed pp. 8, 13, 33). Use the latest consecutive recorded
-segment ending yesterday, with at least 7 observations. Missing dates end the segment;
+segment ending at the latest actual record in that window, with at least 7 observations. Internal gaps end the segment;
 display-filled prices and zeros are not used for fitting. The minimum is an operational
 rule and does not establish statistical sufficiency.
 
@@ -451,9 +451,12 @@ Negative published levels and bounds are clipped to zero. Conditional prediction
 variance includes integrated ARMA impulse responses and the remaining filtered-state
 uncertainty, rather than the former σ²h approximation. Parameter uncertainty is excluded.
 
-Because training ends yesterday, a forecast generated today first predicts the
-unobserved current day, then publishes tomorrow and the next two days. Stored model
-steps are therefore 2, 3 and 4 for the default horizon. Constant-change series are
+Forecasts advance from the actual last observation through each unrecorded day,
+then publish tomorrow and the next two days. If history ends yesterday, the stored
+model steps are 2, 3 and 4. If the last record is November 17 and today is November 24,
+the November 25–27 targets are model steps 8, 9 and 10. The variance uses the full
+lead, and the page shows the training-end date. No synthetic inventory observations
+are added. Constant-change series are
 explicitly marked `deterministic`: the zero-variance limiting case has no finite Gaussian
 likelihood and unidentified AR/MA coefficients. Non-converged fits produce no new rows.
 
@@ -551,6 +554,18 @@ still renders. That covers the page itself; only the nightly refresh of
 series nobody has looked at is lost.
 
 ### Regenerating forecasts
+
+For hosting diagnostics, first run `php artisan forecast:status`. This is read-only:
+it shows the server date, active training window, confirmed daily coverage per fish/class,
+and upcoming rows from the current model. If eligible series exist but no current-model
+rows are stored, run `php artisan forecast:generate`. Generation still requires the
+configured consecutive history ending at the latest recorded date inside the window;
+an older last record increases the forecast lead rather than automatically blocking generation.
+
+The fish filter distinguishes **ready to forecast**, **no confirmed history**, actual
+consecutive-day counts, and an unavailable model fit. A missing saved forecast alone does
+not establish insufficient history. When there are no saved runs after an upgrade,
+the default selection prefers a fish with recent records for on-demand generation.
 
 The system refreshes forecasts automatically every night. To do it by hand:
 

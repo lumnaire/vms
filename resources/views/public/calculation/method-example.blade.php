@@ -62,5 +62,5 @@
             <strong>Highest:</strong> ₱{{ $fmt(max($sampleValues)) }}/kg on Day {{ array_search(max($sampleValues), $sampleValues, true) + 1 }}.</p>
     </div>
     <p class="calc-small">Intermediate values are displayed to 6 decimals; the service retains full precision. The illustrative origin is its last observation.
-        Production forecasts also bridge today before publishing tomorrow onward.</p>
+        Production forecasts advance across every unobserved day through today before publishing tomorrow onward.</p>
 </div>

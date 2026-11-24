@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Forecast;
 use App\Models\VendorInventory;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
@@ -23,6 +24,32 @@ use Illuminate\Support\Collection;
  */
 class ArimaService
 {
+    /** Read-only daily coverage, shared by the filter and hosting diagnostics. */
+    public function historyCoverage(array $fishTypeIds): Collection
+    {
+        return VendorInventory::where('status', 'confirmed')
+            ->whereIn('fish_type_id', $fishTypeIds)
+            ->whereDate('entry_date', '<', today())
+            ->whereDate('entry_date', '>=', today()->subDays((int) config('forecast.history_days')))
+            ->select('fish_type_id', 'quality_class', 'entry_date')
+            ->distinct()
+            ->get()
+            ->groupBy(fn ($row) => $row->fish_type_id.'|'.$row->quality_class)
+            ->map(function ($rows) {
+                $dates = $rows->map(fn ($row) => $row->entry_date->toDateString())->all();
+                $latest = max($dates);
+
+                return [
+                    'fish_type_id' => (int) $rows->first()->fish_type_id,
+                    'quality_class' => $rows->first()->quality_class,
+                    'recorded_days' => count($dates),
+                    'consecutive_days' => count($this->latestContinuousDates($dates)),
+                    'latest_record' => $latest,
+                    'age_days' => (int) Carbon::parse($latest)->diffInDays(today()),
+                ];
+            });
+    }
+
     // ─────────────────────────────────────────────────────────────
     /**
      * Forecast one series and persist it. Returns the number of rows written,
@@ -34,15 +61,17 @@ class ArimaService
             return 0;
         }
 
-        $series = $this->buildSeries($fishTypeId, $quality, $metric);
+        $history = $this->trainingHistory($fishTypeId, $quality, $metric);
+        $series = array_values($history);
 
         if (count($series) < config('forecast.min_history')) {
             return 0;
         }
 
-        // History ends yesterday. Predict through the unobserved current day
-        // before publishing tomorrow and the following days.
-        $projections = $this->project($series, 1);
+        // Advance from the actual last observation, including every unobserved
+        // calendar day through today, before publishing tomorrow onward.
+        $offset = (int) Carbon::parse(array_key_last($history))->diffInDays(today());
+        $projections = $this->project($series, $offset);
 
         if (empty($projections)) {
             return 0;
@@ -81,6 +110,12 @@ class ArimaService
      */
     public function buildSeries(int $fishTypeId, string $quality, string $metric): array
     {
+        return array_values($this->trainingHistory($fishTypeId, $quality, $metric));
+    }
+
+    /** Chronological daily values keyed by their actual observation dates. */
+    private function trainingHistory(int $fishTypeId, string $quality, string $metric): array
+    {
         $lookback = config('forecast.history_days');
 
         $raw = VendorInventory::where('fish_type_id', $fishTypeId)
@@ -104,18 +139,23 @@ class ArimaService
                 };
             });
 
-        // ARIMA steps must represent equally spaced days. Use the most recent
-        // consecutive segment ending yesterday; never compress missing dates
-        // or manufacture zero deliveries from an absence of recorded batches.
-        $series = [];
-        for ($date = today()->subDay(); count($series) < $lookback; $date->subDay()) {
-            if (! $daily->has($date->toDateString())) {
-                break;
-            }
-            $series[] = $daily[$date->toDateString()];
+        return collect($this->latestContinuousDates($daily->keys()->all()))
+            ->mapWithKeys(fn ($date) => [$date => $daily[$date]])->all();
+    }
+
+    /** Preserve daily spacing; a trailing gap increases the forecast lead. */
+    private function latestContinuousDates(array $dates): array
+    {
+        if ($dates === []) {
+            return [];
+        }
+        $recorded = array_fill_keys($dates, true);
+        $continuous = [];
+        for ($date = Carbon::parse(max($dates)); isset($recorded[$date->toDateString()]); $date->subDay()) {
+            $continuous[] = $date->toDateString();
         }
 
-        return array_reverse($series);
+        return array_reverse($continuous);
     }
 
     /**
@@ -321,8 +361,9 @@ class ArimaService
                     'observations' => count($series),
                     'model_step' => $step,
                     'coefficients' => ['phi' => $phi, 'theta' => $theta, 'drift' => $meanD, 'innovation_variance' => $fit['sigma2']],
-                    'training_start' => today()->subDays(count($series))->toDateString(),
-                    'training_end' => today()->subDay()->toDateString(),
+                    'training_start' => today()->subDays($offset + count($series) - 1)->toDateString(),
+                    'training_end' => today()->subDays($offset)->toDateString(),
+                    'unobserved_days' => $offset,
                 ],
             ];
         }

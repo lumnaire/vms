@@ -9,6 +9,7 @@ use App\Models\VendorInventory;
 use App\Services\ArimaMaximumLikelihood;
 use App\Services\ArimaService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class ForecastMethodologyTest extends TestCase
@@ -61,14 +62,19 @@ class ForecastMethodologyTest extends TestCase
         $this->assertDatabaseCount('forecasts', 0);
     }
 
-    public function test_a_missing_yesterday_does_not_relabel_old_data_as_current(): void
+    public function test_older_history_retains_its_actual_origin_instead_of_being_relabelled_current(): void
     {
         $fish = $this->fish();
         $vendor = User::factory()->create(['role' => 'vendor']);
         foreach (range(2, 12) as $ago) {
             $this->batch($vendor, $fish, $ago, 100);
         }
-        $this->assertSame([], app(ArimaService::class)->buildSeries($fish->id, 'First Class', 'price'));
+        $service = app(ArimaService::class);
+        $this->assertCount(11, $service->buildSeries($fish->id, 'First Class', 'price'));
+        $this->assertSame(3, $service->generate($fish->id, 'First Class', 'price'));
+        $params = $service->latestRun($fish->id, 'First Class', 'price')->first()->arima_params;
+        $this->assertSame(today()->subDays(2)->toDateString(), $params['training_end']);
+        $this->assertSame(3, $params['model_step']);
     }
 
     public function test_published_targets_bridge_today_and_record_the_estimation_method(): void
@@ -122,5 +128,121 @@ class ForecastMethodologyTest extends TestCase
         $response = $this->actingAs(User::factory()->create(['role' => 'supervisor']))
             ->get('/supervisor/forecasts?fish_type_id='.$fish->id.'&quality_class=First+Class&metric=supply')->assertOk();
         $this->assertSame(['days' => 1, 'mape_days' => 0, 'mape' => null, 'mae' => 2.0, 'rmse' => 2.0], $response->viewData('accuracy'));
+    }
+
+    public function test_no_saved_forecasts_defaults_to_a_fish_with_history_instead_of_an_empty_fish(): void
+    {
+        FishType::create(['name' => 'AAA Empty Fish', 'quality_class' => 'First Class', 'is_active' => true]);
+        $fish = $this->fish();
+        $vendor = User::factory()->create(['role' => 'vendor']);
+        foreach (range(1, 8) as $ago) {
+            $this->batch($vendor, $fish, $ago, 100 + $ago);
+        }
+        $this->assertDatabaseCount('forecasts', 0);
+        $response = $this->actingAs(User::factory()->create(['role' => 'supervisor']))
+            ->get('/supervisor/forecasts')->assertOk();
+        $this->assertSame($fish->id, $response->viewData('selectedFishTypeId'));
+        $this->assertCount(3, $response->viewData('forecasts'));
+        $response->assertSee('AAA Empty Fish · no confirmed history');
+    }
+
+    public function test_eligible_fish_without_a_saved_run_are_labelled_ready_to_forecast(): void
+    {
+        $fish = $this->fish();
+        $second = FishType::create(['name' => 'Other Ready Fish', 'quality_class' => 'First Class', 'is_active' => true]);
+        $vendor = User::factory()->create(['role' => 'vendor']);
+        foreach (range(1, 8) as $ago) {
+            $this->batch($vendor, $fish, $ago, 100 + $ago);
+            $this->batch($vendor, $second, $ago, 200 + $ago);
+        }
+        $response = $this->actingAs(User::factory()->create(['role' => 'supervisor']))
+            ->get('/supervisor/forecasts?fish_type_id='.$fish->id)->assertOk();
+        $response->assertSee('Other Ready Fish · ready to forecast')->assertDontSee('not enough data');
+        $this->assertSame(0, Forecast::where('fish_type_id', $second->id)->count());
+    }
+
+    public function test_filter_status_is_specific_to_the_selected_quality_class(): void
+    {
+        $fish = $this->fish();
+        $vendor = User::factory()->create(['role' => 'vendor']);
+        foreach (range(1, 8) as $ago) {
+            $this->batch($vendor, $fish, $ago, 100 + $ago);
+        }
+        app(ArimaService::class)->generate($fish->id, 'First Class', 'price');
+        $response = $this->actingAs(User::factory()->create(['role' => 'supervisor']))
+            ->get('/supervisor/forecasts?fish_type_id='.$fish->id.'&quality_class=Special+Class')->assertOk();
+        $response->assertSee('Methodology Fish · no confirmed history');
+        $this->assertCount(0, $response->viewData('forecasts'));
+    }
+
+    public function test_partial_history_shows_the_latest_continuous_segment_length(): void
+    {
+        $fish = $this->fish();
+        $vendor = User::factory()->create(['role' => 'vendor']);
+        foreach ([1, 2, 4, 5, 6, 7] as $ago) {
+            $this->batch($vendor, $fish, $ago, 100 + $ago);
+        }
+        $response = $this->actingAs(User::factory()->create(['role' => 'supervisor']))
+            ->get('/supervisor/forecasts?fish_type_id='.$fish->id)->assertOk();
+        $response->assertSee('Methodology Fish · 2/7 consecutive days');
+        $this->assertCount(0, $response->viewData('forecasts'));
+    }
+
+    public function test_hosting_status_command_does_not_generate_or_modify_forecasts(): void
+    {
+        $fish = $this->fish();
+        $vendor = User::factory()->create(['role' => 'vendor']);
+        foreach (range(1, 8) as $ago) {
+            $this->batch($vendor, $fish, $ago, 100 + $ago);
+        }
+        $this->artisan('forecast:status')
+            ->expectsOutputToContain('Series meeting the history requirement: 1')
+            ->expectsOutputToContain('Upcoming rows from the current model: 0')
+            ->assertSuccessful();
+        $this->assertDatabaseCount('forecasts', 0);
+        $this->assertDatabaseCount('vendor_inventories', 8);
+    }
+
+    public function test_november_seventeenth_history_can_forecast_november_twenty_fifth_without_inventing_records(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-24 19:00:00', config('app.timezone')));
+        $fish = $this->fish();
+        $vendor = User::factory()->create(['role' => 'vendor']);
+        foreach (range(7, 30) as $ago) {
+            $this->batch($vendor, $fish, $ago, 200 - $ago);
+        }
+        $service = app(ArimaService::class);
+        $coverage = $service->historyCoverage([$fish->id])->first();
+        $this->assertSame(24, $coverage['consecutive_days']);
+        $this->assertSame(7, $coverage['age_days']);
+        $this->assertSame('2026-11-17', $coverage['latest_record']);
+        $this->artisan('forecast:status')->expectsOutputToContain('Series meeting the history requirement: 1')->assertSuccessful();
+
+        $this->assertSame(3, $service->generate($fish->id, 'First Class', 'price'));
+        $rows = $service->latestRun($fish->id, 'First Class', 'price');
+        $this->assertSame([201.0, 202.0, 203.0], $rows->map(fn ($f) => (float) $f->predicted_value)->all());
+        $this->assertSame(['2026-11-25', '2026-11-26', '2026-11-27'], $rows->map(fn ($f) => $f->forecast_date->toDateString())->all());
+        $this->assertSame([8, 9, 10], $rows->map(fn ($f) => $f->arima_params['model_step'])->all());
+        $this->assertSame('2026-11-17', $rows[0]->arima_params['training_end']);
+        $this->assertSame('2026-10-25', $rows[0]->arima_params['training_start']);
+        $this->assertDatabaseCount('vendor_inventories', 24);
+        $this->assertSame('2026-11-17', substr(VendorInventory::max('entry_date'), 0, 10));
+
+        $this->actingAs(User::factory()->create(['role' => 'supervisor']))
+            ->get('/supervisor/forecasts?fish_type_id='.$fish->id)->assertOk()
+            ->assertSee('History through Nov 17, 2026.')
+            ->assertSee('first displayed forecast is 8 days');
+    }
+
+    public function test_old_history_outside_the_thirty_day_window_is_still_excluded(): void
+    {
+        $fish = $this->fish();
+        $vendor = User::factory()->create(['role' => 'vendor']);
+        foreach (range(31, 45) as $ago) {
+            $this->batch($vendor, $fish, $ago, 100);
+        }
+        $service = app(ArimaService::class);
+        $this->assertSame([], $service->buildSeries($fish->id, 'First Class', 'price'));
+        $this->assertSame(0, $service->generate($fish->id, 'First Class', 'price'));
     }
 }

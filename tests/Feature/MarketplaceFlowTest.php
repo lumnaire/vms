@@ -872,7 +872,7 @@ class MarketplaceFlowTest extends TestCase
 
         $this->assertSame($fish->id, $response->viewData('selectedFishTypeId'));
         $this->assertTrue($response->viewData('forecasts')->isNotEmpty());
-        $response->assertSee('Agoot · not enough data');
-        $response->assertDontSee('Tilapia · not enough data');
+        $response->assertSee('Agoot · no confirmed history');
+        $response->assertDontSee('Tilapia · no confirmed history');
     }
 }
