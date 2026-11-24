@@ -183,6 +183,14 @@
 </div>
 </form>
 
+@if(str_starts_with($fishTypeName, '[DEMO] '))
+    <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 mb-5 text-sm text-amber-900">
+        <strong>Synthetic panel demonstration.</strong>
+        Prices and supply for this fish are mock observations. Historical forecast comparisons are retrospective simulations.
+        These scores demonstrate the software on synthetic data; they do not establish accuracy or deployment readiness for the real market.
+    </div>
+@endif
+
 @if($hasForecasts && ($arimaParams['unobserved_days'] ?? 1) > 1)
     <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 mb-5 text-sm text-amber-900">
         <strong>History through {{ \Illuminate\Support\Carbon::parse($arimaParams['training_end'])->format('M j, Y') }}.</strong>

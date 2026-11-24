@@ -349,40 +349,30 @@ Ikinumpara rin ito sa pinakasimpleng hula: ***"pareho lang ng kahapon."***
 
 ## 15. Demo data para makita ang forecast
 
-Para makita ang forecast nang maayos, may espesyal na seeder: ang
-**`ForecastDemoSeeder`**. Gumagawa ito ng **90 araw ng makatotohanang datos**
-para sa **6 na isda**, bawat isa may sariling "kuwento":
-
-| Isda                        | Kuwento                                              | Inaasahang trend sa presyo |
-| --------------------------- | ---------------------------------------------------- | -------------------------- |
-| **Hipon**                   | Tag-kaunti ang huli: sa huling 3 linggo, umuunti ang huli at tumataas ang presyo | Pataas |
-| **Pusit**                   | Sobra ang huli: sa huling 3 linggo, dumarami ang dating at bumababa ang presyo | Pababa |
-| **Tangigue (natural)**      | Dahan-dahang tumataas ang presyo                     | Stable o bahagyang pataas |
-| **Bangus (medium)**         | Steady, pero mas mahal tuwing weekend               | Stable (puwedeng "Pataas" kung weekend ang huling datos, tingnan ang Seksyon 14) |
-| **Galunggong (saday payo)** | Steady, mas maraming dating tuwing weekend          | Stable |
-| **Tilapia**                 | Farm-raised, halos hindi nagbabago                  | Stable |
-
-Ang bawat araw ay may 3 hanggang 4 na vendor. Paminsan-minsan, nagdadala ang
-isang vendor ng **dalawang batch** sa isang araw. Lahat ng lumang batch ay
-**sold out** na, kaya hindi sila lalabas bilang stale stock sa mga vendor.
-
-**Paano patakbuhin** (gagawin ng developer):
+Para sa panel demonstration, gamitin ang **`ForecastPanelDemoSeeder`**.
+Gumagawa ito ng **6 na hiwalay na [DEMO] fish**: Hipon, Pusit, Bangus (medium),
+Tilapia, Tangigue (natural), at Galunggong (saday payo). May pataas, pababa,
+stable at mas maingay na simulated price at supply patterns.
 
 ```bash
-php artisan db:seed --class=ForecastDemoSeeder
+php artisan db:seed --class=ForecastPanelDemoSeeder
 ```
 
-- Ang **lumang datos lang ng 6 na isdang ito** ang pinapalitan nito. Hindi
-  ginagalaw ang ibang isda o ang mga batch ngayong araw.
-- Awtomatiko rin nitong ginagawa ang forecast ng 6 na isda.
-- Kasama na rin ito sa `php artisan migrate:fresh --seed`.
+- Sa default settings, may **40 araw ng synthetic history**, 3 demo vendors,
+  **720 batches**, at **36 current forecast points**. Ang production model pa rin
+  ang nag-eestimate ng coefficients at gumagawa ng predictions gamit ang 30-day window.
+- May **7 araw ng retrospective comparisons** para makita ang RMSE, MAE at MAPE.
+  Simulations ang mga ito, hindi forecasts na totoong ginawa noong nakaraang linggo.
+- Nananatili ang existing researcher data. Kapag inulit ang seeder, sarili nitong
+  marked mock records lang ang nire-refresh; walang duplicate na same-day batch.
+- Inactive at malinaw ang pangalan ng demo accounts. Sarado na ang mock historical
+  stock gamit ang marked pull-out records, kaya walang ipinapakitang available mock stock sa public board.
+- Alias na lang ang lumang `ForecastDemoSeeder` papunta sa bagong safe implementation.
 
-Pagkatapos, buksan ang **Forecasts**. Ang unang lalabas ay ang isdang may
-**pinakamaraming datos**.
-
-> Dahil ang demo data ay laging nakabatay sa **araw ngayon**, bahagyang
-> nagbabago ang trend depende kung anong araw ito pinatakbo (lalo na kung
-> weekend ang mga huling araw).
+Pagkatapos, buksan ang **Forecasts** at pumili ng **[DEMO]** na isda. May banner
+na nagsasabing synthetic ang data at retrospective ang comparisons.
+Ipinapakita nito ang software functionality. Kailangan pa rin ng real-market
+validation at operational checks bago masabing handa para sa actual deployment.
 
 ---
 
@@ -504,7 +494,7 @@ ORDER  BY f.name, fc.metric, fc.forecast_date;
 | `app/Console/Commands/GenerateForecasts.php`       | `php artisan forecast:generate` |
 | `app/Http/Controllers/Supervisor/ForecastController.php` | Ang pahina ng Forecasts |
 | `database/seeders/ForecastSeeder.php`              | Gumagawa ng forecast para sa lahat ng isda |
-| `database/seeders/ForecastDemoSeeder.php`          | Makatotohanang demo data para sa 6 na isda |
+| `database/seeders/ForecastPanelDemoSeeder.php`     | Clearly marked synthetic panel dataset at retrospective comparisons |
 | `tests/Unit/ArimaServiceTest.php`                  | Mga test, kasama ang Halimbawa 1 |
 
 ---

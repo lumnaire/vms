@@ -586,16 +586,48 @@ php artisan forecast:generate --quality_class="First Class"
 > `forecasts` table. Push, deploy, then run `php artisan forecast:generate`
 > once — or just reload the forecast page, which now regenerates on demand.
 
-## `
+### Panel demonstration with synthetic data
+
+Run this seeder directly against the application's existing, migrated database:
+
+```bash
+php artisan db:seed --class=ForecastPanelDemoSeeder
+```
+
+It creates six clearly named **[DEMO]** fish, three inactive demo vendor accounts,
+and an inactive demo staff account. Existing researcher fish, accounts, batches and
+forecasts are preserved. Rerunning refreshes only this dataset's records; it does
+not duplicate same-day batches or truncate a table. `ForecastDemoSeeder` is a
+backward-compatible alias for this implementation.
+
+With the default settings, the dataset contains **40 days of generated prices and
+incoming supply**, three batches per fish per day (**720 batches**), and **36 current
+forecast points** (six fish × two metrics × three dates). Generation uses a fixed
+random seed and ARIMA-style processes with rising, falling, stable and more variable
+patterns. The production forecasting engine estimates its own coefficients.
+
+Seven days of **retrospective rolling-origin comparisons** populate the historical
+table and synthetic RMSE, MAE and MAPE. Each simulated fit uses only observations
+earlier than its simulated origin. All future targets are omitted from these past
+comparisons. Past prediction rows carry synthetic provenance and their actual
+creation time; they are simulations, not records of forecasts made live in the past.
+
+Open `/supervisor/forecasts`, select a **[DEMO]** fish, and switch between price
+and supply. The page identifies the dataset as synthetic. Historical mock stock is
+closed with marked pull-out records so it is not listed as available stock on the
+public price board. Official tariffs and sales are not invented.
+
+Synthetic results demonstrate software functionality. They do not establish real-market
+forecast accuracy or deployment readiness. The seeder does not run migrations or reset
+the database; do not replace its command with a database-reset command.
 
 ### Good to know
 
-- **A day with no confirmed rows is skipped, not counted as zero.** If a fish
-  type has no entries on a given day, that day is simply absent from the series,
-  so one "daily change" may span more than 24 hours.
+- **Missing days are not treated as observed zero supply.** The model uses the
+  latest consecutive recorded segment and advances predictions across later gaps.
 - **Forecasts are per fish type _and_ quality class.** A `First Class` forecast
   is fitted only from `First Class` entries.
-- **A new series needs at least 7 recorded days** before any forecast appears.
+- **A new series needs at least 7 consecutive recorded days** before a forecast can be fitted.
   This is the usual reason the forecast table is empty right after seeding.
 
 ---
