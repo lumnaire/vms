@@ -469,8 +469,8 @@
                 No forecast data available
             </p>
             <p class="text-slate-400 text-center mt-2 text-[12px] leading-[1.6]" style="max-width:300px">
-                ARIMA needs at least {{ config('forecast.min_history') }} days of confirmed
-                batches for <strong>{{ $fishTypeName }}</strong> before it can forecast.
+                A new forecast needs at least {{ config('forecast.min_history') }} consecutive days of confirmed
+                batches for <strong>{{ $fishTypeName }}</strong>, ending yesterday and within the last {{ config('forecast.history_days') }} days.
                 Fish marked "not enough data" in the list are waiting for that history.
             </p>
         </div>
@@ -688,13 +688,17 @@
             <h2 class="text-slate-700 font-bold text-[14px]">Past Forecasts vs Actual</h2>
             <p class="text-slate-400 mt-0.5 text-[11px]">
                 What the model predicted for each past day (the run made before that day), beside what came in.
-                Every daily run is kept for reporting and retraining.
+                Earlier runs from the current model are used for evaluation.
             </p>
         </div>
         @if($accuracy['mape'] !== null)
             <span class="vpm-badge vpm-badge-info flex-shrink-0">
-                Avg error {{ number_format($accuracy['mape'], 1) }}% · {{ $accuracy['days'] }} {{ Str::plural('day', $accuracy['days']) }}
+                MAPE {{ number_format($accuracy['mape'], 1) }}% · {{ $accuracy['mape_days'] }} {{ Str::plural('day', $accuracy['mape_days']) }}
             </span>
+        @endif
+        @if($accuracy['rmse'] !== null)
+            <span class="vpm-badge vpm-badge-info">RMSE {{ number_format($accuracy['rmse'], 2) }} {{ $metricUnit }} · {{ $accuracy['days'] }} {{ Str::plural('day', $accuracy['days']) }}</span>
+            <span class="vpm-badge vpm-badge-info">MAE {{ number_format($accuracy['mae'], 2) }} {{ $metricUnit }}</span>
         @endif
     </div>
     <div class="overflow-x-auto" style="max-height:320px">

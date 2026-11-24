@@ -6,6 +6,7 @@ use App\Models\FishType;
 use App\Models\Forecast;
 use App\Models\User;
 use App\Models\VendorInventory;
+use App\Services\ArimaMaximumLikelihood;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -33,7 +34,8 @@ class ForecastChartAlignmentTest extends TestCase
                 'forecast_date' => today()->addDays($index + 1), 'predicted_value' => $value,
                 'predicted_min' => $value - 30, 'predicted_max' => $value + 40,
                 'trend' => 'downward', 'generated_at' => $generatedAt,
-                'arima_params' => ['p' => 1, 'd' => 1, 'q' => 1, 'trend_baseline' => 300],
+                'arima_params' => ['p' => 1, 'd' => 1, 'q' => 1, 'trend_baseline' => 300,
+                    'model_version' => ArimaMaximumLikelihood::VERSION, 'history_days' => 30],
             ]);
         }
 

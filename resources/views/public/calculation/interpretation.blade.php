@@ -28,15 +28,14 @@
     <h3>The forecast table’s Δ Change column</h3>
     <div class="calc-equation">First displayed Δ = first prediction − last real actual visible in the historical chart<br>Later displayed Δ = current prediction − previous prediction</div>
     <p>This is a difference in {{ $metric === 'price' ? '₱/kg' : 'kg' }}, not a percentage. If the historical chart has no actual value, the first comparison is unavailable.
-        For example, a last actual of 110 followed by forecasts of 112.92 and 112.43 gives <strong>+2.92</strong> and <strong>−0.49</strong>.
+        For example, a last actual of 110 followed by forecasts of 113.41 and 112.63 gives <strong>+3.41</strong> and <strong>−0.78</strong>.
         Those local movements can coexist with an overall upward trend. The price forecast’s “vs Tariff” column compares each predicted price with the current tariff using the same tariff formula described earlier.</p>
     <h3>Why is there a prediction range?</h3>
-    <div class="calc-equation">Approximate half-width at step h = {{ $settings['z'] }} × σ × √h<br>Lower = max(0, unrounded predicted level − half-width)<br>Upper = unrounded predicted level + half-width</div>
-    <p>A larger σ widens the range. The √h factor also widens it farther into the future, although the lower edge is clipped at zero.
-        Both bounds are rounded to 2 decimals after calculation.</p>
-    <div class="calc-note calc-note-warm"><strong>An approximate range, not a guarantee.</strong> At z = 1.96 the displayed band is often called an approximate 95% interval.
-        This project uses a simplified residual-spread rule, not the full ARIMA multi-step forecast-error variance.
-        Its coverage has not been established by that formula alone. A zero-width band in a perfectly regular example does not mean future real-world outcomes are certain.</div>
+    <div class="calc-equation">Half-width at model step h = {{ $settings['z'] }} × √Vₕ<br>
+        Lower = max(0, raw prediction − half-width)<br>Upper = max(0, raw prediction + half-width)</div>
+    <p>Vₕ is calculated from the fitted AR/MA impulse responses and filtered-state uncertainty. It is not simply σ²h.
+        Intervals assume the fitted Gaussian model, condition on its parameters, and omit parameter-estimation uncertainty.
+        Published bounds are clipped at zero. Coverage on real market data must be evaluated separately.</p>
     <h3>Forecast accuracy: mean absolute percentage error (MAPE)</h3>
     <p>Once a target day has passed, the system can compare an earlier prediction with the actual recorded daily value.</p>
     <div class="calc-equation">Absolute percentage error = |prediction − actual| / actual × 100<br>MAPE = sum of eligible daily percentage errors / eligible day count</div>
@@ -46,6 +45,11 @@
         <tbody><tr><td>A</td><td class="calc-num">100</td><td class="calc-num">110</td><td>|110 − 100| / 100 × 100 = 10%</td></tr><tr><td>B</td><td class="calc-num">200</td><td class="calc-num">180</td><td>|180 − 200| / 200 × 100 = 10%</td></tr><tr><td>Mean</td><td colspan="3"><strong>(10% + 10%) / 2 = 10.0% MAPE</strong></td></tr></tbody>
     </table></div>
     <p class="calc-small">Lower MAPE means smaller percentage errors on the evaluated days. It is not a probability of correctness, and this system does not convert it into an “accuracy = 100 − MAPE” score.</p>
+    <p><strong>RMSE</strong> = √mean((prediction − actual)²), and <strong>MAE</strong> = mean(|prediction − actual|), in the selected metric’s units.
+        These measures include recorded zero actuals. MAPE excludes zero actuals because its denominator would be zero.
+        Scores use only the current model version and training-window setting. Old forecast rows remain archived.</p>
+    <p class="calc-small">The latest eligible prediction for each date is used, so these operational scores can combine different forecast leads.
+        A research evaluation should also report the leads tested and reserve later observations for testing.</p>
     <h3>Signed error on each historical prediction</h3>
     <div class="calc-equation">Signed error % = (prediction − actual) / actual × 100<br>Prediction 110, actual 100 → +10.0% (overestimate)<br>Prediction 180, actual 200 → −10.0% (underestimate)</div>
     <p class="calc-small">The historical table preserves the sign. Its color uses absolute error: at most 5% is green, above 5% through 15% is amber, and above 15% is red.
@@ -64,6 +68,6 @@
     <p>The forecast chart displays the last {{ $settings['chart_days'] }} calendar days before today. Within that display, a date without confirmed batches is flagged as filled:
         supply shows 0 kg; price carries forward the latest known daily price, including a prior price from before the window if available.
         With no earlier price, price is blank. If the entire window has no actual batches, the historical overlay is empty.</p>
-    <div class="calc-note">These filled chart values are for display. They are <strong>not inserted into the fitting series</strong> and are <strong>excluded from MAPE</strong>.
+    <div class="calc-note">These filled chart values are for display. Training uses the most recent consecutive recorded segment ending yesterday. Filled chart values are <strong>not inserted into the fitting series</strong> and are <strong>excluded from MAPE</strong>.
         A chart-filled zero is not proof that data collection established zero supply.</div>
 </section>

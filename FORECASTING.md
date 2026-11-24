@@ -36,7 +36,7 @@
 
 ## 1. Sa madaling salita
 
-Tinitingnan ng sistema ang **nakaraang 90 araw** ng bawat isda: magkano ang
+Tinitingnan ng sistema ang **nakaraang 30 araw** ng bawat isda: magkano ang
 presyo at ilang kilo ang dumating sa palengke **araw-araw**. Mula roon,
 hinuhulaan nito ang **susunod na 3 araw**.
 
@@ -64,7 +64,7 @@ Ang lahat ng datos ay galing sa mga **batch** na isinusumite ng mga vendor sa
 | ------------------------------------------- | ------------------------------------------------------------------------------------- |
 | ✅ **Kumpirmado ng staff** (confirmed)       | Ang presyong hindi pa aprobado ay hindi pa opisyal. Hindi ito dapat makaapekto sa hula. |
 | ✅ **Bago ang araw na ito** (hindi kasama ngayon) | Hindi pa tapos ang araw ngayon. Puwede pang dumating ang ibang batch mamaya.          |
-| ✅ **Nasa loob ng huling 90 araw**            | Sapat na ito para makita ang takbo, at hindi na masyadong luma.                         |
+| ✅ **Nasa loob ng huling 30 araw**            | Sapat na ito para makita ang takbo, at hindi na masyadong luma.                         |
 
 > **Mahalaga:** Ang *Release* (ang naitalang nabenta ng vendor) ay **hindi**
 > ginagamit sa forecast. Ang hinuhulaan ay ang **dumating** na isda (suplay) at
@@ -142,9 +142,9 @@ sukatan** (presyo at suplay):
 
 | #   | Hakbang                    | Ano ang nangyayari |
 | --- | -------------------------- | ------------------- |
-| 1   | **Kunin ang kasaysayan**   | Hanggang 90 araw ng presyo (average) o suplay (sum) bawat araw. Kung **kulang sa 7 araw**, hindi na itutuloy. |
+| 1   | **Kunin ang kasaysayan**   | Hanggang 30 calendar days; kailangan ng 7 consecutive recorded days hanggang kahapon. |
 | 2   | **Kunin ang pagbabago**    | Ibawas ang kahapon sa ngayon para sa bawat araw. Halimbawa: 100 → 101 → 103 ay nagiging **+1, +2**. |
-| 3   | **Karaniwang galaw (μ)**   | Ang average ng lahat ng pagbabago. Halimbawa: "tumataas nang ₱1.11 bawat araw sa karaniwan." |
+| 3   | **Fitted drift (μ)**      | Tinatantiya kasama ng φ at θ gamit ang maximum likelihood; maaaring iba sa simpleng average ng changes. |
 | 4   | **Ugali ng pagbabago (φ)** | Gaano kalakas sumusunod ang pagbabago ngayon sa pagbabago kahapon? Ang **positibo** ay "tuloy-tuloy." Ang **negatibo** ay "pabalik-balik." Ang **malapit sa 0** ay "walang kinalaman." |
 | 5   | **Epekto ng sorpresa (θ)** | Gaano katagal nananatili ang epekto ng hindi inaasahang galaw? |
 | 6   | **Karaniwang mintis (σ)**  | Kapag ginamit ang modelo sa nakaraan, gaano kalayo ang hula sa totoo, sa karaniwan? Ito ang ginagamit para sa **saklaw**. |
@@ -155,142 +155,25 @@ sukatan** (presyo at suplay):
 
 ## 6. Halimbawa 1: Forecast ng Presyo
 
-Narito ang average na presyo ng isang isda sa loob ng **10 araw** (sa ₱/kg):
-
-| Araw    |   1 |   2 |   3 |   4 |   5 |   6 |   7 |   8 |   9 |  10 |
-| ------- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
-| Presyo  | 100 | 101 | 103 | 102 | 105 | 104 | 108 | 107 | 111 | 110 |
-
-Kita mo ang ugali? **Tumataas sa kabuuan, pero pabalik-balik.** Tataas nang
-malaki, tapos bababa nang kaunti, tataas ulit.
-
-### Hakbang 2: Ang pagbabago bawat araw
-
-| Mula → Hanggang | 1→2 | 2→3 | 3→4 | 4→5 | 5→6 | 6→7 | 7→8 | 8→9 | 9→10 |
-| --------------- | --: | --: | --: | --: | --: | --: | --: | --: | ---: |
-| Pagbabago (₱)   |  +1 |  +2 |  −1 |  +3 |  −1 |  +4 |  −1 |  +4 |   −1 |
-
-### Hakbang 3 hanggang 6: Ang natutunan ng modelo
-
-| Natutunan                        | Halaga        | Ibig sabihin |
-| -------------------------------- | ------------- | ------------ |
-| Karaniwang galaw (**μ**)         | **+₱1.1111**  | Sa karaniwan, tumataas nang mga ₱1.11 bawat araw. |
-| Ugali ng pagbabago (**φ**)       | **−0.8832**   | Malakas na **pabalik-balik**: kapag tumaas nang malaki kahapon, malamang bababa ngayon, at vice versa. |
-| Epekto ng sorpresa (**θ**)       | **−0.1366**   | Maliit lang ang epekto ng sorpresa. |
-| Karaniwang mintis (**σ**)        | **₱0.7659**   | Sa karaniwan, ganito kalayo ang hula sa totoo. |
-
-### Hakbang 7: Paghula
-
-**Araw 11 (bukas).** Bumaba nang ₱1 kahapon (Araw 9 → 10). Dahil
-"pabalik-balik" ang ugali, inaasahan ng modelo na **babawi pataas** ngayon:
-
-```
-Pagbabagong inaasahan = 1.1111 + (−0.8832)×(−1 − 1.1111) + (−0.1366)×(0.4403)
-                      = 1.1111 + 1.8645 − 0.0601
-                      = +₱2.92
-
-Hula sa Araw 11 = ₱110 + ₱2.92 = ₱112.92
-```
-
-**Araw 12.** Ang "kahapon" ngayon ay ang **hula** sa Araw 11 (+₱2.92). Dahil
-tumaas nang malaki, inaasahang **bababa nang kaunti**:
-
-```
-Pagbabagong inaasahan = 1.1111 + (−0.8832)×(2.9154 − 1.1111) = −₱0.48
-Hula sa Araw 12 = ₱112.92 − ₱0.48 = ₱112.43
-```
-
-**Araw 13.** Bumaba sa hula, kaya **babawi pataas** ulit:
-
-```
-Pagbabagong inaasahan = 1.1111 + (−0.8832)×(−0.4824 − 1.1111) = +₱2.52
-Hula sa Araw 13 = ₱112.43 + ₱2.52 = ₱114.95
-```
-
-> Sa Araw 12 at 13, **wala nang "sorpresa"** sa pormula. Hindi pa natin alam
-> ang mga sorpresa sa hinaharap, kaya ipinapalagay na zero ang mga ito.
-
-### Hakbang 8: Ang resulta
-
-| Araw              | Hula        | Saklaw (95%)         |
-| ----------------- | ----------: | -------------------- |
-| 11 (bukas)        | **₱112.92** | ₱111.41 – ₱114.42    |
-| 12 (makalawa)     | **₱112.43** | ₱110.31 – ₱114.56    |
-| 13                | **₱114.95** | ₱112.35 – ₱117.55    |
-
-**Trend: PATAAS.** Ang average ng huling 7 totoong araw (Araw 4 hanggang 10)
-ay **₱106.71**. Ang hula sa Araw 13 (₱114.95) ay **7.7% na mas mataas** doon,
-lampas sa ±2% na hangganan.
-
-> ✔ Ang mga numerong ito ay sinusuri ng isang awtomatikong test sa system
-> (`tests/Unit/ArimaServiceTest.php`), kaya siguradong tugma ang dokumentong
-> ito sa aktuwal na kuwenta.
-
----
+Ang updated na detalyadong halimbawa ay nasa **`/calculation`**, sa seksyong
+“Sample computation: Pusit · Special Class.” Kinukuwenta ito mismo ng bagong
+forecasting service, kaya tugma ang coefficients, forecasts at prediction intervals.
+Ang dating halimbawa gamit ang autocorrelation shortcut ay pinalitan na.
 
 ## 7. Halimbawa 2: Forecast ng Suplay
 
-Kabuuang kilo ng isang isda na dumating bawat araw:
-
-| Araw     |  1 |  2 |  3 |  4 |  5 |  6 |  7 |  8 |  9 | 10 |
-| -------- | -: | -: | -: | -: | -: | -: | -: | -: | -: | -: |
-| Suplay   | 40 | 42 | 39 | 44 | 41 | 45 | 43 | 47 | 44 | 48 |
-
-Pagbabago bawat araw: **+2, −3, +5, −3, +4, −2, +4, −3, +4**
-
-| Natutunan                   | Halaga         | Ibig sabihin |
-| --------------------------- | -------------- | ------------ |
-| Karaniwang galaw (**μ**)    | **+0.8889 kg** | Unti-unting dumarami, mga 0.9 kg bawat araw. |
-| Ugali ng pagbabago (**φ**)  | **−0.8977**    | Malakas na pabalik-balik: maraming dating, tapos kaunti, tapos marami ulit. |
-| Epekto ng sorpresa (**θ**)  | **−0.5868**    | Mas malaki ang epekto ng sorpresa kaysa sa Halimbawa 1. |
-| Karaniwang mintis (**σ**)   | **1.1683 kg**  |  |
-
-Paghula:
-
-```
-Araw 11:  −1.68 kg  →  48.00 − 1.68 = 46.32 kg   (marami kahapon, kaya kaunti bukas)
-Araw 12:  +3.20 kg  →  46.32 + 3.20 = 49.51 kg
-Araw 13:  −1.18 kg  →  49.51 − 1.18 = 48.33 kg
-```
-
-| Araw   | Hula         | Saklaw (95%)        |
-| ------ | -----------: | ------------------- |
-| 11     | **46.32 kg** | 44.03 – 48.61 kg    |
-| 12     | **49.51 kg** | 46.28 – 52.75 kg    |
-| 13     | **48.33 kg** | 44.37 – 52.30 kg    |
-
-**Trend: PATAAS.** Ang average ng huling 7 araw ay **44.57 kg**, at ang hula
-sa Araw 13 (48.33 kg) ay **8.4% na mas mataas**.
-
-> **Ano ang praktikal na gamit nito?** Kung inaasahang dadami ang suplay ng
-> isang isda, puwedeng asahan ng supervisor na **bababa ang presyo** nito, o
-> maghanda ng mas maraming espasyo sa palengke.
-
----
+Sa `/calculation`, piliin ang **Supply** at ilagay ang magkakasunod na daily totals
+sa kilograms. Hiwalay ang modelong ito sa presyo. Ang aktuwal na production history
+ay dapat may magkakasunod na recorded days na nagtatapos kahapon; hindi nito
+ginagawang tunay na zero delivery ang isang araw na walang record.
 
 ## 8. Ang "saklaw" o range: bakit hindi iisang numero lang
 
-Walang makakahula nang eksakto sa presyo bukas. Kaya bukod sa hula, nagbibigay
-ang sistema ng **saklaw**: ang pinakamababa at pinakamataas na makatwirang
-mangyari.
-
-- Ang **95% na saklaw** ay nangangahulugang: *"Sa 100 beses na ganito ang
-  sitwasyon, mga 95 beses na papasok ang totoong presyo sa loob ng saklaw na
-  ito."*
-- **Lumalapad ang saklaw habang lumalayo ang araw.** Mas sigurado tayo sa bukas
-  kaysa sa makalawa. Sa Halimbawa 1:
-
-| Araw | Lapad ng saklaw | Bakit                                |
-| ---- | --------------: | ------------------------------------ |
-| 1    |           ₱3.01 | Pinakamalapit, pinakasigurado         |
-| 2    |           ₱4.25 | Mga 1.4 beses na mas malapad          |
-| 3    |           ₱5.20 | Mga 1.7 beses na mas malapad          |
-
-> **Malapad na saklaw = hindi sira ang sistema.** Ibig sabihin lang nito,
-> **magulo ang galaw** ng isdang iyon sa nakaraan, at **tapat** ang modelo na
-> sabihing hindi ito sigurado. Mas mabuti iyon kaysa magkunwaring eksakto.
-
----
+Ginagamit ang **model-based forecast variance Vₕ**, kasama ang AR/MA effects:
+raw forecast ± 1.96 × √Vₕ. Hindi na ginagamit ang dating σ√h shortcut.
+Ang intervals ay conditional sa fitted parameters at hindi kasama ang uncertainty
+sa parameter estimation. Pinuputol sa zero ang negatibong published values at bounds.
+Kailangan pa ring sukatin ang aktuwal na coverage nito sa market data.
 
 ## 9. Ang trend: Pataas, Pababa, o Stable
 
@@ -376,8 +259,8 @@ error" ay ang karaniwang mintis sa mga araw na may totoong batch.
 
 ## 11. Kailan walang forecast
 
-Kailangan ng ARIMA ng **hindi bababa sa 7 araw** na may kumpirmadong batch ng
-isang isda (sa loob ng huling 90 araw). Kung kulang:
+Kailangan ng ARIMA ng **hindi bababa sa 7 magkakasunod na recorded days hanggang kahapon** na may kumpirmadong batch ng
+isang isda (sa loob ng huling 30 araw). Ang bilang na 7 ay operational minimum, hindi patunay na statistically sufficient ang sample. Kung kulang:
 
 - Hindi gagawa ng hula ang sistema. **Sinasadya ito.** Mas mabuting walang hula
   kaysa sa hulang galing sa hula-hula.
@@ -514,7 +397,7 @@ Presyo:  y[t] = (1 / Nₜ) · Σ price_per_kgᵦ        (average ng Nₜ na batc
 Suplay:  y[t] = Σ stock_kgᵦ                        (kabuuang kilo)
 ```
 
-Tanging mga araw na **may datos** ang kasama, mula `ngayon − 90` hanggang
+Ang latest consecutive recorded segment ending yesterday ang kasama, sa loob ng `ngayon − 30` hanggang
 `kahapon`. Kailangan ng `n ≥ 7` na araw.
 
 ### B. Unang pagkakaiba (d = 1)
@@ -523,77 +406,50 @@ Tanging mga araw na **may datos** ang kasama, mula `ngayon − 90` hanggang
 Δy[t] = y[t] − y[t−1]
 ```
 
-### C. Karaniwang pagbabago (μ)
+### C. Standard maximum-likelihood estimation
 
-```
-μ = (1 / m) · Σ Δy[t]            kung saan m = bilang ng pagkakaiba
-```
+Ang μ, φ at θ ay fitted gamit ang **exact Gaussian maximum likelihood**.
+Ang φ at θ ay sabay na ino-optimize; hindi sila kinukuha direkta sa autocorrelation.
+Ang μ ay fitted drift at maaaring iba sa simpleng average ng daily changes.
 
-### D. Coefficient ng AR(1): φ
+Batayan: Mardesci & Fitriani (2025), section 2.1, p. 77:
+https://doi.org/10.64570/agrivolution.v1i2.33
+Annual oil-palm data ang kanilang pag-aaral; ina-adapt ang method sa daily fish data.
+PHP ang implementation; hindi kailangan ng Python sa production hosting.
 
-Lag-1 autocorrelation ng pagkakaiba, nilimitahan sa [−0.99, 0.99]:
+### D. Innovations at variance
 
-```
-        Σ (Δy[t] − μ)(Δy[t+1] − μ)
-φ  =  ─────────────────────────────
-           Σ (Δy[t] − μ)²
-```
+Kalman innovations v[t] at unit-variance factors F[t] ang ginagamit:
 
-*Halimbawa 1:* `φ = −34.3457 ÷ 38.8889 = −0.8832`
-
-### E. Residual (ε) at coefficient ng MA(1): θ
-
-Ang residual ay ang bahagi ng pagbabago na hindi naipaliwanag ng AR:
-
-```
-ε[t] = (Δy[t] − μ) − φ · (Δy[t−1] − μ)          (sa unang araw, Δy[t−1] = μ)
+```text
+σ² = Σ(v[t]² / F[t]) / m
 ```
 
-Ang θ ay ang lag-1 autocorrelation ng mga residual, nilimitahan din sa [−0.99, 0.99]:
+Ang mga ito ay galing sa jointly fitted model na may stationary initialization.
+Kapag constant ang lahat ng changes, deterministic limiting case ito: zero ang
+innovation variance at walang finite Gaussian likelihood na iri-report.
 
-```
-        Σ (ε[t] − ε̄)(ε[t+1] − ε̄)
-θ  =  ───────────────────────────
-           Σ (ε[t] − ε̄)²
-```
+### E. Paghula at target dates
 
-*Halimbawa 1:* mga residual = −0.1111, 0.7908, −1.3261, 0.0244, −0.4429,
-1.0244, 0.4403, 1.0244, 0.4403 → `θ = −0.6412 ÷ 4.6931 = −0.1366`
-
-> **Tala sa pagtantiya:** Ito ay pinasimpleng *method of moments* (estilong
-> Hannan–Rissanen). Ang θ ay direktang kinukuha mula sa autocorrelation ng
-> residual, sa halip na lutasin mula sa `ρ₁ = θ / (1 + θ²)` o tantiyahin sa
-> maximum likelihood. Sapat ito para sa 3-araw na hula at madaling i-check sa
-> kamay, pero hindi ito kapareho ng `statsmodels` o ng `auto.arima` ng R.
-
-### F. Karaniwang mintis (σ)
-
-Sample standard deviation ng mga residual:
-
-```
-σ = √[ Σ (ε[t] − ε̄)² / (m − 1) ]
+```text
+predicted change = μ + φ(previous change − μ) + θ(previous filtered shock)
+raw next level = previous raw level + predicted change
 ```
 
-*Halimbawa 1:* `σ = 0.7659`
+Expected future shocks ay zero. Dahil hanggang kahapon ang training data,
+kinukuwenta muna ang unobserved na araw ngayon bago i-publish ang bukas at ang
+kasunod na mga araw. Raw unrounded levels ang ginagamit sa recursion.
 
-### G. Paghula (h = 1, 2, 3)
+### F. Prediction interval
 
-```
-Δŷ[T+1] = μ + φ · (Δy[T] − μ)     + θ · ε[T]       ← Araw 1: huling totoong pagbabago at residual
-Δŷ[T+h] = μ + φ · (Δŷ[T+h−1] − μ) + θ · 0          ← Araw 2 at 3: zero ang sorpresa sa hinaharap
-
-ŷ[T+h]  = max(0, ŷ[T+h−1] + Δŷ[T+h])               ← hindi puwedeng negatibo
-```
-
-### H. Saklaw (95% prediction interval)
-
-```
-band(h)  = z · σ · √h              z = 1.96
-min      = max(0, ŷ − band)
-max      = ŷ + band
+```text
+half-width = 1.96 × √(model forecast variance)
+published prediction and bounds = max(0, raw result), rounded to 2 decimals
 ```
 
-*Halimbawa 1:* band = 1.50, 2.12, 2.60 para sa h = 1, 2, 3.
+Kasama sa variance ang integrated ARMA impulse responses at filtered-state uncertainty.
+Hindi kasama ang uncertainty sa estimated coefficients. Ang bilang na 7 observations
+ay processing minimum lamang, hindi patunay na sapat ang sample sa research.
 
 ### I. Trend
 
@@ -611,7 +467,7 @@ iba pa                     →  stable
 | --------------------- | ----------------------------- | ------- | ----- |
 | `horizon`             | `FORECAST_HORIZON`            | `3`     | Ilang araw ang huhulaan |
 | `min_history`         | `FORECAST_MIN_HISTORY`        | `7`     | Pinakakaunting araw ng datos bago humula |
-| `history_days`        | `FORECAST_HISTORY_DAYS`       | `90`    | Ilang araw ang ginagamit sa pag-aaral ng modelo |
+| `history_days`        | `FORECAST_HISTORY_DAYS`       | `30`    | Ilang araw ang ginagamit sa pag-aaral ng modelo |
 | `history_chart_days`  | `FORECAST_HISTORY_CHART_DAYS` | `30`    | Ilang araw ng kasaysayan ang ipinapakita sa graph |
 | `order`               | —                             | `1,1,1` | Ang (p, d, q) ng ARIMA |
 | `z`                   | —                             | `1.96`  | Lapad ng saklaw (1.96 = 95%) |
@@ -637,6 +493,7 @@ ORDER  BY f.name, fc.metric, fc.forecast_date;
 | File                                               | Laman |
 | -------------------------------------------------- | ----- |
 | `app/Services/ArimaService.php`                    | Ang makina ng ARIMA (lahat ng pormula sa itaas) |
+| `app/Services/ArimaMaximumLikelihood.php`         | Standard exact Gaussian maximum-likelihood fitting |
 | `app/Console/Commands/GenerateForecasts.php`       | `php artisan forecast:generate` |
 | `app/Http/Controllers/Supervisor/ForecastController.php` | Ang pahina ng Forecasts |
 | `database/seeders/ForecastSeeder.php`              | Gumagawa ng forecast para sa lahat ng isda |
@@ -658,11 +515,11 @@ ORDER  BY f.name, fc.metric, fc.forecast_date;
 | **Pagkakaiba (difference)** | Ang pagbabago mula kahapon hanggang ngayon. |
 | **φ (phi)**             | "Ugali ng pagbabago": gaano sumusunod ang pagbabago ngayon sa kahapon. |
 | **θ (theta)**           | "Epekto ng sorpresa": gaano katagal tumatagal ang epekto ng hindi inaasahang galaw. |
-| **μ (mu)**              | Karaniwang pagbabago bawat araw. |
-| **σ (sigma)**           | Karaniwang laki ng mintis ng modelo. |
+| **μ (mu)**              | Fitted drift mula sa maximum-likelihood estimation; maaaring iba sa sample mean change. |
+| **σ (sigma)**           | Fitted innovation standard deviation ng maximum-likelihood model. |
 | **Residual**            | Ang bahaging hindi naipaliwanag ng modelo, ang "sorpresa." |
 | **Saklaw / CI**         | *Confidence interval*. Ang pinakamababa at pinakamataas na makatwirang mangyari. |
-| **95%**                 | Mga 95 sa bawat 100 beses, papasok ang totoong halaga sa saklaw. |
+| **95%**                 | Nominal coverage kung angkop ang fitted Gaussian model; kailangan pa ring i-check sa tunay na market data. |
 | **Trend**               | Pataas, Pababa, o Stable, kumpara sa huling 7 araw. |
 | **Backtest**            | Pagsubok sa modelo gamit ang lumang datos na alam na ang sagot. |
 | **Seeder**              | Programang naglalagay ng sample na datos sa database. |

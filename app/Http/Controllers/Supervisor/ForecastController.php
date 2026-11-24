@@ -7,6 +7,7 @@ use App\Models\FishType;
 use App\Models\Forecast;
 use App\Models\PriceGuide;
 use App\Models\VendorInventory;
+use App\Services\ArimaMaximumLikelihood;
 use App\Services\ArimaService;
 use Illuminate\Http\Request;
 
@@ -21,6 +22,8 @@ class ForecastController extends Controller
         // Fish that currently have a forecast are listed first, so the dropdown
         // does not open on one of the many fish nobody has sold yet.
         $forecastFishIds = Forecast::where('forecast_date', '>=', today())
+            ->where('arima_params->model_version', ArimaMaximumLikelihood::VERSION)
+            ->where('arima_params->history_days', config('forecast.history_days'))
             ->distinct()
             ->pluck('fish_type_id')
             ->flip();
@@ -65,7 +68,9 @@ class ForecastController extends Controller
         // series has no run from today. That keeps the horizon on tomorrow and the
         // next days instead of showing a run that has partly passed. Earlier runs
         // are kept as history either way.
-        $ranToday = $forecasts->isNotEmpty() && $forecasts->first()->generated_at->isToday();
+        $ranToday = $forecasts->isNotEmpty() && $forecasts->first()->generated_at->isToday()
+            && ($forecasts->first()->arima_params['model_version'] ?? null) === ArimaMaximumLikelihood::VERSION
+            && ($forecasts->first()->arima_params['history_days'] ?? null) === config('forecast.history_days');
         if (! $ranToday && $selectedFishType !== null) {
             if ($arima->generate($selectedFishTypeId, $selectedQuality, $selectedMetric) > 0) {
                 $forecasts = $this->forecastSeries($arima, $selectedFishTypeId, $selectedQuality, $selectedMetric, $horizon);
@@ -114,6 +119,8 @@ class ForecastController extends Controller
     private function forecastSeries(ArimaService $arima, int $fishTypeId, string $quality, string $metric, int $horizon)
     {
         return $arima->latestRun($fishTypeId, $quality, $metric)
+            ->filter(fn ($f) => ($f->arima_params['model_version'] ?? null) === ArimaMaximumLikelihood::VERSION
+                && ($f->arima_params['history_days'] ?? null) === config('forecast.history_days'))
             ->filter(fn ($f) => $f->forecast_date->gte(today()))
             ->take($horizon)
             ->values();
@@ -156,17 +163,23 @@ class ForecastController extends Controller
      * Mean absolute percentage error of past predictions against the days that
      * had real batches (filled days are not actuals).
      *
-     * @return array{days: int, mape: float|null}
+     * @return array{days: int, mape_days: int, mape: float|null, mae: float|null, rmse: float|null}
      */
     private function accuracy($pastPredictions, $historical): array
     {
-        $errors = $pastPredictions
-            ->filter(fn ($v, $date) => isset($historical[$date]) && ! $historical[$date]['filled'] && $historical[$date]['value'] > 0)
+        $pairs = $pastPredictions->filter(fn ($v, $date) => isset($historical[$date])
+            && ! $historical[$date]['filled'] && $historical[$date]['value'] !== null);
+        $errors = $pairs->map(fn ($v, $date) => $v - $historical[$date]['value']);
+        $percentageErrors = $pairs
+            ->filter(fn ($v, $date) => $historical[$date]['value'] > 0)
             ->map(fn ($v, $date) => abs($v - $historical[$date]['value']) / $historical[$date]['value'] * 100);
 
         return [
             'days' => $errors->count(),
-            'mape' => $errors->isEmpty() ? null : round($errors->avg(), 1),
+            'mape_days' => $percentageErrors->count(),
+            'mape' => $percentageErrors->isEmpty() ? null : round($percentageErrors->avg(), 1),
+            'mae' => $errors->isEmpty() ? null : round($errors->map(fn ($e) => abs($e))->avg(), 2),
+            'rmse' => $errors->isEmpty() ? null : round(sqrt($errors->map(fn ($e) => $e ** 2)->avg()), 2),
         ];
     }
 

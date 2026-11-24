@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use App\Services\ArimaMaximumLikelihood;
 use App\Services\ArimaService;
 use Tests\TestCase;
 
@@ -15,213 +16,140 @@ class ArimaServiceTest extends TestCase
         $this->arima = app(ArimaService::class);
     }
 
-    /** The series behind the worked example in README.md. */
     private function exampleSeries(): array
     {
         return [100, 101, 103, 102, 105, 104, 108, 107, 111, 110];
     }
 
-    /**
-     * A price creeping up about 1% a day must read as upward. The old label
-     * compared forecast day 3 with forecast day 1 — only two days apart — so a
-     * ±2% band needed a 1%-a-day move just to register and real series were
-     * always "stable". The label now compares against the last 7 actual days.
-     */
+    public function test_fitting_and_forecasting_match_independent_statsmodels_references(): void
+    {
+        $reference = json_decode(file_get_contents(base_path('tests/Fixtures/arima_mle_reference.json')), true);
+        foreach ($reference['cases'] as $name => $case) {
+            $trace = $this->arima->explain($case['series']);
+            $this->assertTrue($trace['fit']['converged'], $name);
+            foreach (['phi', 'theta', 'mean', 'sigma2', 'log_likelihood'] as $parameter) {
+                $this->assertEqualsWithDelta($case[$parameter], $trace['fit'][$parameter], 0.00002, "$name: $parameter");
+            }
+            foreach ($trace['forecast_steps'] as $index => $step) {
+                $this->assertEqualsWithDelta($case['forecast'][$index], $step['unclipped_value'], 0.00005, $name);
+                $this->assertEqualsWithDelta($case['forecast_variance'][$index], $step['forecast_variance'], 0.00005, $name);
+            }
+            $this->assertSame(ArimaMaximumLikelihood::VERSION, $trace['projections'][0]['params']['model_version']);
+            $this->assertSame('exact_gaussian_maximum_likelihood', $trace['projections'][0]['params']['estimation']);
+        }
+    }
+
+    public function test_affine_changes_of_units_preserve_the_model_and_scale_its_uncertainty(): void
+    {
+        $original = $this->arima->explain($this->exampleSeries());
+        $scaled = $this->arima->explain(array_map(fn ($value) => 100 + 2 * $value, $this->exampleSeries()));
+        $this->assertEqualsWithDelta($original['fit']['phi'], $scaled['fit']['phi'], 1e-7);
+        $this->assertEqualsWithDelta($original['fit']['theta'], $scaled['fit']['theta'], 1e-7);
+        foreach ($original['forecast_steps'] as $index => $step) {
+            $this->assertEqualsWithDelta(100 + 2 * $step['value'], $scaled['forecast_steps'][$index]['value'], 1e-6);
+            $this->assertEqualsWithDelta(4 * $step['forecast_variance'], $scaled['forecast_steps'][$index]['forecast_variance'], 1e-6);
+        }
+    }
+
     public function test_a_steady_climb_is_labelled_upward(): void
     {
-        $series = [];
-        for ($i = 0; $i < 30; $i++) {
-            $series[] = 200 * (1.01 ** $i) + (($i % 2) ? 0.6 : -0.6);
-        }
-
+        $series = array_map(fn ($i) => 200 * (1.01 ** $i) + (($i % 2) ? 0.6 : -0.6), range(0, 29));
         $this->assertSame('upward', $this->arima->project($series)[0]['trend']);
         $this->assertSame('downward', $this->arima->project(array_reverse($series))[0]['trend']);
     }
 
     public function test_a_flat_series_is_labelled_stable(): void
     {
-        $series = [];
-        for ($i = 0; $i < 30; $i++) {
-            $series[] = 150 + (($i % 2) ? 1 : -1);
-        }
-
+        $series = array_map(fn ($i) => 150 + (($i % 2) ? 1 : -1), range(0, 29));
         $this->assertSame('stable', $this->arima->project($series)[0]['trend']);
     }
 
     public function test_it_skips_series_below_the_minimum_history(): void
     {
         $this->assertSame([], $this->arima->project([]));
-        $this->assertSame([], $this->arima->project([1, 2, 3, 4, 5, 6]));
+        $this->assertSame([], $this->arima->project(range(1, config('forecast.min_history') - 1)));
     }
 
-    public function test_it_skips_a_series_exactly_at_the_minimum_history_boundary_minus_one(): void
+    public function test_the_history_window_matches_chapters_one_to_three(): void
     {
-        $short = range(1, config('forecast.min_history') - 1);
-
-        $this->assertCount(config('forecast.min_history') - 1, $short);
-        $this->assertSame([], $this->arima->project($short));
+        $this->assertSame(30, config('forecast.history_days'));
+        $this->assertSame(30, config('forecast.history_chart_days'));
     }
 
     public function test_it_forecasts_exactly_the_configured_horizon(): void
     {
-        $out = $this->arima->project($this->exampleSeries());
-
-        $this->assertCount(config('forecast.horizon'), $out);
+        config(['forecast.horizon' => 4]);
+        $this->assertCount(4, $this->arima->project($this->exampleSeries()));
     }
 
-    /**
-     * Regression guard: the MA(1) residual must be built from the *lagged*
-     * change. Pairing each change with itself makes the residual a constant
-     * multiple of the centred series, and since ar1Coefficient() is a
-     * scale-invariant ratio the estimator then returns phi for theta too,
-     * silently collapsing the model to a single term.
-     */
-    public function test_the_ma_coefficient_is_estimated_independently_of_the_ar_coefficient(): void
+    public function test_the_current_day_bridge_advances_the_mean_and_variance_before_tomorrow(): void
     {
-        $params = $this->arima->project($this->exampleSeries())[0]['params'];
-
-        $this->assertNotEquals(
-            $params['phi'],
-            $params['theta'],
-            'theta collapsed onto phi — the AR(1) residual has lost its lag.'
-        );
-    }
-
-    public function test_the_ma_coefficient_stays_independent_across_many_series(): void
-    {
-        mt_srand(20260927);
-
-        for ($i = 0; $i < 200; $i++) {
-            $n = mt_rand(8, 40);
-            $series = [];
-            for ($d = 0; $d < $n; $d++) {
-                $series[] = mt_rand(0, 4000) / 100;
-            }
-
-            $params = $this->arima->project($series)[0]['params'];
-
-            $this->assertNotEquals(
-                $params['phi'],
-                $params['theta'],
-                'theta collapsed onto phi for series: '.implode(', ', $series)
-            );
+        $reference = json_decode(file_get_contents(base_path('tests/Fixtures/arima_mle_reference.json')), true)['cases']['worked'];
+        $trace = $this->arima->explain($this->exampleSeries(), 1);
+        $this->assertCount(1, $trace['bridge_steps']);
+        $this->assertCount(3, $trace['projections']);
+        foreach ($trace['forecast_steps'] as $index => $step) {
+            $this->assertSame($index + 2, $step['model_step']);
+            $this->assertEqualsWithDelta($reference['forecast'][$index + 1], $step['unclipped_value'], 0.00005);
+            $this->assertEqualsWithDelta($reference['forecast_variance'][$index + 1], $step['forecast_variance'], 0.00005);
         }
     }
 
-    public function test_coefficients_stay_inside_their_clamped_range(): void
+    public function test_constant_changes_are_explicitly_marked_as_a_deterministic_limiting_case(): void
     {
-        foreach ($this->arima->project($this->exampleSeries()) as $point) {
-            $this->assertGreaterThanOrEqual(-0.99, $point['params']['phi']);
-            $this->assertLessThanOrEqual(0.99, $point['params']['phi']);
-            $this->assertGreaterThanOrEqual(-0.99, $point['params']['theta']);
-            $this->assertLessThanOrEqual(0.99, $point['params']['theta']);
-        }
+        $trace = $this->arima->explain(range(1, 10));
+        $this->assertSame('deterministic', $trace['fit']['status']);
+        $this->assertNull($trace['fit']['log_likelihood']);
+        $this->assertSame(0.0, $trace['fit']['sigma2']);
+        $this->assertSame([11.0, 12.0, 13.0], array_column($trace['projections'], 'value'));
     }
 
-    public function test_the_prediction_interval_widens_with_the_horizon(): void
+    public function test_coefficients_obey_stationarity_and_invertibility_constraints(): void
     {
-        $out = $this->arima->project($this->exampleSeries());
-
-        $widths = array_map(
-            fn ($p) => $p['max'] - $p['min'],
-            $out
-        );
-
-        $this->assertGreaterThan($widths[0], $widths[1]);
-        $this->assertGreaterThan($widths[1], $widths[2]);
+        $fit = $this->arima->explain($this->exampleSeries())['fit'];
+        $this->assertLessThan(1, abs($fit['phi']));
+        $this->assertLessThan(1, abs($fit['theta']));
     }
 
-    public function test_the_interval_is_centred_on_the_prediction(): void
+    public function test_fitted_drift_is_not_replaced_by_the_sample_mean_of_changes(): void
     {
-        foreach ($this->arima->project($this->exampleSeries()) as $point) {
-            $this->assertEqualsWithDelta(
-                $point['value'],
-                ($point['min'] + $point['max']) / 2,
-                0.01
-            );
-        }
+        $trace = $this->arima->explain($this->exampleSeries());
+        $this->assertEqualsWithDelta(10 / 9, $trace['sample_mean_diff'], 1e-12);
+        $this->assertEqualsWithDelta(1.251848319, $trace['mean_diff'], 1e-6);
+    }
+
+    public function test_the_prediction_interval_uses_arma_variance_instead_of_sigma_squared_times_h(): void
+    {
+        $trace = $this->arima->explain($this->exampleSeries());
+        $second = $trace['forecast_steps'][1];
+        $this->assertEqualsWithDelta(0.480019966, $second['forecast_variance'], 1e-6);
+        $this->assertNotEqualsWithDelta(2 * $trace['fit']['sigma2'], $second['forecast_variance'], 0.1);
     }
 
     public function test_predictions_and_bounds_are_never_negative(): void
     {
-        $out = $this->arima->project([50, 44, 41, 33, 28, 19, 12, 6, 2, 0]);
-
-        foreach ($out as $point) {
+        $trace = $this->arima->explain([50, 44, 41, 33, 28, 19, 12, 6, 2, 0]);
+        foreach ($trace['projections'] as $point) {
             $this->assertGreaterThanOrEqual(0, $point['value']);
             $this->assertGreaterThanOrEqual(0, $point['min']);
-            $this->assertGreaterThanOrEqual(0, $point['max']);
+            $this->assertGreaterThanOrEqual($point['min'], $point['max']);
         }
+        $this->assertLessThan(0, $trace['forecast_steps'][0]['unclipped_value']);
+        $this->assertSame($trace['forecast_steps'][0]['unclipped_value'], $trace['forecast_steps'][1]['previous_value']);
     }
 
-    public function test_every_projection_shares_one_trend_label(): void
+    public function test_it_reproduces_the_updated_documented_worked_example(): void
     {
         $out = $this->arima->project($this->exampleSeries());
-        $trends = array_unique(array_column($out, 'trend'));
-
-        $this->assertCount(1, $trends);
-        $this->assertContains($trends[0], ['upward', 'downward', 'stable']);
+        $this->assertSame([113.41, 112.63, 115.79], array_column($out, 'value'));
+        $this->assertSame([112.07, 111.27, 113.93], array_column($out, 'min'));
+        $this->assertSame([114.74, 113.99, 117.66], array_column($out, 'max'));
+        $this->assertSame(['upward'], array_values(array_unique(array_column($out, 'trend'))));
     }
 
-    /**
-     * Pins the numbers quoted in the README worked example so the
-     * documentation cannot drift away from the implementation.
-     */
-    public function test_it_reproduces_the_documented_worked_example(): void
-    {
-        $out = $this->arima->project($this->exampleSeries());
-        $params = $out[0]['params'];
-
-        $this->assertEquals(-0.8832, $params['phi']);
-        $this->assertEquals(-0.1366, $params['theta']);
-        $this->assertEquals(1.1111, $params['mean_diff']);
-        $this->assertEquals(0.7659, $params['sigma']);
-        $this->assertSame([1, 1, 1], [$params['p'], $params['d'], $params['q']]);
-
-        $this->assertSame(112.92, $out[0]['value']);
-        $this->assertSame(111.41, $out[0]['min']);
-        $this->assertSame(114.42, $out[0]['max']);
-
-        $this->assertSame(112.43, $out[1]['value']);
-        $this->assertSame(110.31, $out[1]['min']);
-        $this->assertSame(114.56, $out[1]['max']);
-
-        $this->assertSame(114.95, $out[2]['value']);
-        $this->assertSame(112.35, $out[2]['min']);
-        $this->assertSame(117.55, $out[2]['max']);
-
-        // Day 3 (114.95) vs the average of the last 7 real days (106.71): +7.7%.
-        $this->assertSame(106.71, $params['trend_baseline']);
-        $this->assertSame('upward', $out[0]['trend']);
-    }
-
-    /**
-     * Demand was removed: it was derived from sold_kg, which the vendor's own
-     * end-of-day sale report fills in, so projecting it fed the model its own
-     * output. Only price and supply remain.
-     */
     public function test_demand_is_no_longer_a_forecast_metric(): void
     {
         $this->assertSame(['price', 'supply'], config('forecast.metrics'));
-        $this->assertArrayNotHasKey('demand', config('forecast.metric_meta'));
-
-        // The generator refuses unknown metrics outright, so a stale caller
-        // cannot reintroduce demand rows.
         $this->assertSame(0, $this->arima->generate(1, 'First Class', 'demand'));
-    }
-
-    public function test_explanation_exposes_reproducible_unrounded_working(): void
-    {
-        $trace = $this->arima->explain($this->exampleSeries());
-
-        $this->assertSame([1, 2, -1, 3, -1, 4, -1, 4, -1], $trace['differences']);
-        $this->assertEqualsWithDelta(10 / 9, $trace['mean_diff'], 1e-12);
-        $this->assertEqualsWithDelta(-1 / 9, $trace['residuals'][0], 1e-12);
-        $this->assertEqualsWithDelta($trace['mean_diff'], $trace['difference_steps'][0]['previous_difference'], 1e-12);
-        $this->assertSame(0.0, $trace['forecast_steps'][1]['previous_residual']);
-        $this->assertSame($trace['forecast_steps'][0]['value'], $trace['forecast_steps'][1]['previous_value']);
-        $this->assertNotEquals($trace['projections'][0]['value'], $trace['forecast_steps'][1]['previous_value']);
-        $this->assertEqualsWithDelta(747 / 7, $trace['baseline'], 1e-12);
-        $this->assertSame(114.95, $trace['final']);
-        $this->assertSame([], $this->arima->explain([1, 2])['projections']);
     }
 }

@@ -17,12 +17,9 @@ use Illuminate\Support\Collection;
  *   price   — average price_per_kg per day
  *   supply  — total stock_kg brought into the market per day
  *
- * The custom moment-based fit uses lag-1 autocorrelations: first-difference
- * the series, take the AR(1) coefficient from the lag-1 autocorrelation of the
- * differenced series, then take the MA(1) coefficient from the lag-1
- * autocorrelation of the resulting lagged AR(1) residuals. Forecasts are rolled
- * forward recursively, with the MA term contributing to the one-step-ahead
- * expectation only, since future innovations have a mean of zero.
+ * Coefficients are jointly fitted by exact Gaussian maximum likelihood using
+ * ArimaMaximumLikelihood. The fixed order and rolling history follow the
+ * thesis; Mardesci & Fitriani (2025), section 2.1, supports the MLE procedure.
  */
 class ArimaService
 {
@@ -43,7 +40,9 @@ class ArimaService
             return 0;
         }
 
-        $projections = $this->project($series);
+        // History ends yesterday. Predict through the unobserved current day
+        // before publishing tomorrow and the following days.
+        $projections = $this->project($series, 1);
 
         if (empty($projections)) {
             return 0;
@@ -96,16 +95,27 @@ class ArimaService
             return [];
         }
 
-        return $raw->groupBy(fn ($e) => $e->entry_date->toDateString())
+        $daily = $raw->groupBy(fn ($e) => $e->entry_date->toDateString())
             ->map(function ($entries) use ($metric) {
                 return match ($metric) {
                     'price' => (float) $entries->avg('price_per_kg'),
                     'supply' => (float) $entries->sum('stock_kg'),
                     default => 0.0,
                 };
-            })
-            ->values()
-            ->toArray();
+            });
+
+        // ARIMA steps must represent equally spaced days. Use the most recent
+        // consecutive segment ending yesterday; never compress missing dates
+        // or manufacture zero deliveries from an absence of recorded batches.
+        $series = [];
+        for ($date = today()->subDay(); count($series) < $lookback; $date->subDay()) {
+            if (! $daily->has($date->toDateString())) {
+                break;
+            }
+            $series[] = $daily[$date->toDateString()];
+        }
+
+        return array_reverse($series);
     }
 
     /**
@@ -188,9 +198,9 @@ class ArimaService
      * @param  array<int, float>  $series
      * @return array<int, array{value: float, min: float, max: float, trend: string, params: array}>
      */
-    public function project(array $series): array
+    public function project(array $series, int $offset = 0): array
     {
-        return $this->explain($series)['projections'];
+        return $this->explain($series, $offset)['projections'];
     }
 
     /**
@@ -198,7 +208,7 @@ class ArimaService
      * research guide. This is read-only: no inventory or forecasts are queried
      * or saved. Keep unrounded intermediate values for reproducible arithmetic.
      */
-    public function explain(array $series): array
+    public function explain(array $series, int $offset = 0): array
     {
         if (count($series) < config('forecast.min_history')) {
             return ['observations' => $series, 'projections' => []];
@@ -210,24 +220,17 @@ class ArimaService
             $diff[] = $series[$i] - $series[$i - 1];
         }
 
-        $meanD = array_sum($diff) / count($diff);
-
-        // ── Step B — AR(1) coefficient from lag-1 autocorrelation ──
-        $phiFit = $this->autocorrelation($diff);
-        $phi = $phiFit['coefficient'];
-
-        // ── Step C — MA(1) coefficient from the AR(1) residuals ──
-        // The residual for day t compares the *lagged* change against the current
-        // one: e[t] = (d[t] - mu) - phi * (d[t-1] - mu). Pairing d[t] with itself
-        // instead would make the residual a constant multiple of (d[t] - mu), and
-        // since autocorrelation() is a scale-invariant ratio the estimator would
-        // return phi for theta as well, collapsing the model to a single term.
-        $residuals = [];
+        $fit = (new ArimaMaximumLikelihood)->fit($diff);
+        if (! $fit['converged']) {
+            return ['observations' => $series, 'projections' => [], 'fit' => $fit];
+        }
+        $meanD = $fit['mean'];
+        $phi = $fit['phi'];
+        $theta = $fit['theta'];
+        $residuals = $fit['innovations'];
         $differenceSteps = [];
         $prevD = $meanD;
         foreach ($diff as $i => $d) {
-            $residual = ($d - $meanD) - $phi * ($prevD - $meanD);
-            $residuals[] = $residual;
             $differenceSteps[] = [
                 'observation' => $i + 2,
                 'previous_value' => $series[$i],
@@ -235,33 +238,44 @@ class ArimaService
                 'difference' => $d,
                 'centered' => $d - $meanD,
                 'previous_difference' => $prevD,
-                'residual' => $residual,
+                'residual' => $residuals[$i],
+                'fitted_difference' => $d - $residuals[$i],
+                'innovation_factor' => $fit['factors'][$i],
             ];
             $prevD = $d;
         }
-        $thetaFit = $this->autocorrelation($residuals);
-        $theta = $thetaFit['coefficient'];
-
-        $sigma = sqrt($this->variance($residuals));
+        $sigma = sqrt($fit['sigma2']);
         $z = config('forecast.z');
 
         $currentVal = end($series);
         $prevDiff = end($diff);
-        $prevRes = end($residuals) ?: 0.0;
+        $prevRes = $fit['last_shock'];
 
         // ── Step D — roll forward the horizon ──
         $projections = [];
         $forecastSteps = [];
-        for ($h = 1; $h <= config('forecast.horizon'); $h++) {
+        $bridgeSteps = [];
+        $shockSum = 0.0;
+        $stateMultiplier = 0.0;
+        $impulseSum = 0.0;
+        for ($step = 1; $step <= config('forecast.horizon') + $offset; $step++) {
             // ARIMA(1,1,1) step: δ[h] = μ + φ·(previous δ − μ) + θ·previous e
             $forecastDiff = $meanD + $phi * ($prevDiff - $meanD) + $theta * $prevRes;
-            $nextVal = max(0.0, $currentVal + $forecastDiff);
+            $rawNextVal = $currentVal + $forecastDiff;
+            $nextVal = max(0.0, $rawNextVal);
 
-            // Multi-step uncertainty widens with the square root of the horizon
-            $ci = $z * $sigma * sqrt($h);
+            // Integrated ARMA impulse responses, plus uncertainty in the last
+            // filtered shock. This is the fitted model's forecast variance.
+            $impulseSum += $step === 1 ? 1.0 : ($phi + $theta) * $phi ** ($step - 2);
+            $shockSum += $impulseSum ** 2;
+            $stateMultiplier += $phi ** ($step - 1);
+            $forecastVariance = $fit['sigma2'] * $shockSum
+                + ($theta * $stateMultiplier) ** 2 * $fit['last_shock_variance'];
+            $ci = $z * sqrt(max(0.0, $forecastVariance));
 
-            $forecastSteps[] = [
-                'h' => $h,
+            $working = [
+                'h' => $step - $offset,
+                'model_step' => $step,
                 'previous_value' => $currentVal,
                 'previous_difference' => $prevDiff,
                 'previous_residual' => $prevRes,
@@ -271,12 +285,23 @@ class ArimaService
                 'unclipped_value' => $currentVal + $forecastDiff,
                 'value' => $nextVal,
                 'band' => $ci,
+                'forecast_variance' => $forecastVariance,
             ];
+
+            $prevDiff = $forecastDiff;
+            $prevRes = 0.0;
+            $currentVal = $rawNextVal;
+            if ($step <= $offset) {
+                $bridgeSteps[] = $working;
+
+                continue;
+            }
+            $forecastSteps[] = $working;
 
             $projections[] = [
                 'value' => round($nextVal, 2),
-                'min' => round(max(0.0, $nextVal - $ci), 2),
-                'max' => round($nextVal + $ci, 2),
+                'min' => round(max(0.0, $rawNextVal - $ci), 2),
+                'max' => round(max(0.0, $rawNextVal + $ci), 2),
                 'trend' => null,
                 'params' => [
                     'p' => config('forecast.order.p'),
@@ -287,12 +312,19 @@ class ArimaService
                     'mean_diff' => round($meanD, 4),
                     'sigma' => round($sigma, 4),
                     'horizon' => config('forecast.horizon'),
+                    'model_version' => ArimaMaximumLikelihood::VERSION,
+                    'estimation' => 'exact_gaussian_maximum_likelihood',
+                    'fit_status' => $fit['status'],
+                    'log_likelihood' => $fit['log_likelihood'],
+                    'aic' => $fit['aic'],
+                    'history_days' => config('forecast.history_days'),
+                    'observations' => count($series),
+                    'model_step' => $step,
+                    'coefficients' => ['phi' => $phi, 'theta' => $theta, 'drift' => $meanD, 'innovation_variance' => $fit['sigma2']],
+                    'training_start' => today()->subDays(count($series))->toDateString(),
+                    'training_end' => today()->subDay()->toDateString(),
                 ],
             ];
-
-            $prevDiff = $forecastDiff;
-            $prevRes = 0.0;
-            $currentVal = $nextVal;
         }
 
         // The label compares where the forecast ends against the average of the
@@ -318,14 +350,17 @@ class ArimaService
             'differences' => $diff,
             'difference_steps' => $differenceSteps,
             'mean_diff' => $meanD,
-            'phi_fit' => $phiFit,
+            'fit' => $fit,
+            'sample_mean_diff' => array_sum($diff) / count($diff),
+            'phi_fit' => ['coefficient' => $phi],
             'residuals' => $residuals,
-            'theta_fit' => $thetaFit,
+            'theta_fit' => ['coefficient' => $theta],
             'residual_mean' => array_sum($residuals) / count($residuals),
-            'residual_variance' => $this->variance($residuals),
+            'residual_variance' => $fit['sigma2'],
             'sigma' => $sigma,
             'z' => $z,
             'forecast_steps' => $forecastSteps,
+            'bridge_steps' => $bridgeSteps,
             'baseline_values' => $recent,
             'baseline' => $baseline,
             'lower_threshold' => $baseline * (1 - config('forecast.trend_threshold')),
@@ -396,6 +431,8 @@ class ArimaService
         return $this->series($fishTypeId, $quality, $metric)
             ->whereDate('forecast_date', '>=', $start->toDateString())
             ->whereDate('forecast_date', '<', today()->toDateString())
+            ->where('arima_params->model_version', ArimaMaximumLikelihood::VERSION)
+            ->where('arima_params->history_days', config('forecast.history_days'))
             ->orderBy('generated_at')
             ->get()
             ->filter(fn (Forecast $f) => $f->generated_at->lt($f->forecast_date->copy()->startOfDay()))
@@ -417,58 +454,5 @@ class ArimaService
             $last < $baseline * (1 - $threshold) => 'downward',
             default => 'stable',
         };
-    }
-
-    /** Estimate a coefficient via lag-1 autocorrelation, retaining its working. */
-    private function autocorrelation(array $series): array
-    {
-        $n = count($series);
-        if ($n < 2) {
-            return [
-                'mean' => $n ? array_sum($series) / $n : 0.0,
-                'numerator' => 0.0,
-                'denominator' => 0.0,
-                'ratio' => 0.0,
-                'coefficient' => 0.0,
-            ];
-        }
-
-        $mean = array_sum($series) / $n;
-        $num = 0.0;
-        $den = 0.0;
-
-        for ($i = 0; $i < $n - 1; $i++) {
-            $num += ($series[$i] - $mean) * ($series[$i + 1] - $mean);
-        }
-        for ($i = 0; $i < $n; $i++) {
-            $den += ($series[$i] - $mean) ** 2;
-        }
-
-        $ratio = $den > 0 ? $num / $den : 0.0;
-
-        return [
-            'mean' => $mean,
-            'numerator' => $num,
-            'denominator' => $den,
-            'ratio' => $ratio,
-            'coefficient' => max(-0.99, min(0.99, $ratio)),
-        ];
-    }
-
-    /** Sample variance */
-    private function variance(array $series): float
-    {
-        $n = count($series);
-        if ($n < 2) {
-            return 0.0;
-        }
-
-        $mean = array_sum($series) / $n;
-        $sum = 0.0;
-        foreach ($series as $v) {
-            $sum += ($v - $mean) ** 2;
-        }
-
-        return $sum / ($n - 1);
     }
 }

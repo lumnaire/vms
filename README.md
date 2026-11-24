@@ -361,9 +361,10 @@ per fish type and quality class. A Tagalog, non-technical guide is in
 [FORECASTING.md](FORECASTING.md). This section explains where each number comes from and how the
 projection is calculated.
 
-Everything below lives in two files:
+The forecasting implementation and settings are in three files:
 
 - `app/Services/ArimaService.php` — the engine
+- `app/Services/ArimaMaximumLikelihood.php` — standard Gaussian likelihood and numerical fitting
 - `config/forecast.php` — every tunable value
 
 ---
@@ -418,206 +419,69 @@ The same `AVG` / `SUM` rule is defined once, in `ArimaService::buildSeries()` an
 
 ### How the projection is calculated
 
-Each metric becomes a **time series** — one number per day, oldest first. ARIMA
-then looks at how that series has been _changing_ and projects the change
-forward.
+The fixed **ARIMA(1,1,1) with drift** uses **exact Gaussian maximum likelihood**.
+`ArimaMaximumLikelihood` jointly optimizes AR and MA coefficients using a stationary
+innovations/Kalman likelihood. Drift and innovation variance are profiled analytically.
+A multi-start Nelder–Mead search enforces stationarity and invertibility. Coefficients
+are not set equal to autocorrelations. This is a PHP implementation of a standard
+estimator, verified numerically against statsmodels; Python is not required on the host.
 
-The model is **ARIMA(1,1,1)**, which in plain English means:
+Training reads up to **30 calendar days**, as specified in Chapters 1–3 of
+`thesis_chpt1_3.pdf` (printed pp. 8, 13, 33). Use the latest consecutive recorded
+segment ending yesterday, with at least 7 observations. Missing dates end the segment;
+display-filled prices and zeros are not used for fitting. The minimum is an operational
+rule and does not establish statistical sufficiency.
 
-- **(1)** the change from one day to the next tends to **follow the previous
-  day's change** (the _autoregressive_ part),
-- **(1)** we model the **day-to-day change** rather than the raw level, because
-  raw levels drift (the _differencing_ part),
-- **(1)** recent **surprises** nudge the next day before fading out (the
-  _moving-average_ part).
+Model equation, for x[t] = y[t] − y[t−1]:
 
-The full pipeline, implemented in `ArimaService::project()`:
-
-1. **Collect** up to 90 days of confirmed history.
-2. **Difference** the series to get the daily change.
-3. **Fit φ** — how strongly today's change follows yesterday's.
-4. **Fit θ** — how much the last surprise carries into tomorrow.
-5. **Roll forward** 3 days, each day feeding into the next.
-6. **Attach a range** to each day so the answer is a band, not a false pinpoint.
-
-If a series has fewer than **7** recorded days it is skipped entirely rather
-than guessed at. In a fresh database most combinations are skipped for this
-reason — this is deliberate, not a failure.
-
----
-
-### The formulas
-
-Here is the arithmetic in full, so the model can be checked by hand.
-
-**Step 1 — Difference (the `d = 1`)**
-
-```
-Δy[t] = y[t] − y[t−1]
+```text
+x[t] − μ = φ(x[t−1] − μ) + e[t] + θ e[t−1]
 ```
 
-**Step 2 — Average daily change (μ)**
+The MLE likelihood uses innovation v[t] and unit-variance factor F[t]:
 
-```
-μ = (1 / n) · Σ Δy[t]
-```
-
-**Step 3 — AR(1) coefficient (φ)**
-
-φ measures how much of yesterday's change carries into today. It is the
-lag-1 autocorrelation of the differenced series, clamped to the range
-`[−0.99, 0.99]` so a series can never feed back on itself and explode:
-
-```
-        Σ (x[t] − x̄)(x[t+1] − x̄)
-φ  =  ───────────────────────────── ,   where x = Δy and x̄ = μ
-        Σ (x[t] − x̄)²
+```text
+σ² = Σ(v[t]² / F[t]) / m
+log L = −½[m log(2π) + m log(σ²) + Σlog(F[t]) + Σ(v[t]²/F[t])/σ²]
 ```
 
-**Step 4 — Residual (ε) and MA(1) coefficient (θ)**
+μ is fitted drift, not necessarily the sample mean change. Forecasts use the filtered
+last shock; expected future shocks are zero. Raw levels are recursively retained.
+Negative published levels and bounds are clipped to zero. Conditional prediction
+variance includes integrated ARMA impulse responses and the remaining filtered-state
+uncertainty, rather than the former σ²h approximation. Parameter uncertainty is excluded.
 
-The residual is the part of today's change the AR term did **not** explain. It
-compares today against **yesterday's** change:
+Because training ends yesterday, a forecast generated today first predicts the
+unobserved current day, then publishes tomorrow and the next two days. Stored model
+steps are therefore 2, 3 and 4 for the default horizon. Constant-change series are
+explicitly marked `deterministic`: the zero-variance limiting case has no finite Gaussian
+likelihood and unidentified AR/MA coefficients. Non-converged fits produce no new rows.
 
-```
-ε[t] = (Δy[t] − μ) − φ · (Δy[t−1] − μ)
-```
+### Research references and limits
 
-θ is then the lag-1 autocorrelation of those residuals, also clamped:
+Mardesci, H., & Fitriani, D. (2025). *Performance evaluation of ARIMA and ANN models
+for forecasting oil palm production trends*. Agricultural Revolution Journal, 1(2), 75–83.
+https://doi.org/10.64570/agrivolution.v1i2.33
 
-```
-        Σ (e[t] − ē)(e[t+1] − ē)
-θ  =  ───────────────────────────── ,   where e = ε and ē = mean(ε)
-        Σ (e[t] − ē)²
-```
+Section 2.1, p. 77 explicitly uses maximum likelihood. Its annual oil-palm study
+supports the estimation method; adapting it to daily fish records still requires local
+forecast evaluation. The thesis cites it but omits its full bibliography entry.
+The thesis’s p. 159 says 90 days, contradicting Chapters 1–3; the selected project
+configuration follows the **30-day** specification. Its Caquilala reference title also
+needs correction: DOI 10.1063/5.0309236 identifies
+[*Optimizing rice production forecasts in a Philippine province: A comparative analysis of time series models*](https://pubs.aip.org/aip/acp/issue/3446/1).
 
-> **Why the lag matters.** If ε were built from today's change paired with
-> _itself_ instead of with yesterday's, then ε would be just a scaled copy of
-> the differenced series. Because the φ formula divides by a sum of squares, it
-> cannot tell a series from a scaled copy of itself — so it would return φ for
-> θ as well, and the moving-average term would contribute nothing while still
-> appearing in the model. The lag is what makes the two coefficients genuinely
-> independent.
+Likelihood reference: [R stats::arima](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/arima.html).
+Order is fixed by study design, not automatically selected. Stationarity hypothesis
+testing is not automated. ISO/IEC 25010 user ratings do not establish forecast accuracy.
 
-**Step 5 — Size of a typical miss (σ)**
+### Reproducible numerical verification
 
-σ is the standard deviation of the residuals — the model's typical error size:
-
-```
-        Σ (ε[t] − ε̄)²
-σ  =  √ ──────────────
-          n − 1
-```
-
-**Step 6 — Project forward**
-
-Each future day repeats the pattern: the average change, adjusted by how much the
-last change persisted, plus the fading effect of the last surprise.
-
-```
-Δŷ[t+1] = μ + φ · (Δy[t] − μ) + θ · ε[t]        ← day 1 uses the last real change
-Δŷ[t+h] = μ + φ · (Δŷ[t+h−1] − μ) + θ · ε̂[t+h−1]  ← later days use the last forecast
-ŷ[t+h]  = max(0, ŷ[t+h−1] + Δŷ[t+h])
-```
-
-- Each projected day becomes the "yesterday" for the next, so the three days form
-  a connected path rather than three unrelated guesses.
-- The **MA term only applies to the first projected day.** The last real surprise
-  is already known, so it legitimately shifts tomorrow. For days 2 and 3 the
-  shocks are still in the future and are assumed to average out to zero.
-- Values are **clamped at 0** — a forecast cannot be a negative peso or a
-  negative number of kilos.
-
-**Step 7 — The prediction range**
-
-Rather than a single number, each day gets a **95% range** that widens the
-further ahead you look, because uncertainty compounds:
-
-```
-band = 1.96 · σ · √h
-
-predicted_min = ŷ − band
-predicted_max = ŷ + band
-```
-
-`1.96` is the z-value for a 95% interval, and `√h` makes the band grow as the
-square root of the day — roughly 1.4× wider on day 2 and 1.7× wider on day 3
-than on day 1.
-
-> A wide band is not a defect. It means the daily numbers genuinely swing a lot
-> from day to day, and the model is reporting that honestly instead of
-> pretending to a precision it does not have.
-
-**Step 8 — Trend label**
-
-The three days are given a single label by comparing the **last projected day**
-with the **average of the last 7 actual days** (`trend_baseline_days`), using a
-±2% band:
-
-```
-baseline = average of the last 7 real days
-
-Day 3 > baseline × 1.02   →  "upward"
-Day 3 < baseline × 0.98   →  "downward"
-otherwise                 →  "stable"
-```
-
-> The label answers "is this heading above or below what we saw this past
-> week?". An earlier version compared forecast day 3 with forecast day 1, but
-> those are only two days apart, so a ±2% band needed a ~1%-a-day move to ever
-> trigger and almost every real series read `stable`.
-
----
-
-### Worked example
-
-A short series of average daily prices in ₱/kg, chosen so every step can be
-checked by hand:
-
-```
-y : 100  101  103  102  105  104  108  107  111  110
-```
-
-| Step | Calculation        | Result                          |
-| ---- | ------------------ | ------------------------------- |
-| 1    | Daily changes `Δy` | `1, 2, −1, 3, −1, 4, −1, 4, −1` |
-| 2    | Average change `μ` | `1.1111`                        |
-| 3    | AR coefficient `φ` | `−0.8832`                       |
-| 4    | MA coefficient `θ` | `−0.1366`                       |
-| 5    | Typical error `σ`  | `0.7659`                        |
-
-**Projecting day 1.** Yesterday's change was `−1`, so the model expects the move
-to partly reverse, damped by `φ`. The last residual was `0.4403`:
-
-```
-Δŷ = μ + φ·(Δy − μ) + θ·ε
-   = 1.1111 + (−0.8832)(−1 − 1.1111) + (−0.1366)(0.4403)
-   = 1.1111 + 1.8645 − 0.0601
-   = 2.9155
-
-ŷ    = 110 + 2.9157 = 112.92
-band = 1.96 × 0.7659 × √1 = 1.50
-```
-
-**Days 2 and 3** repeat the same step, each one using the previous _forecast_
-as the new "yesterday", and with the shock term now zero. Every fitted value is
-stored with the forecast in the `forecasts` table's `arima_params` column.
-
-| Day | Predicted | Range (95%)       | Width |
-| --- | --------: | ----------------- | ----: |
-| 1   |   ₱112.92 | ₱111.41 – ₱114.42 |  3.01 |
-| 2   |   ₱112.43 | ₱110.31 – ₱114.56 |  4.25 |
-| 3   |   ₱114.95 | ₱112.35 – ₱117.55 |  5.20 |
-
-All three days carry the same trend label, `upward`: the last 7 real days
-average ₱106.71, and day 3 (₱114.95) is 7.7% above that — well outside the ±2%
-band. The range widens as expected too, in the ratio √1 : √2 : √3.
-
-> This example is pinned by a unit test
-> (`tests/Unit/ArimaServiceTest::test_it_reproduces_the_documented_worked_example`),
-> so the numbers above cannot silently drift away from the code.
-
----
+`tests/Fixtures/arima_mle_reference.json` contains independent statsmodels reference
+coefficients, likelihoods, forecasts and variances. To regenerate with NumPy, SciPy
+and statsmodels installed, run `python tests/Fixtures/generate_arima_reference.py`.
+Run `php artisan test --filter=ArimaServiceTest` to compare the PHP implementation.
+The public `/calculation` page shows the live ten-step worked computation.
 
 ### Viewing the output
 
@@ -646,16 +510,16 @@ Every value lives in `config/forecast.php`. The first four can be set in `.env`:
 | -------------------- | ----------------------------- | ------- | -------------------------------------------------------------- |
 | `horizon`            | `FORECAST_HORIZON`            | `3`     | How many days ahead are projected                              |
 | `min_history`        | `FORECAST_MIN_HISTORY`        | `7`     | Minimum recorded days before a series is forecast at all       |
-| `history_days`       | `FORECAST_HISTORY_DAYS`       | `90`    | Days of history used to **fit** the model                      |
+| `history_days`       | `FORECAST_HISTORY_DAYS`       | `30`    | Days of history used to **fit** the model                      |
 | `history_chart_days` | `FORECAST_HISTORY_CHART_DAYS` | `30`    | Days of history **displayed** on the chart behind the forecast |
 | `order`              | —                             | `1,1,1` | The ARIMA order                                                |
 | `z`                  | —                             | `1.96`  | Range width — `1.96` gives 95%                                 |
 | `trend_threshold`    | —                             | `0.02`  | The ±2% band used for the trend label                          |
 | `trend_baseline_days`| —                             | `7`     | Real days averaged as the trend label's baseline               |
 
-Note that the **fit window (90 days)** and the **chart window (30 days)** are
-deliberately different: the model uses everything available, while the chart
-shows only the recent past so the projection stays readable.
+The **fit window (30 days)** and the **chart window (30 days)** have separate
+settings but share the thesis’s default length. Training uses the latest consecutive
+recorded segment; the chart may show filled dates, clearly excluded from fitting.
 
 ### Hostinger: the scheduler does not run by itself
 

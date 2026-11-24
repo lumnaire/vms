@@ -36,7 +36,8 @@ return [
     |
     */
 
-    'history_days' => (int) env('FORECAST_HISTORY_DAYS', 90),
+    // Chapters 1–3 of thesis_chpt1_3.pdf specify a rolling 30-day window.
+    'history_days' => (int) env('FORECAST_HISTORY_DAYS', 30),
 
     /*
     |--------------------------------------------------------------------------

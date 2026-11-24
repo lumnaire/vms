@@ -25,8 +25,8 @@ class CalculationGuideTest extends TestCase
             ->assertSee('MAPE')
             ->assertSee('Step 8')
             ->assertSee('maximum-likelihood')
-            ->assertViewHas('trace', fn ($trace) => $trace['projections'][0]['value'] === 112.92
-                && $trace['projections'][2]['value'] === 114.95
+            ->assertViewHas('trace', fn ($trace) => $trace['projections'][0]['value'] === 113.41
+                && $trace['projections'][2]['value'] === 115.79
                 && $trace['trend'] === 'upward');
     }
 
@@ -48,9 +48,9 @@ class CalculationGuideTest extends TestCase
     public function test_the_method_section_shows_all_ten_worked_computations_without_expanding_details(): void
     {
         $response = $this->get('/calculation')->assertOk()
-            ->assertViewHas('methodExample', fn ($sample) => $sample['projections'][0]['value'] === 325.83
-                && $sample['projections'][1]['value'] === 324.87
-                && $sample['projections'][2]['value'] === 329.9);
+            ->assertViewHas('methodExample', fn ($sample) => $sample['projections'][0]['value'] === 326.81
+                && $sample['projections'][1]['value'] === 325.25
+                && $sample['projections'][2]['value'] === 331.59);
 
         $document = new \DOMDocument;
         $previous = libxml_use_internal_errors(true);
@@ -64,10 +64,10 @@ class CalculationGuideTest extends TestCase
         $this->assertSame(0, $xpath->query('ancestor::details', $sample)->length);
         $this->assertSame(10, $xpath->query('.//h3[starts-with(normalize-space(.), "Step ")]', $sample)->length);
         $text = preg_replace('/\s+/u', ' ', $sample->textContent);
-        foreach (['302.00 − 300.00 = 2.000000', '-137.382716 ÷ 155.555556',
-            '18.772476 ÷ (9 − 1)', '3.002423', '313.428571',
-            '(325.83 + 324.87 + 329.90) ÷ 3', '₱326.87/kg',
-            '₱324.87/kg on Day 2', '₱329.90/kg on Day 3'] as $calculation) {
+        foreach (['302.00 − 300.00 = 2.000000', '-0.942699',
+            '16.783136 / 9', '1.365574', '313.428571',
+            '(326.81 + 325.25 + 331.59) ÷ 3', '₱327.88/kg',
+            '₱325.25/kg on Day 2', '₱331.59/kg on Day 3'] as $calculation) {
             $this->assertStringContainsString($calculation, $text);
         }
     }
@@ -78,7 +78,7 @@ class CalculationGuideTest extends TestCase
             ->assertViewHas('metric', 'supply')
             ->assertViewHas('trace', fn ($trace) => $trace['projections'][0]['value'] === 0.0)
             ->assertViewHas('methodExample', fn ($sample) => $sample['observations'][0] === 300
-                && $sample['projections'][0]['value'] === 325.83)
+                && $sample['projections'][0]['value'] === 326.81)
             ->assertSee('Sample computation: Pusit')
             ->assertSee('illustrative daily average prices in ₱/kg');
     }
@@ -88,9 +88,9 @@ class CalculationGuideTest extends TestCase
         $this->get('/calculation?'.http_build_query([
             'metric' => 'supply', 'series' => "100, 101; 103\n102 105 104 108 107 111 110",
         ]))->assertOk()->assertViewHas('custom', true)
-            ->assertViewHas('trace', fn ($trace) => $trace['projections'][0]['value'] === 112.92
-                && round($trace['phi_fit']['coefficient'], 4) === -0.8832
-                && round($trace['theta_fit']['coefficient'], 4) === -0.1366);
+            ->assertViewHas('trace', fn ($trace) => $trace['projections'][0]['value'] === 113.41
+                && round($trace['phi_fit']['coefficient'], 4) === -0.9427
+                && round($trace['theta_fit']['coefficient'], 4) === 0.1149);
     }
 
     public function test_invalid_input_gets_a_readable_error_and_never_an_invalid_calculation(): void
