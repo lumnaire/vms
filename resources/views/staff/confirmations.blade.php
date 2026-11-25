@@ -171,7 +171,7 @@
 
                         <div class="rounded-lg px-3 py-2.5 bg-surface-subtle border border-slate-200">
                             <p class="text-slate-400 text-[10px] font-semibold uppercase" style="letter-spacing: 0.06em">Fish Type</p>
-                            <p class="text-slate-700 font-semibold mt-0.5 text-[13px]">{{ $entry->fishType->name }}</p>
+                            <p class="text-slate-700 font-semibold mt-0.5 text-[13px]">{{ $entry->fishType->display_name }}</p>
                         </div>
 
                         <div class="rounded-lg px-3 py-2.5 bg-surface-subtle border border-slate-200">
@@ -217,7 +217,7 @@
                     <div class="mt-3 rounded-lg px-3 py-2.5 bg-warning-50 border border-warning-200">
                         <p class="flex items-center gap-1.5 text-[11px] font-semibold text-warning-800">
                             <x-icon name="bi-layers-fill" size="xs" />
-                            {{ $entry->batchLabel() }} of {{ $entry->fishType->name }} ({{ $entry->quality_class }}) &mdash; this vendor's other batches today:
+                            {{ $entry->batchLabel() }} of {{ $entry->fishType->display_name }} ({{ $entry->quality_class }}) &mdash; this vendor's other batches today:
                         </p>
                         <ul class="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
                             @foreach($siblings as $sibling)
@@ -287,7 +287,7 @@
                             onclick="openConfirmModal(this)"
                             data-action="approve"
                             data-url="{{ route('staff.confirmations.approve', $entry) }}"
-                            data-fish="{{ $entry->fishType->name }}"
+                            data-fish="{{ $entry->fishType->display_name }}"
                             data-quality="{{ $entry->quality_class }}"
                             data-batch="{{ $entry->batchLabel() }}"
                             data-price="{{ number_format($entry->price_per_kg, 2) }}"
@@ -307,7 +307,7 @@
                             onclick="openConfirmModal(this)"
                             data-action="reject"
                             data-url="{{ route('staff.confirmations.reject', $entry) }}"
-                            data-fish="{{ $entry->fishType->name }}"
+                            data-fish="{{ $entry->fishType->display_name }}"
                             data-quality="{{ $entry->quality_class }}"
                             data-batch="{{ $entry->batchLabel() }}"
                             data-price="{{ number_format($entry->price_per_kg, 2) }}"

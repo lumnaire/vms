@@ -81,8 +81,12 @@ Route::middleware(['auth', 'role:supervisor'])
         Route::get('/forecasts', [ForecastController::class, 'index'])->name('forecasts.index');
         Route::get('/reports', [ReportController::class,   'index'])->name('reports.index');
         Route::get('/reports/pdf', [ReportController::class, 'pdf'])->name('reports.pdf');
-        // Daily history (supply, sales, prices vs tariff) as CSV, for reports and model retraining.
-        Route::get('/reports/history.csv', [ReportController::class, 'history'])->name('reports.history');
+        // Read-only daily market history.
+        Route::get('/reports/history', [ReportController::class, 'history'])
+            ->withoutMiddleware(\App\Http\Middleware\ExpireOldBatches::class)
+            ->name('reports.history');
+        Route::get('/reports/history.csv', fn (\Illuminate\Http\Request $request) => redirect()->route('supervisor.reports.history', $request->only(['from', 'to'])))
+            ->withoutMiddleware(\App\Http\Middleware\ExpireOldBatches::class);
 
         // ── My Account ─────────────────────────────────────────────
         Route::get('/account', [AccountController::class, 'edit'])->name('account.edit');

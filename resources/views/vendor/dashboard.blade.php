@@ -216,7 +216,7 @@
                     @foreach($todayInventory as $item)
                     <tr class="hover:bg-slate-50 transition-colors">
                         <td class="px-5 py-3 text-slate-700 font-medium text-[12.5px]">
-                            {{ $item->fishType->name ?? '—' }}
+                            {{ $item->fishType->display_name ?? '—' }}
                             <span class="block text-[11px] text-slate-400 font-normal">{{ $item->batchLabel() }}</span>
                         </td>
                         <td class="px-5 py-3 text-slate-500 text-[12px]">

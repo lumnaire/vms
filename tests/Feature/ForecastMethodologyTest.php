@@ -230,8 +230,8 @@ class ForecastMethodologyTest extends TestCase
 
         $this->actingAs(User::factory()->create(['role' => 'supervisor']))
             ->get('/supervisor/forecasts?fish_type_id='.$fish->id)->assertOk()
-            ->assertSee('History through Nov 17, 2026.')
-            ->assertSee('first displayed forecast is 8 days');
+            ->assertDontSee('History through')
+            ->assertDontSee('first displayed forecast is');
     }
 
     public function test_old_history_outside_the_thirty_day_window_is_still_excluded(): void

@@ -12,7 +12,7 @@ use App\Services\FishEntranceReport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Illuminate\View\View;
 
 class ReportController extends Controller
 {
@@ -131,21 +131,16 @@ class ReportController extends Controller
         ));
     }
 
-    /**
-     * Daily market history as CSV, one row per day, fish and quality class:
-     * supply, sales, pull-outs, prices against the tariff. Built from every
-     * confirmed batch kept in the database, for reports and for retraining the
-     * forecast model outside the system.
-     */
-    public function history(Request $request): StreamedResponse
+    /** Read-only daily market history, grouped by fish and quality class. */
+    public function history(Request $request): View
     {
+        $from = $request->input('from') ?: today()->subYear()->toDateString();
+        $to = $request->input('to') ?: today()->toDateString();
+        $request->merge(['from' => $from, 'to' => $to]);
         $request->validate([
-            'from' => ['nullable', 'date'],
-            'to' => ['nullable', 'date', 'after_or_equal:from'],
+            'from' => ['required', 'date_format:Y-m-d'],
+            'to' => ['required', 'date_format:Y-m-d', 'after_or_equal:from'],
         ]);
-
-        $from = $request->input('from', today()->subYear()->toDateString());
-        $to = $request->input('to', today()->toDateString());
 
         $rows = DB::table('vendor_inventories as v')
             ->join('fish_types as f', 'f.id', '=', 'v.fish_type_id')
@@ -158,25 +153,11 @@ class ReportController extends Controller
                 .'AVG(v.price_per_kg) AS avg_price, MIN(v.price_per_kg) AS min_price, MAX(v.price_per_kg) AS max_price, '
                 .'AVG(v.tariff_price) AS tariff, SUM(v.sold_kg * v.price_per_kg) AS sales_value')
             ->groupByRaw('DATE(v.entry_date), f.name, f.english_name, v.quality_class')
-            ->orderBy('day')
+            ->orderByDesc('day')
             ->orderBy('fish')
-            ->get();
+            ->paginate(25)
+            ->withQueryString();
 
-        return response()->streamDownload(function () use ($rows) {
-            $out = fopen('php://output', 'w');
-            fputcsv($out, ['date', 'fish', 'english_name', 'quality_class', 'batches', 'vendors', 'supply_kg', 'sold_kg',
-                'pulled_out_kg', 'avg_price', 'min_price', 'max_price', 'tariff', 'avg_markup', 'sales_value']);
-            foreach ($rows as $r) {
-                fputcsv($out, [
-                    $r->day, $r->fish, $r->english, $r->quality_class, $r->batches, $r->vendors,
-                    round((float) $r->supply_kg, 2), round((float) $r->sold_kg, 2), round((float) $r->pulled_out_kg, 2),
-                    round((float) $r->avg_price, 2), round((float) $r->min_price, 2), round((float) $r->max_price, 2),
-                    $r->tariff === null ? '' : round((float) $r->tariff, 2),
-                    $r->tariff === null ? '' : round((float) $r->avg_price - (float) $r->tariff, 2),
-                    round((float) $r->sales_value, 2),
-                ]);
-            }
-            fclose($out);
-        }, "market-history-{$from}-to-{$to}.csv", ['Content-Type' => 'text/csv']);
+        return view('supervisor.report-history', compact('rows', 'from', 'to'));
     }
 }

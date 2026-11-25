@@ -78,14 +78,14 @@
                             $tariffVal = old("tariffs.{$fish->id}", $tariff ? number_format((float) $tariff->tariff_price, 2, '.', '') : '');
                             $englishVal = old("english.{$fish->id}", $fish->english_name);
                         @endphp
-                        <tr class="tariff-row" data-search="{{ strtolower($fish->name . ' ' . $fish->english_name) }}">
-                            <td class="vpm-cell-strong">{{ $fish->name }}</td>
+                        <tr class="tariff-row" data-search="{{ strtolower($fish->display_name . ' ' . $fish->english_name) }}">
+                            <td class="vpm-cell-strong">{{ $fish->display_name }}</td>
 
                             <td>
                                 @if($editable)
                                     <input type="text" form="tariffForm" name="english[{{ $fish->id }}]" value="{{ $englishVal }}"
                                            data-original="{{ $fish->english_name }}" maxlength="100"
-                                           placeholder="e.g. Milkfish" aria-label="English name of {{ $fish->name }}"
+                                           placeholder="e.g. Milkfish" aria-label="English name of {{ $fish->display_name }}"
                                            class="vpm-input tariff-input tariff-input-text {{ $errors->has("english.{$fish->id}") ? 'is-invalid' : '' }}">
                                 @else
                                     <span class="{{ $fish->english_name ? 'text-slate-600' : 'text-slate-300' }}">{{ $fish->english_name ?: '—' }}</span>
@@ -97,7 +97,7 @@
                                     <input type="number" form="tariffForm" name="tariffs[{{ $fish->id }}]" value="{{ $tariffVal }}"
                                            data-original="{{ $tariff ? number_format((float) $tariff->tariff_price, 2, '.', '') : '' }}"
                                            step="0.01" min="0.01" max="99999.99" inputmode="decimal"
-                                           placeholder="Not set" aria-label="Tariff of {{ $fish->name }} per kilo"
+                                           placeholder="Not set" aria-label="Tariff of {{ $fish->display_name }} per kilo"
                                            class="vpm-input vpm-num tariff-input tariff-input-price {{ $errors->has("tariffs.{$fish->id}") ? 'is-invalid' : '' }}">
                                     @error("tariffs.{$fish->id}")
                                         <p class="text-rose-600 text-[10.5px] mt-1">{{ $message }}</p>
@@ -152,7 +152,7 @@
                                 @if($fish->tariffHistory->isNotEmpty())
                                     <button type="button" class="vpm-btn vpm-btn-ghost vpm-btn-sm"
                                             onclick="openTariffHistory({{ $fish->id }})"
-                                            title="Tariff history of {{ $fish->name }}">
+                                            title="Tariff history of {{ $fish->display_name }}">
                                         <x-icon name="bi-clock-history" size="xs" /> {{ $fish->tariffHistory->count() }}
                                     </button>
                                 @else
@@ -162,12 +162,12 @@
 
                             @if($editable)
                                 <td class="vpm-td-center whitespace-nowrap">
-                                    <button type="button" class="vpm-icon-btn" title="Edit {{ $fish->name }}" aria-label="Edit {{ $fish->name }}"
+                                    <button type="button" class="vpm-icon-btn" title="Edit {{ $fish->display_name }}" aria-label="Edit {{ $fish->display_name }}"
                                             onclick="openFishModal('edit', @js(['id' => $fish->id, 'name' => $fish->name, 'english_name' => $fish->english_name, 'quality_class' => $fish->quality_class, 'url' => route('supervisor.price-guides.fish.update', $fish)]))">
                                         <x-icon name="bi-pencil" size="xs" />
                                     </button>
-                                    <button type="button" class="vpm-icon-btn vpm-icon-btn-danger" title="Remove {{ $fish->name }}" aria-label="Remove {{ $fish->name }}"
-                                            onclick="openRemoveFish(@js(['name' => $fish->name, 'url' => route('supervisor.price-guides.fish.destroy', $fish), 'has_history' => $fish->vendor_inventories_count > 0]))">
+                                    <button type="button" class="vpm-icon-btn vpm-icon-btn-danger" title="Remove {{ $fish->display_name }}" aria-label="Remove {{ $fish->display_name }}"
+                                            onclick="openRemoveFish(@js(['name' => $fish->display_name, 'url' => route('supervisor.price-guides.fish.destroy', $fish), 'has_history' => $fish->vendor_inventories_count > 0]))">
                                         <x-icon name="bi-trash" size="xs" />
                                     </button>
                                 </td>
@@ -223,7 +223,7 @@
 
 @php
     $tariffHistoryPayload = $groups->flatten(1)->mapWithKeys(fn($f) => [$f->id => [
-        'name' => $f->name,
+        'name' => $f->display_name,
         'rows' => $f->tariffHistory->map(fn($g) => [
             'date' => $g->effective_date->format('M j, Y'),
             'price' => (float) $g->tariff_price,

@@ -195,7 +195,7 @@
             <div class="flex items-center justify-between gap-2"><p class="vpm-stat-label">Highest fish price</p><x-badge variant="warning">All-time high</x-badge></div>
             @if($hp)
                 <p class="vpm-stat-value vpm-num">₱{{ number_format((float) $hp->price_per_kg, 2) }} <span class="vpm-stat-value-unit">/kg</span></p>
-                <p class="vpm-stat-foot">{{ $hp->fishType?->name }} · Stall {{ $hp->vendor?->vendorProfile?->stall_number ?? '—' }} · {{ $hp->entry_date->format('M j, Y') }}</p>
+                <p class="vpm-stat-foot">{{ $hp->fishType?->display_name }} · Stall {{ $hp->vendor?->vendorProfile?->stall_number ?? '—' }} · {{ $hp->entry_date->format('M j, Y') }}</p>
             @else
                 <p class="vpm-stat-value text-slate-300">—</p>
             @endif
@@ -204,7 +204,7 @@
             <div class="flex items-center justify-between gap-2"><p class="vpm-stat-label">Largest markup</p><x-badge variant="warning">All-time high</x-badge></div>
             @if($hm)
                 <p class="vpm-stat-value vpm-num">+₱{{ number_format($hm->markupPerKg(), 2) }} <span class="vpm-stat-value-unit">/kg</span></p>
-                <p class="vpm-stat-foot">{{ $hm->fishType?->name }} · Stall {{ $hm->vendor?->vendorProfile?->stall_number ?? '—' }} · {{ $hm->entry_date->format('M j, Y') }}</p>
+                <p class="vpm-stat-foot">{{ $hm->fishType?->display_name }} · Stall {{ $hm->vendor?->vendorProfile?->stall_number ?? '—' }} · {{ $hm->entry_date->format('M j, Y') }}</p>
             @else
                 <p class="vpm-stat-value text-slate-300">—</p>
                 <p class="vpm-stat-foot">Appears once tariffs are set</p>

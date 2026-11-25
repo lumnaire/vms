@@ -203,7 +203,7 @@
                         </div>
                         <div class="flex-1 min-w-0">
                             <p class="text-slate-700 font-medium truncate text-[12px]">
-                                {{ $entry->fishType->name ?? '—' }}
+                                {{ $entry->fishType->display_name ?? '—' }}
                                 <span class="text-slate-400 font-normal">&bull; {{ $entry->quality_class }} &bull; {{ $entry->batchLabel() }}</span>
                             </p>
                             <p class="text-slate-400 mt-0.5 text-[10.5px]">
@@ -256,7 +256,7 @@
                         <div class="flex items-start justify-between gap-3 mb-2">
                             <div class="min-w-0">
                                 <p class="text-slate-700 font-semibold text-[12.5px] truncate">
-                                    {{ $group['fish']?->name ?? '—' }}
+                                    {{ $group['fish']?->display_name ?? '—' }}
                                     <span class="text-slate-400 font-normal">&bull; {{ $group['quality_class'] }}</span>
                                 </p>
                                 <p class="text-slate-400 text-[10.5px]">

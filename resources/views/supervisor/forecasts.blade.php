@@ -25,6 +25,16 @@
     .fc-table tbody tr:last-child { border-bottom:none; }
 
     #forecastChart { display:block; }
+    .forecast-comparison-header { display:flex; flex-direction:column; gap:1rem; }
+    .forecast-accuracy { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:.5rem; width:100%; }
+    .forecast-accuracy .vpm-badge { min-width:0; white-space:normal; overflow-wrap:anywhere; justify-content:center; text-align:center; line-height:1.6; }
+    @media (min-width:1024px) {
+        .forecast-comparison-header { flex-direction:row; align-items:center; }
+        .forecast-accuracy { width:auto; max-width:60%; }
+    }
+    @media (max-width:639px) {
+        .forecast-accuracy { grid-template-columns:1fr; }
+    }
 </style>
 @endpush
 
@@ -34,7 +44,7 @@
     /* ── Resolved names & flags ──────────────────────────────── */
     $metricMeta   = config("forecast.metric_meta.{$selectedMetric}");
     $selectedFishType = $fishTypes->firstWhere('id', $selectedFishTypeId);
-    $fishTypeName     = $selectedFishType?->name ?? 'Unknown';
+    $fishTypeName     = $selectedFishType?->display_name ?? 'Unknown';
     $isMetricPrice    = $selectedMetric === 'price';
     $metricShort      = $metricMeta['short'] ?? ucfirst($selectedMetric);
     $metricChartTitle = $metricMeta['chart'] ?? 'Forecast';
@@ -122,7 +132,7 @@
                 <option value="{{ $ft->id }}"
                         data-quality-class="{{ $ft->quality_class }}"
                         {{ $selectedFishTypeId == $ft->id ? 'selected' : '' }}>
-                    {{ $ft->name }}{{ $ft->forecast_label === '' ? '' : ' · '.$ft->forecast_label }}
+                    {{ $ft->display_name }}{{ $ft->forecast_label === '' ? '' : ' · '.$ft->forecast_label }}
                 </option>
             @endforeach
         </select>
@@ -182,22 +192,6 @@
 
 </div>
 </form>
-
-@if(str_starts_with($fishTypeName, '[DEMO] '))
-    <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 mb-5 text-sm text-amber-900">
-        <strong>Synthetic panel demonstration.</strong>
-        Prices and supply for this fish are mock observations. Historical forecast comparisons are retrospective simulations.
-        These scores demonstrate the software on synthetic data; they do not establish accuracy or deployment readiness for the real market.
-    </div>
-@endif
-
-@if($hasForecasts && ($arimaParams['unobserved_days'] ?? 1) > 1)
-    <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 mb-5 text-sm text-amber-900">
-        <strong>History through {{ \Illuminate\Support\Carbon::parse($arimaParams['training_end'])->format('M j, Y') }}.</strong>
-        The first displayed forecast is {{ $arimaParams['model_step'] }} days beyond that observation.
-        Its prediction interval accounts for the full forecast lead. Confirm newer daily entries to refresh the training history.
-    </div>
-@endif
 
 {{-- ═══════════════════════════════════════════════════════════════
      SUMMARY STAT CARDS
@@ -702,7 +696,7 @@
 ═══════════════════════════════════════════════════════════════════ --}}
 @if($pastPredictions->isNotEmpty())
 <div class="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-card mt-5">
-    <div class="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center gap-3">
+    <div class="px-5 py-4 border-b border-slate-100 forecast-comparison-header">
         <div class="flex-1 min-w-0">
             <h2 class="text-slate-700 font-bold text-[14px]">Past Forecasts vs Actual</h2>
             <p class="text-slate-400 mt-0.5 text-[11px]">
@@ -710,6 +704,7 @@
                 Earlier runs from the current model are used for evaluation.
             </p>
         </div>
+        <div class="forecast-accuracy" aria-label="Forecast error metrics">
         @if($accuracy['mape'] !== null)
             <span class="vpm-badge vpm-badge-info flex-shrink-0">
                 MAPE {{ number_format($accuracy['mape'], 1) }}% · {{ $accuracy['mape_days'] }} {{ Str::plural('day', $accuracy['mape_days']) }}
@@ -719,6 +714,7 @@
             <span class="vpm-badge vpm-badge-info">RMSE {{ number_format($accuracy['rmse'], 2) }} {{ $metricUnit }} · {{ $accuracy['days'] }} {{ Str::plural('day', $accuracy['days']) }}</span>
             <span class="vpm-badge vpm-badge-info">MAE {{ number_format($accuracy['mae'], 2) }} {{ $metricUnit }}</span>
         @endif
+        </div>
     </div>
     <div class="overflow-x-auto" style="max-height:320px">
         <table class="vpm-table">

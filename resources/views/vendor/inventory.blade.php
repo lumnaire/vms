@@ -203,7 +203,7 @@
                                 <option value="{{ $fish->id }}"
                                     data-quality-class="{{ $fish->quality_class }}"
                                     @selected($formOld('fish_type_id') == $fish->id)>
-                                    {{ $fish->name }}
+                                    {{ $fish->display_name }}
                                 </option>
                             @endforeach
                         </select>

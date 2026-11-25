@@ -9,7 +9,7 @@
     $closed    = $closed ?? false;
     $state     = $entry->getStockState();
     $remaining = $entry->getRemainingStock();
-    $label     = ($entry->fishType?->name ?? 'Fish') . ' · ' . $entry->batchLabel();
+    $label     = ($entry->fishType?->display_name ?? 'Fish') . ' · ' . $entry->batchLabel();
 
     $stateText = [
         'pending'     => ['bi-clock', 'Pending'],
@@ -30,7 +30,7 @@
                 <x-icon name="bi-water" size="sm" class="text-blue-500" />
             </div>
             <div class="min-w-0">
-                <p class="text-slate-700 font-semibold text-[13px] truncate">{{ $entry->fishType?->name ?? 'Unknown' }}</p>
+                <p class="text-slate-700 font-semibold text-[13px] truncate">{{ $entry->fishType?->display_name ?? 'Unknown' }}</p>
                 <p class="text-slate-400 text-[11px]">
                     {{ $entry->batchLabel() }} &middot;
                     {{ $entry->entry_date->isToday() ? 'Today' : $entry->entry_date->format('M j') }}

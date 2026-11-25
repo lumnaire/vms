@@ -26,7 +26,7 @@
     </x-filter-field>
     <button type="submit" class="btn-filter">Filter</button>
     <a class="btn-pdf" href="{{ route('supervisor.reports.pdf', $entranceReport->parameters()) }}">Generate PDF</a>
-    <a class="btn-filter" href="{{ route('supervisor.reports.history') }}">History (CSV)</a>
+    <a class="btn-filter" href="{{ route('supervisor.reports.history') }}">History</a>
 </form>
 
 <div class="report-card" style="margin-bottom:1.5rem; overflow:hidden">

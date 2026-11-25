@@ -51,7 +51,7 @@
         <select name="fish_type_id" id="pg-fish-type" class="vpm-filter-select" onchange="this.form.submit()">
             <option value="">All</option>
             @foreach($categoryFishTypes as $ft)
-                <option value="{{ $ft->id }}" {{ (int) $selectedFishType === (int) $ft->id ? 'selected' : '' }}>{{ $ft->name }}</option>
+                <option value="{{ $ft->id }}" {{ (int) $selectedFishType === (int) $ft->id ? 'selected' : '' }}>{{ $ft->display_name }}</option>
             @endforeach
         </select>
     </x-filter-field>

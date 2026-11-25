@@ -62,7 +62,7 @@ class DashboardController extends Controller
                 $live = $board->get($key);
 
                 return [
-                    'fish' => $batches->first()->fishType?->name ?? '—',
+                    'fish' => $batches->first()->fishType?->display_name ?? '—',
                     'quality_class' => $batches->first()->quality_class,
                     'price' => $price,
                     'comparison' => PriceGuide::compare($price, $tariffs[$key] ?? null),

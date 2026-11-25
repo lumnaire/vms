@@ -115,7 +115,7 @@ class PriceboardController extends Controller
 
         return [
             'key' => $key,
-            'fish_name' => $first->fishType?->name ?? '—',
+            'fish_name' => $first->fishType?->display_name ?? '—',
             'english_name' => $first->fishType?->english_name,
             'quality_class' => $first->quality_class,
             'min_price' => $prices->min(),

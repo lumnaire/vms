@@ -153,7 +153,7 @@ class SupplyReport
                 $kg = (float) $group->sum('stock_kg');
 
                 return [
-                    'fish' => $group->first()->fishType?->name ?? 'Unknown',
+                    'fish' => $group->first()->fishType?->display_name ?? 'Unknown',
                     'quality_class' => $group->first()->quality_class,
                     'batches' => $group->count(),
                     'vendors' => $group->pluck('vendor_id')->unique()->count(),
@@ -175,7 +175,7 @@ class SupplyReport
             'when' => $r->created_at->format($this->period === 'daily' ? 'g:i A' : 'M j, g:i A'),
             'vendor' => $r->vendor?->name ?? 'Unknown vendor',
             'stall' => $r->vendor?->vendorProfile?->stall_number,
-            'fish' => $r->batch?->fishType?->name ?? 'Unknown',
+            'fish' => $r->batch?->fishType?->display_name ?? 'Unknown',
             'quality_class' => $r->batch?->quality_class,
             'batch' => $r->batch?->batchLabel(),
             'kg' => round((float) $r->kg, 2),

@@ -29,6 +29,17 @@ class FishType extends Model
         'is_active' => 'boolean',
     ];
 
+    /** Presentation label; keep the stored name for seeder identity and catalogue edits. */
+    public function getDisplayNameAttribute(): string
+    {
+        return self::displayName($this->name);
+    }
+
+    public static function displayName(?string $name): string
+    {
+        return preg_replace('/^\[DEMO\]\s*/i', '', (string) $name);
+    }
+
     public function priceGuides()
     {
         return $this->hasMany(PriceGuide::class);

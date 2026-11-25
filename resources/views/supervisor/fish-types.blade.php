@@ -238,7 +238,7 @@
                             <td class="px-5 py-3 text-slate-400 font-medium text-[13px]">{{ $index + 1 }}</td>
                             <td class="px-4 py-3">
                                 <span class="font-semibold text-[13.5px] text-slate-700">
-                                    {{ $ft->name }}
+                                    {{ $ft->display_name }}
                                 </span>
                                 @unless ($ft->is_active)
                                     <x-badge variant="neutral" class="ml-1"

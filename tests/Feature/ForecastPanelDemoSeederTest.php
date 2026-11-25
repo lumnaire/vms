@@ -85,7 +85,7 @@ class ForecastPanelDemoSeederTest extends TestCase
 
         $response = $this->actingAs(User::factory()->create(['role' => 'supervisor']))
             ->get('/supervisor/forecasts?fish_type_id='.$demo->id.'&quality_class=Special+Class&metric=price')->assertOk();
-        $response->assertSee('Synthetic panel demonstration.')->assertSee('retrospective simulations.');
+        $response->assertDontSee('[DEMO]')->assertDontSee('Synthetic panel demonstration.')->assertDontSee('History through')->assertSee('Hipon');
         $this->assertSame(7, $response->viewData('accuracy')['days']);
         $this->assertNotNull($response->viewData('accuracy')['rmse']);
         $this->assertNotNull($response->viewData('accuracy')['mape']);
